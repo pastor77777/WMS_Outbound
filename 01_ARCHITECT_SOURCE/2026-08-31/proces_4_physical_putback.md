@@ -146,7 +146,7 @@ sequenceDiagram
 
 | Warunek | Zachowanie | Skutek |
 |---|---|---|
-| Anulowanie `OutboundOrderLine PACKED` po wejściu powiązanego `Shipment` w `POSTING_PENDING` | **Niedozwolone** w ramach tego procesu | Jedyna ścieżka: zwrot towaru po wydaniu (Return Receipt, poza zakresem tego dokumentu) (**R2**) |
+| Anulowanie `OutboundOrderLine PACKED` po wejściu powiązanego `Shipment` w `POSTING_PENDING` | **Niedozwolone** w ramach tego procesu | Jedyna ścieżka: zwrot towaru po wydaniu (Return Receipt), poza zakresem tego dokumentu (**R2**) |
 | Brak zwalidowanej lokalizacji przy odkładaniu (**KROK 4**) | Pętla `IN_PROGRESS → LOCATION_VALIDATION → IN_PROGRESS`, bez limitu prób ani automatycznej eskalacji; rekomendacja Systemu WMS stale dostępna | Operator kontynuuje próby wskazania lokalizacji do skutku (**R7**) |
 | `pickedQty = 0` w momencie anulowania (**KROK 3**, Ścieżka B) | `PutBackTask` nie powstaje — nie ma nic do fizycznego zwrotu | Proces kończy się na aktualizacji statusów logicznych (**KROK 2**) |
 | Granica ogólna — po zamknięciu `CarrierManifest` | Anulowanie i put-back są niemożliwe | Zgodnie z granicą opisaną w PROCES 1 „Wyjątki i ścieżki alternatywne" (anulowanie ogólne) |

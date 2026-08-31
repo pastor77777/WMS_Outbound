@@ -1,0 +1,110 @@
+requirement_id,title,architect_source_ref,implementation_tasks,acceptance_tasks,scenario_ids
+FR-P1-01,Zerowe ATP i kolejka rezerwacji,P1 R1–P1 R2,P1-002,ACC-001;ACC-002;ACC-004,TC-001
+FR-P1-02,Przeliczanie kolejki ATP,P1 R3–P1 R4,P1-002,ACC-001;ACC-002;ACC-004,TC-001
+FR-P1-03,Pomijanie ON_HOLD i pełna rezerwacja,P1 R5–P1 R6,P1-002,ACC-001;ACC-002;ACC-004,TC-001;TC-002;TC-135
+FR-P1-04,Grupowanie zamówień,P1 R7–P1 R8,FND-001;P1-003,ACC-001;ACC-002;ACC-004,TC-001;TC-002;TC-003
+FR-P1-05,Atrybuty OutboundOrder i brak realokacji,P1 R9–P1 R10,P1-003;P1-004,ACC-001;ACC-002;ACC-004,TC-001;TC-003
+FR-P1-06,Transfer ATPReservation i ręczna korekta,P1 R11–P1 R12,P1-002;P1-004,ACC-001;ACC-002;ACC-004,TC-001;TC-002
+FR-P1-07,PickTask per strefa i kolejność,P1 R13–P1 R14,P1-005,ACC-001;ACC-002;ACC-004,TC-001;TC-004
+FR-P1-08,Limit TU i deklaracja direct pack,P1 R15–P1 R16,P1-006;P1-009,ACC-001;ACC-002;ACC-004,TC-001;TC-004
+FR-P1-09,Automatyczne direct pack i odstępstwo,P1 R17–P1 R18,P1-009,ACC-001;ACC-002;ACC-004,TC-001;TC-004;TC-005
+FR-P1-10,Kwalifikacja i zgodność pakowania,P1 R19–P1 R20,P1-010,ACC-001;ACC-002;ACC-004,TC-001;TC-005;TC-006
+FR-P1-11,Repack by SKU i potwierdzenie braku,P1 R21–P1 R22,P1-010,ACC-001;ACC-002;ACC-004,TC-001;TC-005;TC-006
+FR-P1-12,DAMAGED i SKU nieoczekiwane,P1 R23–P1 R24,P1-010,ACC-001;ACC-002;ACC-004,TC-001;TC-006
+FR-P1-13,Domknięcie przepakowania i grupowanie Shipment,P1 R25–P1 R26,P1-010;P1-011,ACC-001;ACC-002;ACC-004,TC-001;TC-006
+FR-P1-14,Agregacja PACKED i READY_FOR_DISPATCH,P1 R27–P1 R28,P1-011,ACC-001;ACC-002;ACC-004,TC-001;TC-007
+FR-P1-15,Spóźnione TU i start Carrier Selection,P1 R29–P1 R30,P1-011,ACC-001;ACC-002;ACC-004,TC-001;TC-007;TC-128
+FR-P1-16,CarrierSetup i tie-break,P1 R31–P1 R32,P1-012,ACC-001;ACC-002;ACC-004,TC-001;TC-007
+FR-P1-17,Ręczna zmiana carriera i etykieta WMS,P1 R33–P1 R34,P1-012;P1-013,ACC-001;ACC-002;ACC-004,TC-001;TC-007
+FR-P1-18,Problem załadunku i bramka ERP,P1 R35–P1 R36,P1-013;P1-014,ACC-001;ACC-002;ACC-004,TC-001;TC-007
+FR-P1-19,Retry ERP i granica anulowania,P1 R37–P1 R38,P1-014;P1-016,ACC-001;ACC-002;ACC-004,TC-001;TC-008
+FR-P1-20,Jeden manifest i nieodwracalne CLOSED,P1 R39–P1 R40,P1-015,ACC-001;ACC-002;ACC-004,TC-001;TC-008
+FR-P1-21,Zamknięcie CustomerOrder i SHORT_ALLOCATED false,P1 R41–P1 R42,P1-001;P1-007;P1-016,ACC-001;ACC-002;ACC-004,TC-001;TC-008
+FR-P1-22,Automatyczna obsługa niedoborów,P1 R43–P1 R44,P1-007,ACC-001;ACC-002;ACC-004,TC-001;TC-008
+FR-P1-23,Czekamy albo anulowanie po SHORT_PICKED,P1 R45–P1 R46,P1-007,ACC-001;ACC-002;ACC-004,TC-001;TC-008;TC-121
+FR-P1-24,Trwała zmiana i brak przy pakowaniu,P1 R47–P1 R48,P1-007,ACC-001;ACC-002;ACC-004,TC-001;TC-008
+FR-P1-25,ON_HOLD i anulowanie ogólne,P1 R49–P1 R50,P1-001;P1-016,ACC-001;ACC-002;ACC-004,TC-001;TC-003;TC-009
+FR-P1-26,Brak carriera i zapas ATP,P1 R51–P1 R52,P1-002;P1-012,ACC-001;ACC-002;ACC-004,TC-001;TC-003
+FR-P1-27,Ciągła agregacja CustomerOrder,P1 Funkcja ciągła F1,FND-002;P1-001;P1-016,ACC-001;ACC-002;ACC-004,TC-001;TC-009
+FR-P1-28,Tożsamość i unikalność TU_NUMBER,P1 R53,FND-003;P1-008,ACC-001;ACC-002;ACC-004,TC-010
+FR-P1-29,Przydział PickTask przez wybór modułu i strefy,"P1 R54, P1 R56",P1-005,ACC-001;ACC-002;ACC-004,TC-096;TC-097
+FR-P1-30,Kontynuacja zamówienia w kolejnej strefie,P1 R55,P1-005;P1-006,ACC-001;ACC-002;ACC-004,TC-098
+FR-P1-31,Wydanie całości przy zakazie wysyłki częściowej,P1 R57,P1-003;P1-011;P2-006,ACC-001;ACC-002;ACC-004,TC-104;TC-125
+FR-P1-32,Wstrzymanie wpięcia TU do Shipment,P1 R58,P1-011;P2-006,ACC-001;ACC-002;ACC-004,TC-105;TC-122;TC-123;TC-124;TC-125;TC-126
+FR-P1-33,Podział pozycji zamówienia klienta,P1 R59,FND-001;P1-003,ACC-001;ACC-002;ACC-004,TC-106
+FR-P1-34,Warunek wspólnego pakowania pozycji z różnych zleceń,P1 R60,P1-003;P1-011,ACC-001;ACC-002;ACC-004,TC-107
+FR-P1-35,Cykl życia flagi WARNING,P1 R61,P1-001,ACC-001;ACC-002;ACC-004,TC-108
+FR-P1-36,Strategia przypisania Picking TU,P1 R62,P1-006,ACC-001;ACC-002;ACC-004,TC-109
+FR-P1-37,Wyliczanie masy i objętości zawartości `TU`,P1 R63,P1-008,ACC-001;ACC-002;ACC-004,TC-110;TC-111
+FR-P1-38,Progi wydania Picking TU,P1 R64,P1-008,ACC-001;ACC-002;ACC-004,TC-114;TC-120
+FR-P1-39,Wymuszenie wydawalności przez operatora,P1 R65,P1-008,ACC-001;ACC-002;ACC-004,TC-115;TC-117;TC-120
+FR-P1-40,Wydawalny typ nośnika przy przepakowaniu,P1 R66,P1-008,ACC-001;ACC-002;ACC-004,TC-116
+FR-P1-41,Kontynuacja PickTask w kolejnej Picking TU,P1 R67,P1-006,ACC-001;ACC-002;ACC-004,TC-118
+FR-P1-42,Typ nośnika zewnętrznego,P1 R68,P1-008,ACC-001;ACC-002;ACC-004,TC-120
+FR-P1-43,Cykl życia requiredQty,P1 R69,FND-001;P1-003,ACC-001;ACC-002;ACC-004,TC-121
+FR-P1-44,Zakończenie OutboundOrder po wszystkich jego Shipment,P1 R70,FND-002;P1-015;P1-016,ACC-001;ACC-002;ACC-004,TC-128;TC-129
+FR-P1-45,Ilość zablokowana przez Allocation,P1 R71,FND-003;P1-004;P1-016,ACC-001;ACC-002;ACC-004,TC-130;TC-131
+FR-P1-46,Rozliczenie linii wydawanej wieloma Shipment,P1 R72,P1-015;P1-016,ACC-001;ACC-002;ACC-004,TC-132;TC-133
+FR-P2-01,Kolejka demand i dopasowanie 1:1,P2 R1–P2 R2,P2-001,ACC-001;ACC-003;ACC-004,TC-020
+FR-P2-02,Rozsortowanie n:n bez Allocation,P2 R3–P2 R4,P2-002;P2-003,ACC-001;ACC-003;ACC-004,TC-020;TC-021;TC-030
+FR-P2-03,Kanał CROSSDOCK i eligibleQty,P2 R5–P2 R6,FND-001;P2-001;P2-002,ACC-001;ACC-003;ACC-004,TC-020;TC-029;TC-036;TC-092;TC-134
+FR-P2-04,Numer docelowej TU i start rozsortowania,P2 R7–P2 R8,P2-002;P2-003,ACC-001;ACC-003;ACC-004,TC-020;TC-022;TC-032;TC-033;TC-034
+FR-P2-05,Blokada anulowania i zamknięcie docelowej TU,P2 R9–P2 R10,P2-003,ACC-001;ACC-003;ACC-004,TC-022;TC-023;TC-030;TC-037
+FR-P2-06,Potwierdzony brak i DAMAGED,P2 R11–P2 R12,P2-004,ACC-001;ACC-003;ACC-004,TC-023;TC-024;TC-025
+FR-P2-07,damagedQty i decyzja czekamy,P2 R13–P2 R14,P2-004,ACC-001;ACC-003;ACC-004,TC-023;TC-025
+FR-P2-08,Anulowanie niedoboru i poprawny stan źródłowy,P2 R15–P2 R16,P2-004,ACC-001;ACC-003;ACC-004,TC-023;TC-024;TC-121
+FR-P2-09,SKU nieoczekiwane i pusta TU,"P2 R17, P2 R18, P2 R37",P2-004,ACC-001;ACC-003;ACC-004,TC-025;TC-026;TC-039
+FR-P2-10,PutBack bez Allocation i kompletność zadania,P2 R19–P2 R20,P2-003;P2-004,ACC-001;ACC-003;ACC-004,TC-027;TC-035
+FR-P2-11,Resztka i agregacja damagedQty,P2 R21–P2 R22,P2-004,ACC-001;ACC-003;ACC-004,TC-025;TC-027;TC-081
+FR-P2-12,Niezależne rozliczenie i CROSS_DOCKED,P2 R23–P2 R24,FND-002;P2-003;P2-004,ACC-001;ACC-003;ACC-004,TC-021;TC-027
+FR-P2-13,Bramka GR dla Shipment,P2 R25–P2 R26,P2-005;P2-006,ACC-001;ACC-003;ACC-004,TC-028;TC-031
+FR-P2-14,Ponowna ewaluacja bramki GR i widoczność dla Supervisora,P2 R35–P2 R36,P2-005,ACC-001;ACC-003;ACC-004,TC-028;TC-038
+FR-P2-15,Finalizacja źródłowej TU,P2 R28,P2-004,ACC-001;ACC-003;ACC-004,TC-027
+FR-P2-16,Zamek ilościowy i jednorazowe generowanie zadania,P2 R29–P2 R30,P2-002,ACC-001;ACC-003;ACC-004,TC-029;TC-030;TC-092
+FR-P2-17,Korelacja i odrzucanie wyniku GR,P2 R31–P2 R32,P2-005,ACC-001;ACC-003;ACC-004,TC-030;TC-031
+FR-P2-18,Bramka wyznaczana per Shipment,P2 R33,P2-005;P2-006,ACC-001;ACC-003;ACC-004,TC-030
+FR-P2-19,Pusta docelowa TU po odzysku,P2 R34,P2-003;P2-004,ACC-001;ACC-003;ACC-004,TC-035
+FR-P2-21,Przydział CrossDockPickTask przez wybór modułu,P2 R39,P2-002;P2-003,ACC-001;ACC-003;ACC-004,TC-099
+FR-P2-22,Ciągłość celu aktywnego CrossDockPickTask,P2 R40,FND-003;P2-002;P2-003,ACC-001;ACC-003;ACC-004,TC-101
+FR-P2-23,Wyłącznie TU ELEMENTARY w cross-dockingu,P2 R41,P2-001,ACC-001;ACC-003;ACC-004,TC-102
+FR-P2-24,Zerowe dopasowanie przy IN_CROSS_DOCK,P2 R42,P2-001,ACC-001;ACC-003;ACC-004,TC-103
+FR-P2-25,Dziedziczenie priority i slaDeadline w cross-dockingu,P2 R43,FND-001;P2-001;P2-002;P2-006,ACC-001;ACC-003;ACC-004,TC-119
+FR-P3-01,Zwolnienie Allocation i Inventory,P3 R1–P3 R2,FND-002;P3-001,ACC-001;ACC-003;ACC-004,TC-040;TC-041
+FR-P3-02,Anulowanie linii przy niedoborze,P3 R3–P3 R4,P3-001,ACC-001;ACC-003;ACC-004,TC-040;TC-041
+FR-P3-03,Anulowanie ogólne i auto-release,P3 R5–P3 R6,P3-001,ACC-001;ACC-003;ACC-004,TC-040;TC-041
+FR-P3-04,Okno wyścigu i przekazanie do P4,P3 R7–P3 R8,P3-003,ACC-001;ACC-003;ACC-004,TC-042;TC-043
+FR-P3-05,Warianty polityki utrzymywania rezerwacji,P3 R9,P3-002,ACC-001;ACC-003;ACC-004,TC-112
+FR-P3-06,Niezależność czasu utrzymania rezerwacji,P3 R10,P3-002,ACC-001;ACC-003;ACC-004,TC-113
+FR-P4-01,Zgoda i granica POSTING_PENDING,P4 R1–P4 R2,P4-001,ACC-001;ACC-003;ACC-004,TC-050
+FR-P4-02,Natychmiastowy skutek logiczny,P4 R3–P4 R4,FND-002;P4-001,ACC-001;ACC-003;ACC-004,TC-050;TC-051;TC-053
+FR-P4-03,PutBackTask i walidacja lokalizacji,P4 R5–P4 R6,P4-002;P4-003,ACC-001;ACC-003;ACC-004,TC-050;TC-051;TC-052
+FR-P4-04,Pętla lokalizacji i odzysk Inventory,P4 R7–P4 R8,P4-003,ACC-001;ACC-003;ACC-004,TC-050;TC-051;TC-052
+FR-P4-05,Przydział PutBackTask przez wybór modułu,P4 R9,P4-002;P4-003,ACC-001;ACC-003;ACC-004,TC-100
+FR-P5-01,SHORT_ALLOCATED bez zgody na część,"P1 Wyjątki — `SHORT_ALLOCATED`, `allowPartialShipment = false`",P1-007,ACC-001;ACC-002;ACC-004,TC-060
+FR-P5-02,SHORT_ALLOCATED ze zgodą na część,"P1 Wyjątki — `SHORT_ALLOCATED`, `allowPartialShipment = true`",P1-007,ACC-001;ACC-002;ACC-004,TC-060
+FR-P5-03,Automatyczne ponowienie po SHORT_PICKED,P1 Wyjątki — `SHORT_PICKED`,P1-007,ACC-001;ACC-002;ACC-004,TC-061
+FR-P5-04,Wynik „czekamy” po SHORT_PICKED,"P1 Wyjątki — `SHORT_PICKED`, `allowPartialShipment = false`, wynik „czekamy”",P1-007,ACC-001;ACC-002;ACC-004,TC-062
+FR-P5-05,Wynik „anulowanie” po SHORT_PICKED,"P1 Wyjątki — `SHORT_PICKED`, `allowPartialShipment = false`, wynik „anulowanie”",P1-007,ACC-001;ACC-002;ACC-004,TC-062
+FR-P5-06,Trwała zgoda na część po SHORT_PICKED,P1 Wyjątki — trwała zmiana `allowPartialShipment`,P1-007,ACC-001;ACC-002;ACC-004,TC-062
+FR-P5-07,Rozbieżność podczas pakowania,P1 Wyjątki — brak lub uszkodzenie przy „repack by SKU”,P1-010,ACC-001;ACC-002;ACC-004,TC-063
+FR-P5-08,ON_HOLD,P1 Wyjątki — `CustomerOrder.ON_HOLD`,P1-001,ACC-001;ACC-002;ACC-004,TC-064
+FR-P5-09,Anulowanie ogólne,P1 Wyjątki — żądanie anulowania `CustomerOrder` lub `CustomerOrderLine`,P1-001;P1-016,ACC-001;ACC-002;ACC-004,TC-065
+FR-P5-10,Brak wyniku Carrier Selection,P1 Wyjątki — brak wyniku Carrier Selection,P1-012,ACC-001;ACC-002;ACC-004,TC-066
+FR-P5-11,Ograniczenie obsługi błędu etykiety,P1 Wyjątki — błąd etykiety lub odrzucenie przez przewoźnika,P1-013,ACC-001;ACC-002;ACC-004,TC-066
+FR-P5-12,Niedobór cross-dock bez zgody na część,"P2 Wyjątki — niedobór lub `DAMAGED`, `allowPartialShipment = false`",P2-004,ACC-001;ACC-003;ACC-004,TC-067
+FR-P5-13,Niedobór cross-dock ze zgodą na część,"P2 Wyjątki — niedobór lub `DAMAGED`, `allowPartialShipment = true`",P2-004,ACC-001;ACC-003;ACC-004,TC-067
+FR-P5-14,Puste TU przed pobraniem,P2 Wyjątki — puste `TU`,P2-004,ACC-001;ACC-003;ACC-004,TC-067
+FR-P5-15,Anulowanie podczas sortowania,P2 Wyjątki — ogólne anulowanie przy `CrossDockPickTask IN_PROGRESS`,P2-004,ACC-001;ACC-003;ACC-004,TC-067
+FR-P5-16,Ponowna ewaluacja bramki Goods Receipt,P2 Wyjątki — `P2 R35`–`P2 R36`,P2-005,ACC-001;ACC-003;ACC-004,TC-067
+FR-P5-17,Oczekiwanie skompletowanego fragmentu na komplet zamówienia,P1 Wyjątki — P5 E17,P1-003;P1-011,ACC-001;ACC-002;ACC-004,TC-127
+INT-01,Granica Inbound dla cross-dock,P2 KROK 1,P2-001;X-002,ACC-001;ACC-003;ACC-004,
+INT-02,Wynik cross-dock do Inbound,P2 KROK 3,P2-005;X-002,ACC-001;ACC-003;ACC-004,
+INT-03,Korelacja Goods Receipt,P2 KROK 4,P2-005;X-002,ACC-001;ACC-003;ACC-004,
+INT-04,Shipment POST do ERP,P1 KROK 13,P1-014;X-002,ACC-001;ACC-002;ACC-004,
+INT-05,Odpowiedź ERP i ponowienie,P1 KROK 13,P1-014;X-002,ACC-001;ACC-002;ACC-004,
+INT-06,Anulowanie z systemu zamówień,"P3 KROK 1, P4 KROK 1",FND-001;P1-001;P1-016;P3-001;P3-003;P4-001;X-002,ACC-001;ACC-002;ACC-003;ACC-004,
+CON-01,Atomowa rezerwacja ATP,"P1 R4–P1 R6, P1 R52",FND-003;P1-002;P1-004;X-001,ACC-001;ACC-002;ACC-004,
+CON-02,Niezmienność po utworzeniu PickTask,P1 R10,FND-003;P1-004;P1-005;X-001,ACC-001;ACC-002;ACC-004,
+CON-03,Jednokrotne przypisanie cross-dock,"P2 R6, P2 R29–P2 R30",FND-003;P2-001;P2-002;X-001,ACC-001;ACC-003;ACC-004,
+CON-04,Stabilne grupowanie Shipment,P1 R37–P1 R41,P1-011;P1-015;P2-006;X-001,ACC-001;ACC-002;ACC-004,
+CON-05,Jednokrotne skutki ERP i manifestu,P1 R43–P1 R46,FND-002;P1-014;P1-015;P1-016;P2-006;X-001,ACC-001;ACC-002;ACC-003;ACC-004,

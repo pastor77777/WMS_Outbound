@@ -1,0 +1,110 @@
+requirement_id,title,category,architect_source_ref
+FR-P1-01,Zerowe ATP i kolejka rezerwacji,zdarzeniowe,P1 R1–P1 R2
+FR-P1-02,Przeliczanie kolejki ATP,zdarzeniowe,P1 R3–P1 R4
+FR-P1-03,Pomijanie ON_HOLD i pełna rezerwacja,stanowe,P1 R5–P1 R6
+FR-P1-04,Grupowanie zamówień,warunkowe,P1 R7–P1 R8
+FR-P1-05,Atrybuty OutboundOrder i brak realokacji,zdarzeniowe,P1 R9–P1 R10
+FR-P1-06,Transfer ATPReservation i ręczna korekta,zdarzeniowe,P1 R11–P1 R12
+FR-P1-07,PickTask per strefa i kolejność,konfiguracyjne,P1 R13–P1 R14
+FR-P1-08,Limit TU i deklaracja direct pack,zdarzeniowe,P1 R15–P1 R16
+FR-P1-09,Automatyczne direct pack i odstępstwo,warunkowe,P1 R17–P1 R18
+FR-P1-10,Kwalifikacja i zgodność pakowania,warunkowe,P1 R19–P1 R20
+FR-P1-11,Repack by SKU i potwierdzenie braku,zdarzeniowe,P1 R21–P1 R22
+FR-P1-12,DAMAGED i SKU nieoczekiwane,zdarzeniowe,P1 R23–P1 R24
+FR-P1-13,Domknięcie przepakowania i grupowanie Shipment,warunkowe,P1 R25–P1 R26
+FR-P1-14,Agregacja PACKED i READY_FOR_DISPATCH,zdarzeniowe,P1 R27–P1 R28
+FR-P1-15,Spóźnione TU i start Carrier Selection,zdarzeniowe,P1 R29–P1 R30
+FR-P1-16,CarrierSetup i tie-break,warunkowe,P1 R31–P1 R32
+FR-P1-17,Ręczna zmiana carriera i etykieta WMS,zdarzeniowe,P1 R33–P1 R34
+FR-P1-18,Problem załadunku i bramka ERP,warunkowe,P1 R35–P1 R36
+FR-P1-19,Retry ERP i granica anulowania,warunkowe,P1 R37–P1 R38
+FR-P1-20,Jeden manifest i nieodwracalne CLOSED,stanowe,P1 R39–P1 R40
+FR-P1-21,Zamknięcie CustomerOrder i SHORT_ALLOCATED false,zdarzeniowe,P1 R41–P1 R42
+FR-P1-22,Automatyczna obsługa niedoborów,warunkowe,P1 R43–P1 R44
+FR-P1-23,Czekamy albo anulowanie po SHORT_PICKED,warunkowe,P1 R45–P1 R46
+FR-P1-24,Trwała zmiana i brak przy pakowaniu,zdarzeniowe,P1 R47–P1 R48
+FR-P1-25,ON_HOLD i anulowanie ogólne,warunkowe,P1 R49–P1 R50
+FR-P1-26,Brak carriera i zapas ATP,warunkowe,P1 R51–P1 R52
+FR-P1-27,Ciągła agregacja CustomerOrder,stanowe,P1 Funkcja ciągła F1
+FR-P1-28,Tożsamość i unikalność TU_NUMBER,uniwersalne,P1 R53
+FR-P1-29,Przydział PickTask przez wybór modułu i strefy,zdarzeniowe,"P1 R54, P1 R56"
+FR-P1-30,Kontynuacja zamówienia w kolejnej strefie,zdarzeniowe,P1 R55
+FR-P1-31,Wydanie całości przy zakazie wysyłki częściowej,warunkowe,P1 R57
+FR-P1-32,Wstrzymanie wpięcia TU do Shipment,stanowe,P1 R58
+FR-P1-33,Podział pozycji zamówienia klienta,zdarzeniowe,P1 R59
+FR-P1-34,Warunek wspólnego pakowania pozycji z różnych zleceń,warunkowe,P1 R60
+FR-P1-35,Cykl życia flagi WARNING,zdarzeniowe,P1 R61
+FR-P1-36,Strategia przypisania Picking TU,konfiguracyjne,P1 R62
+FR-P1-37,Wyliczanie masy i objętości zawartości `TU`,zdarzeniowe,P1 R63
+FR-P1-38,Progi wydania Picking TU,warunkowe,P1 R64
+FR-P1-39,Wymuszenie wydawalności przez operatora,zdarzeniowe,P1 R65
+FR-P1-40,Wydawalny typ nośnika przy przepakowaniu,warunkowe,P1 R66
+FR-P1-41,Kontynuacja PickTask w kolejnej Picking TU,zdarzeniowe,P1 R67
+FR-P1-42,Typ nośnika zewnętrznego,uniwersalne,P1 R68
+FR-P1-43,Cykl życia requiredQty,zdarzeniowe,P1 R69
+FR-P1-44,Zakończenie OutboundOrder po wszystkich jego Shipment,zdarzeniowe,P1 R70
+FR-P1-45,Ilość zablokowana przez Allocation,zdarzeniowe,P1 R71
+FR-P1-46,Rozliczenie linii wydawanej wieloma Shipment,zdarzeniowe,P1 R72
+FR-P2-01,Kolejka demand i dopasowanie 1:1,zdarzeniowe,P2 R1–P2 R2
+FR-P2-02,Rozsortowanie n:n bez Allocation,uniwersalne,P2 R3–P2 R4
+FR-P2-03,Kanał CROSSDOCK i eligibleQty,zdarzeniowe,P2 R5–P2 R6
+FR-P2-04,Numer docelowej TU i start rozsortowania,zdarzeniowe,P2 R7–P2 R8
+FR-P2-05,Blokada anulowania i zamknięcie docelowej TU,warunkowe,P2 R9–P2 R10
+FR-P2-06,Potwierdzony brak i DAMAGED,zdarzeniowe,P2 R11–P2 R12
+FR-P2-07,damagedQty i decyzja czekamy,warunkowe,P2 R13–P2 R14
+FR-P2-08,Anulowanie niedoboru i poprawny stan źródłowy,zdarzeniowe,P2 R15–P2 R16
+FR-P2-09,SKU nieoczekiwane i pusta TU,zdarzeniowe,"P2 R17, P2 R18, P2 R37"
+FR-P2-10,PutBack bez Allocation i kompletność zadania,zdarzeniowe,P2 R19–P2 R20
+FR-P2-11,Resztka i agregacja damagedQty,zdarzeniowe,P2 R21–P2 R22
+FR-P2-12,Niezależne rozliczenie i CROSS_DOCKED,warunkowe,P2 R23–P2 R24
+FR-P2-13,Bramka GR dla Shipment,stanowe,P2 R25–P2 R26
+FR-P2-14,Ponowna ewaluacja bramki GR i widoczność dla Supervisora,zdarzeniowe,P2 R35–P2 R36
+FR-P2-15,Finalizacja źródłowej TU,zdarzeniowe,P2 R28
+FR-P2-16,Zamek ilościowy i jednorazowe generowanie zadania,uniwersalne,P2 R29–P2 R30
+FR-P2-17,Korelacja i odrzucanie wyniku GR,zdarzeniowe,P2 R31–P2 R32
+FR-P2-18,Bramka wyznaczana per Shipment,stanowe,P2 R33
+FR-P2-19,Pusta docelowa TU po odzysku,warunkowe,P2 R34
+FR-P2-21,Przydział CrossDockPickTask przez wybór modułu,zdarzeniowe,P2 R39
+FR-P2-22,Ciągłość celu aktywnego CrossDockPickTask,uniwersalne,P2 R40
+FR-P2-23,Wyłącznie TU ELEMENTARY w cross-dockingu,uniwersalne,P2 R41
+FR-P2-24,Zerowe dopasowanie przy IN_CROSS_DOCK,warunkowe,P2 R42
+FR-P2-25,Dziedziczenie priority i slaDeadline w cross-dockingu,zdarzeniowe,P2 R43
+FR-P3-01,Zwolnienie Allocation i Inventory,zdarzeniowe,P3 R1–P3 R2
+FR-P3-02,Anulowanie linii przy niedoborze,warunkowe,P3 R3–P3 R4
+FR-P3-03,Anulowanie ogólne i auto-release,konfiguracyjne,P3 R5–P3 R6
+FR-P3-04,Okno wyścigu i przekazanie do P4,warunkowe,P3 R7–P3 R8
+FR-P3-05,Warianty polityki utrzymywania rezerwacji,konfiguracyjne,P3 R9
+FR-P3-06,Niezależność czasu utrzymania rezerwacji,stanowe,P3 R10
+FR-P4-01,Zgoda i granica POSTING_PENDING,warunkowe,P4 R1–P4 R2
+FR-P4-02,Natychmiastowy skutek logiczny,zdarzeniowe,P4 R3–P4 R4
+FR-P4-03,PutBackTask i walidacja lokalizacji,zdarzeniowe,P4 R5–P4 R6
+FR-P4-04,Pętla lokalizacji i odzysk Inventory,stanowe,P4 R7–P4 R8
+FR-P4-05,Przydział PutBackTask przez wybór modułu,zdarzeniowe,P4 R9
+FR-P5-01,SHORT_ALLOCATED bez zgody na część,warunkowe,"P1 Wyjątki — `SHORT_ALLOCATED`, `allowPartialShipment = false`"
+FR-P5-02,SHORT_ALLOCATED ze zgodą na część,warunkowe,"P1 Wyjątki — `SHORT_ALLOCATED`, `allowPartialShipment = true`"
+FR-P5-03,Automatyczne ponowienie po SHORT_PICKED,warunkowe,P1 Wyjątki — `SHORT_PICKED`
+FR-P5-04,Wynik „czekamy” po SHORT_PICKED,warunkowe,"P1 Wyjątki — `SHORT_PICKED`, `allowPartialShipment = false`, wynik „czekamy”"
+FR-P5-05,Wynik „anulowanie” po SHORT_PICKED,warunkowe,"P1 Wyjątki — `SHORT_PICKED`, `allowPartialShipment = false`, wynik „anulowanie”"
+FR-P5-06,Trwała zgoda na część po SHORT_PICKED,warunkowe,P1 Wyjątki — trwała zmiana `allowPartialShipment`
+FR-P5-07,Rozbieżność podczas pakowania,warunkowe,P1 Wyjątki — brak lub uszkodzenie przy „repack by SKU”
+FR-P5-08,ON_HOLD,warunkowe,P1 Wyjątki — `CustomerOrder.ON_HOLD`
+FR-P5-09,Anulowanie ogólne,warunkowe,P1 Wyjątki — żądanie anulowania `CustomerOrder` lub `CustomerOrderLine`
+FR-P5-10,Brak wyniku Carrier Selection,warunkowe,P1 Wyjątki — brak wyniku Carrier Selection
+FR-P5-11,Ograniczenie obsługi błędu etykiety,warunkowe,P1 Wyjątki — błąd etykiety lub odrzucenie przez przewoźnika
+FR-P5-12,Niedobór cross-dock bez zgody na część,warunkowe,"P2 Wyjątki — niedobór lub `DAMAGED`, `allowPartialShipment = false`"
+FR-P5-13,Niedobór cross-dock ze zgodą na część,warunkowe,"P2 Wyjątki — niedobór lub `DAMAGED`, `allowPartialShipment = true`"
+FR-P5-14,Puste TU przed pobraniem,warunkowe,P2 Wyjątki — puste `TU`
+FR-P5-15,Anulowanie podczas sortowania,warunkowe,P2 Wyjątki — ogólne anulowanie przy `CrossDockPickTask IN_PROGRESS`
+FR-P5-16,Ponowna ewaluacja bramki Goods Receipt,warunkowe,P2 Wyjątki — `P2 R35`–`P2 R36`
+FR-P5-17,Oczekiwanie skompletowanego fragmentu na komplet zamówienia,stanowe,P1 Wyjątki — P5 E17
+INT-01,Granica Inbound dla cross-dock,,P2 KROK 1
+INT-02,Wynik cross-dock do Inbound,,P2 KROK 3
+INT-03,Korelacja Goods Receipt,,P2 KROK 4
+INT-04,Shipment POST do ERP,,P1 KROK 13
+INT-05,Odpowiedź ERP i ponowienie,,P1 KROK 13
+INT-06,Anulowanie z systemu zamówień,,"P3 KROK 1, P4 KROK 1"
+CON-01,Atomowa rezerwacja ATP,,"P1 R4–P1 R6, P1 R52"
+CON-02,Niezmienność po utworzeniu PickTask,,P1 R10
+CON-03,Jednokrotne przypisanie cross-dock,,"P2 R6, P2 R29–P2 R30"
+CON-04,Stabilne grupowanie Shipment,,P1 R37–P1 R41
+CON-05,Jednokrotne skutki ERP i manifestu,,P1 R43–P1 R46

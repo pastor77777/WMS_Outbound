@@ -1,0 +1,97 @@
+test_id,title,level,requirements
+TC-001,Pełny przebieg standardowy,E2E,"FR-P1-01/02/03/04/05/06/07/08/09/10/11/12/13/14/15/16/17/18/19/20/21/22/23/24/25/26/27 · *Dane:* 1 zamówienie, 1 linia, pełny ATP"
+TC-002,Brak ATP i ponowne planowanie,Proces,FR-P1-03/04/05/06
+TC-003,Częściowa realizacja,Proces,FR-P1-04/05/25/26
+TC-004,Kompletacja wielostrefowa,Proces,FR-P1-06/07/08/09
+TC-005,Direct pack,Proces,FR-P1-09/10/11
+TC-006,Repakowanie i konsolidacja,Proces,FR-P1-10/11/12/13
+TC-007,Carrier Selection i etykieta,Proces,FR-P1-14/15/16/17/18
+TC-008,Manifest i ERP,E2E,FR-P1-19/20/21/22/23/24
+TC-009,Agregacja statusów,Proces,FR-P1-25/27
+TC-010,Unikalność numeru Outbound TU,Proces,FR-P1-28
+TC-104,Niekompletne zamówienie nie jest wydawane,Proces,FR-P1-31
+TC-105,Termin mija przed pełnym spakowaniem,Proces,FR-P1-32
+TC-106,Jedna pozycja klienta trafia do dwóch zleceń,Proces,FR-P1-33
+TC-107,Niezgodny adres blokuje wspólne pakowanie,Proces,FR-P1-34
+TC-108,Ręczne zdjęcie flagi przy trwającej przyczynie,Proces,FR-P1-35
+TC-109,Wariant wspólnej TU przechodzącej przez zadania,Proces,FR-P1-36
+TC-110,Masa liczona z zawartości,Proces,FR-P1-37
+TC-111,Dobór przewoźnika po masie policzonej z zawartości,Proces,FR-P1-37
+TC-114,"Lekka, ale dobrze zapełniona TU spełnia progi",Proces,FR-P1-38
+TC-115,Ostatnia TU zamówienia poniżej progów,Proces,FR-P1-39
+TC-116,Przepakowanie do typu niewydawalnego,Proces,FR-P1-40
+TC-117,Typ niewydawalny blokuje wymuszenie operatora,Proces,FR-P1-39
+TC-118,Kontynuacja PickTask w kolejnej Picking TU,Proces,FR-P1-41
+TC-120,Rozpoznanie i wydawalność TU pochodzenia zewnętrznego,Proces,FR-P1-38/FR-P1-39/FR-P1-42
+TC-121,Cykl życia requiredQty,Proces,FR-P1-43
+TC-122,Guard dla aktywnej linii bez OutboundOrderLine,Proces,FR-P1-32
+TC-123,Guard dla częściowego pokrycia linii PLANNED,Proces,FR-P1-32
+TC-124,Guard po korekcie i przy wielu liniach,Proces,FR-P1-32
+TC-125,Jedno Shipment dla dwóch kanałów,Proces,FR-P1-31/FR-P1-32
+TC-126,slaDeadline nie omija guardu CustomerOrder,Proces,FR-P1-32
+TC-128,Pierwszy potwierdzony manifest nie kończy OutboundOrder,Proces,"FR-P1-44 · *Dane:* 1 OutboundOrder, 2 Packing TU, 2 Shipment"
+TC-129,Ostatni potwierdzony manifest kończy OutboundOrder,Proces,"FR-P1-44 · *Dane:* jak TC-128, oba manifesty potwierdzone"
+TC-130,Alokacja SHORT blokuje wyłącznie ilość faktycznie zarezerwowaną,Proces,"FR-P1-45 · *Dane:* `requiredQty` 100, dostępne 30"
+TC-131,RELEASED i CONSUMED nie blokują zapasu,Proces,FR-P1-45 · *Dane:* jedna `Allocation` w cyklu pełnym
+TC-132,Pierwsze wydanie nie terminalizuje linii ani Allocation,Proces,"FR-P1-46 · *Dane:* jedna `OutboundOrderLine` 100, dwie Outbound `TU` po 50, dwa `Shipment`"
+TC-133,"Ostatnie wydanie domyka linię, Allocation i zlecenie",Proces,FR-P1-46 · *Dane:* stan po TC-132
+TC-135,Pokrycie mieszane otwiera bramkę KROKU 2A,Proces,"FR-P1-03 · *Dane:* `allowPartialShipment = false`, linia 100, cross-dock pokrywa 40"
+TC-020,"Cross-dock 1:1, pełny przebieg",E2E,FR-P2-01/02/03/04
+TC-021,Rozsortowanie n:n,E2E,FR-P2-02/03/12
+TC-022,Pełna docelowa TU w trakcie aktywnego zadania,Proces,FR-P2-05
+TC-023,Niedobór bez zgody na część,Proces,FR-P2-05/06/07/08
+TC-024,Niedobór ze zgodą na część,Proces,FR-P2-06/07
+TC-025,"DAMAGED, SKU nieoczekiwane i damagedQty",Proces,FR-P2-06/07/09/11
+TC-026,Pusta źródłowa TU przed pobraniem,Proces,FR-P2-09
+TC-027,Wiele zadań na jednej palecie i ilość resztowa,Proces,FR-P2-10/11/12/15
+TC-028,Bramka Goods Receipt i odrzucenie,Integracja,FR-P2-13/14
+TC-029,Ilość kwalifikowalna przy trwających zadaniach,Proces,FR-P2-03/16
+TC-030,"Jedna paleta źródłowa, dwa Shipmenty",Integracja,FR-P2-02/05/16/17/18
+TC-031,Rozliczenie putawayowe po crossdockowym,Integracja,FR-P2-13/17
+TC-032,Numeracja przy 1:1 z poprawnym GS1,Proces,FR-P2-04
+TC-033,Numeracja przy 1:1 bez poprawnego GS1,Proces,FR-P2-04
+TC-034,Numeracja przy rozsortowaniu n:n,Proces,FR-P2-04
+TC-035,Pusta docelowa TU po pełnym odzysku,Proces,FR-P2-10/19
+TC-036,demandEligibleQty jako czynnik ograniczający,Proces,FR-P2-03
+TC-134,Rezerwacja twarda nie znika ze wzoru demandEligibleQty,Proces,"FR-P2-03 · *Dane:* `Quantity` 100, jedna standardowa `OutboundOrderLine` 30, `ATPReservation` 0"
+TC-037,Automatyczne zamknięcie po slaDeadline,Proces,FR-P2-05
+TC-038,Odzyskanie bramki z POSTING_ERROR niezwiązanego z GR,Integracja,FR-P2-14
+TC-039,Ogólne kryterium anulowania OutboundOrder poza ścieżką pustej TU,Proces,FR-P2-08/09
+TC-040,Zwolnienie przed pobraniem,Proces,FR-P3-01/02/03
+TC-041,Automatyczne zwolnienie,Proces,FR-P3-01/02/03
+TC-042,Okno wyścigu,Współbieżność,FR-P3-04
+TC-043,Potwierdzone pobranie przechodzi do P4,Proces,FR-P3-04
+TC-112,Wariant automatycznego zwolnienia,Proces,FR-P3-05
+TC-113,Priorytet nie skraca ani nie wydłuża czasu,Proces,FR-P3-06
+TC-050,Anulowanie PACKED przed granicą,E2E,FR-P4-01/02/03/04
+TC-051,PutBackTask happy path,Proces,FR-P4-02/03/04
+TC-052,Pętla walidacji lokalizacji,Proces,FR-P4-03/04
+TC-053,Zerowe pickedQty,Proces,FR-P4-02
+TC-060,SHORT_ALLOCATED,Przekrojowy,FR-P5-01/02
+TC-061,SHORT_PICKED: automatyczne ponowienie i eskalacja,Przekrojowy,FR-P5-03
+TC-062,Rozstrzygnięcie SHORT_PICKED,Przekrojowy,FR-P5-04/05/06
+TC-063,Niedobór lub uszkodzenie przy pakowaniu,Przekrojowy,FR-P5-07
+TC-064,ON_HOLD i wznowienie,Przekrojowy,FR-P5-08
+TC-065,Anulowanie ogólne,Przekrojowy,FR-P5-09
+TC-066,Carrier Selection i ograniczenie etykiety,Przekrojowy,FR-P5-10/11
+TC-067,Wyjątki cross-dock,Przekrojowy,FR-P5-12/13/14/15/16
+TC-127,Skompletowany fragment czeka na komplet CustomerOrder,Przekrojowy,FR-P5-17
+TC-080,Granica Inbound–Outbound,Integracja,INT-01
+TC-081,Wynik cross-dock wraca do Inbound,Integracja,INT-02/03
+TC-082,ERP akceptuje Shipment POST,Integracja,INT-04/05
+TC-083,ERP odrzuca i przyjmuje ponowienie,Integracja,INT-05
+TC-084,Anulowanie z systemu zamówień,Integracja,INT-06
+TC-090,Konkurencja o ATP,Współbieżność,CON-01
+TC-091,Realokacja po PickTask,Współbieżność,CON-02
+TC-092,Konkurencja o ilość cross-dock,Współbieżność,CON-03
+TC-093,Termin graniczny Shipment,Współbieżność,CON-04
+TC-094,Duplikat ERP i manifestu,Współbieżność,CON-05
+TC-096,Przydział PickTask wg strefy i kolejności,Proces,FR-P1-29
+TC-097,Operator z aktywnym zadaniem nie dostaje kolejnego,Proces,FR-P1-29
+TC-098,Kontynuacja zamówienia w kolejnej strefie do otwartej TU,Proces,FR-P1-30
+TC-099,Przydział CrossDockPickTask przez wybór modułu,Proces,FR-P2-21
+TC-100,Przydział PutBackTask w kolejności zgłoszenia,Proces,FR-P4-05
+TC-101,Otwarcie nowej docelowej TU w trakcie aktywnego zadania,Proces,FR-P2-22
+TC-102,Do cross-dockingu trafia wyłącznie TU ELEMENTARY,Proces,FR-P2-23
+TC-103,Zerowe dopasowanie przy IN_CROSS_DOCK kończy się Putaway,Proces,FR-P2-24
+TC-119,Dziedziczenie i grupowanie crossdockowego OutboundOrder,Proces,FR-P2-25

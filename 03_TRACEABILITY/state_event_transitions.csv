@@ -1,0 +1,122 @@
+object,from,condition,to,domain_event,actor,architect_ref
+CustomerOrder,(brak),wpływ `CustomerOrder` z systemu zewnętrznego,`RECEIVED`,`CustomerOrderReceived`,System WMS,"P1, zdarzenie startowe"
+CustomerOrder,`RECEIVED`,walidacja OK,`VALIDATED`,`CustomerOrderValidated`,System WMS,P1 krok 1
+CustomerOrder,`RECEIVED`,walidacja negatywna,`REJECTED`,`CustomerOrderRejected`,System WMS,P1 krok 1
+CustomerOrder,`VALIDATED`,"przyjęto do realizacji, brak blokady",`ACCEPTED`,`CustomerOrderAccepted`,System WMS,P1 krok 1
+CustomerOrder,`ACCEPTED`,blokada,`ON_HOLD`,`CustomerOrderHeld`,Supervisor/System WMS,P1 krok 1
+CustomerOrder,`ON_HOLD`,zdjęcie blokady,`ACCEPTED`,`CustomerOrderReleased`,Supervisor/System WMS,P1 krok 2
+CustomerOrder,`ACCEPTED`,"powstał `OutboundOrder` (planowanie cykliczne, warunek pełnego `ATPReservation` dla `allowPartialShipment=false`)",`IN_FULFILLMENT`,`CustomerOrderFulfillmentStarted`,System WMS,P1 krok 2a/3
+CustomerOrder,`IN_FULFILLMENT`,"anulowanie wszystkich aktywnych `OutboundOrder`/`OutboundOrderLine`, brak `PACKED`",`ACCEPTED`,`CustomerOrderFulfillmentReverted`,System WMS/Supervisor,"P1 »Wyjątki i ścieżki alternatywne« `SHORT_ALLOCATED`/`SHORT_PICKED`, wynik „czekamy"""
+CustomerOrder,`IN_FULFILLMENT`,wszystkie aktywne `CustomerOrderLine` `BACKORDERED`,`BACKORDERED`,`CustomerOrderBackordered`,System WMS,P1 Funkcja ciągła F1
+CustomerOrder,`BACKORDERED`,co najmniej jedna linia odzyskuje realizację,`IN_FULFILLMENT`,`CustomerOrderFulfillmentResumed`,System WMS,P1 Funkcja ciągła F1
+CustomerOrder,`IN_FULFILLMENT`,część wydana,`PARTIALLY_SHIPPED`,`CustomerOrderPartiallyShipped`,System WMS,P1 krok 13 + F1
+CustomerOrder,`PARTIALLY_SHIPPED`,reszta wydana,`SHIPPED`,`CustomerOrderShipped`,System WMS,P1 krok 13 + F1
+CustomerOrder,`IN_FULFILLMENT`,całość wydana,`SHIPPED`,`CustomerOrderShipped`,System WMS,P1 krok 13 + F1
+CustomerOrder,`SHIPPED`,rozliczono — wszystkie kontrybuujące `OutboundOrder` `COMPLETED`,`CLOSED`,`CustomerOrderClosed`,System WMS,P1 KROK 13A (`P1 R41`)
+CustomerOrder,`ACCEPTED`/`IN_FULFILLMENT`/`PARTIALLY_SHIPPED`,anulowanie (przed zamknięciem manifestu),`CANCELLED`,`CustomerOrderCancelled`,Supervisor/System WMS,"P1 »Wyjątki i ścieżki alternatywne« „Anulowanie ogólne"" pkt 1–4"
+CustomerOrderLine,(brak),zamówienie wpływa z pozycjami,`OPEN`,`CustomerOrderLineOpened`,System WMS,"P1, zdarzenie startowe"
+CustomerOrderLine,`OPEN`,przypisano do `OutboundOrderLine` (planowanie),`PLANNED`,`CustomerOrderLinePlanned`,System WMS,P1 krok 3
+CustomerOrderLine,`PLANNED`,część wydana,`PARTIALLY_FULFILLED`,`CustomerOrderLinePartiallyFulfilled`,System WMS,P1 krok 13
+CustomerOrderLine,`PLANNED`/`PARTIALLY_FULFILLED`,całość/reszta wydana,`FULFILLED`,`CustomerOrderLineFulfilled`,System WMS,P1 krok 13
+CustomerOrderLine,`OPEN`,brak zapasu (`ATPReservation = 0`),`BACKORDERED`,`CustomerOrderLineBackordered`,System WMS,P1 krok 1a
+CustomerOrderLine,`BACKORDERED`,zapas dostępny albo `CrossDockPickTask` wygenerowany,`PLANNED`,`CustomerOrderLineFulfillmentResumed`,System WMS,P1 krok 3–4 / P2 KROK 1
+CustomerOrderLine,`PLANNED`,niedobór (`SHORT_ALLOCATED`/`SHORT_PICKED`) albo brak/`DAMAGED`/`TU` pusta w cross-dockingu,`BACKORDERED`,`CustomerOrderLineShortfallDetected`,System WMS,P1 »Wyjątki i ścieżki alternatywne« / P2 KROK 2
+CustomerOrderLine,`BACKORDERED`,anulowanie ogólne,`CANCELLED`,`CustomerOrderLineCancelled`,System WMS/Supervisor,"P1 »Wyjątki i ścieżki alternatywne« „Anulowanie ogólne"""
+CustomerOrderLine,`PLANNED`,"wycofanie linii-siostry, bez własnego niedoboru",`OPEN`,`CustomerOrderLineReverted`,System WMS,"P1 »Wyjątki i ścieżki alternatywne« `SHORT_ALLOCATED`/`SHORT_PICKED`, wynik „czekamy"" (linie-siostry)"
+CustomerOrderLine,`PARTIALLY_FULFILLED`,anulowanie reszty,`CANCELLED`,`CustomerOrderLineCancelled`,System WMS/Supervisor,"P1 »Wyjątki i ścieżki alternatywne« „Anulowanie ogólne"" pkt 4"
+CustomerOrderLine,`OPEN`/`PLANNED`,anulowanie,`CANCELLED`,`CustomerOrderLineCancelled`,System WMS/Supervisor,"P1 »Wyjątki i ścieżki alternatywne« „Anulowanie ogólne"" pkt 1–3"
+OutboundOrder,(brak),grupowanie/podział `CustomerOrderLine`,`CREATED`,`OutboundOrderCreated`,System WMS,P1 krok 3
+OutboundOrder,`CREATED`,start alokacji,`ALLOCATION_IN_PROGRESS`,`OutboundOrderAllocationStarted`,System WMS,P1 krok 4
+OutboundOrder,`ALLOCATION_IN_PROGRESS`/`SHORT_ALLOCATED`,pełna rezerwacja / uzupełniono,`ALLOCATED`,`OutboundOrderAllocated`,System WMS,P1 krok 4
+OutboundOrder,`ALLOCATION_IN_PROGRESS`,niepełna rezerwacja,`SHORT_ALLOCATED`,`OutboundOrderShortAllocated`,System WMS,P1 krok 4
+OutboundOrder,`SHORT_ALLOCATED`,polityka/decyzja Supervisor: anulowanie,`CANCELLED`,`OutboundOrderCancelled`,System WMS/Supervisor,"P1 »Wyjątki i ścieżki alternatywne« `SHORT_ALLOCATED`, wynik „anulowanie"""
+OutboundOrder,`ALLOCATED`,utworzono `PickTask`,`PICKING_IN_PROGRESS`,`OutboundOrderPickingStarted`,System WMS,P1 krok 5
+OutboundOrder,`PICKING_IN_PROGRESS`,"wszystkie `PickTask` zakończone (agregat, §5)",`PICKED`,`OutboundOrderPicked`,System WMS,P1 krok 6
+OutboundOrder,`PICKING_IN_PROGRESS`,"wszystkie `OutboundOrderLine` anulowane, żadna `PACKED`",`CANCELLED`,`OutboundOrderCancelled`,System WMS,"P1 »Wyjątki i ścieżki alternatywne« `SHORT_PICKED`, wynik „czekamy""; §3 tego dokumentu"
+OutboundOrder,`PICKED`,start pakowania,`PACKING_IN_PROGRESS`,`OutboundOrderPackingStarted`,System WMS,P1 krok 8–9
+OutboundOrder,`CREATED`,cross-dock: pierwszy `CrossDockPickTask` `IN_PROGRESS`,`PACKING_IN_PROGRESS`,`OutboundOrderCrossDockPackingStarted`,System WMS,P2 KROK 2 (`P2 R8`)
+OutboundOrder,`PACKING_IN_PROGRESS`,Packing `TU` gotowe (agregat),`PACKED`,`OutboundOrderPacked`,System WMS,P1 krok 9
+OutboundOrder,`PACKING_IN_PROGRESS`,"cross-dock: wszystkie `OutboundOrderLine` `CANCELLED` (niedobór/`DAMAGED` przy `allowPartialShipment = false` — `P2 R14`/`P2 R15`; `TU` pusta przed pobraniem — `P2 R18`), żadna `PACKED`",`CANCELLED`,`OutboundOrderCancelled`,System WMS,P2 KROK 2 (`P2 R37`)
+OutboundOrder,`PACKED`,wszystkie linie i `TU` spakowane,`READY_FOR_DISPATCH`,`OutboundOrderReadyForDispatch`,System WMS,P1 krok 9 (`P1 R27`)
+OutboundOrder,`READY_FOR_DISPATCH`,fizyczne przekazanie po zamknięciu manifestu,`DISPATCHED`,`OutboundOrderDispatched`,Dispatcher/Carrier,P1 krok 13
+OutboundOrder,`DISPATCHED`,wydanie potwierdzone — każdy `Shipment` zawierający Outbound `TU` tego `OutboundOrder` należy do `CarrierManifest` w stanie `CONFIRMED` (`P1 R70`),`COMPLETED`,`OutboundOrderCompleted`,Dispatcher,P1 krok 13 (`P1 R70`); §10 tego dokumentu `CarrierManifest` `HANDED_OVER→CONFIRMED`
+OutboundOrder,`CREATED`/`ALLOCATED`,anulowanie,`CANCELLED`,`OutboundOrderCancelled`,System WMS/Supervisor,"P1 »Wyjątki i ścieżki alternatywne« „Anulowanie ogólne"" pkt 1"
+OutboundOrderLine,(brak),powstaje przy planowaniu `OutboundOrder`,`CREATED`,`OutboundOrderLineCreated`,System WMS,P1 krok 3
+OutboundOrderLine,`CREATED`/`SHORT_ALLOCATED`,`Allocation RESERVED` / uzupełniono,`ALLOCATED`,`OutboundOrderLineAllocated`,System WMS,P1 krok 4
+OutboundOrderLine,`CREATED`,częściowa rezerwacja,`SHORT_ALLOCATED`,`OutboundOrderLineShortAllocated`,System WMS,P1 krok 4
+OutboundOrderLine,`ALLOCATED`,`PickTask` utworzony,`PICKING`,`OutboundOrderLinePickingStarted`,System WMS,P1 krok 5
+OutboundOrderLine,`PICKING`,pobrano pełną ilość,`PICKED`,`OutboundOrderLinePicked`,Picker/System WMS,P1 krok 6
+OutboundOrderLine,`PICKING`,pobrano mniej,`SHORT_PICKED`,`OutboundOrderLineShortPicked`,Picker/System WMS,P1 krok 6 / P1 »Wyjątki i ścieżki alternatywne«
+OutboundOrderLine,`PICKED`,brak/uszkodzenie wykryte przy pakowaniu (policzona ilość < `pickedQty` albo `DAMAGED`),`SHORT_PICKED`,`OutboundOrderLineShortfallDetectedAtPacking`,System WMS/Packer,"P1 krok 8 („repack by SKU"") / P1 »Wyjątki i ścieżki alternatywne«"
+OutboundOrderLine,`SHORT_PICKED`,"realokacja, nowy `PickTask`",`PICKING`,`OutboundOrderLineReallocated`,System WMS,P1 »Wyjątki i ścieżki alternatywne« `SHORT_PICKED`
+OutboundOrderLine,`PICKED`,konsolidacja w Packing `TU`,`PACKED`,`OutboundOrderLinePacked`,"Packer albo automatycznie System WMS, gdy `TU.directPackDeclared = true` i progi wydania spełnione (`P1 R17`)","P1 krok 9 (standard) / krok 6a/7 (`P1 R17`, ścieżka bezpośrednia)"
+OutboundOrderLine,`CREATED`,cross-dock: `CrossDockPickTask`→`IN_PROGRESS`,`PICKING`,`OutboundOrderLineCrossDockPickingStarted`,Packer,P2 KROK 2
+OutboundOrderLine,`PICKING`,cross-dock: rozliczenie ilościowe linii zamknięte — ilość potwierdzona przez jej jedyny `CrossDockPickTask` (`P2 R30`) zrównoważyła `OutboundOrderLine.requiredQty`; niezależnie od stanu docelowej Outbound `TU`,`PACKED`,`OutboundOrderLinePacked`,System WMS/Packer,P2 KROK 3 (`P2 R30`)
+OutboundOrderLine,`PICKING`,"cross-dock: brak/`DAMAGED` wykryte przy pobraniu (`P2 R11`/`P2 R12`), gdy rozstrzygnięcie prowadzi do anulowania linii przy `allowPartialShipment = false` (`P2 R14`/`P2 R15`)",`CANCELLED`,`OutboundOrderLineCrossDockShortfallCancelled`,System WMS/Packer,P2 KROK 2
+OutboundOrderLine,`PACKED`,`Shipment` wydany — wszystkie Outbound `TU` wnoszące ilość tej linii w manifestach `CONFIRMED` (`P1 R72`),`SHIPPED`,`OutboundOrderLineShipped`,System WMS,P1 krok 13 (`P1 R72`)
+OutboundOrderLine,`CREATED`/`SHORT_ALLOCATED`/`ALLOCATED`,anulowanie (przed pobraniem),`CANCELLED`,`OutboundOrderLineCancelled`,System WMS,P3
+OutboundOrderLine,`PICKING`/`SHORT_PICKED`/`PICKED`,"anulowanie (put-back, jeśli `pickedQty>0`)",`CANCELLED`,`OutboundOrderLineCancelled`,System WMS,"P4 / P1 »Wyjątki i ścieżki alternatywne« „Anulowanie ogólne"" pkt 1–3"
+OutboundOrderLine,`PACKED`,anulowanie po zapakowaniu (zgoda Supervisor),`CANCELLED`,`OutboundOrderLineCancelled`,System WMS/Supervisor,"P1 »Wyjątki i ścieżki alternatywne« „Anulowanie ogólne"" pkt 4"
+Allocation,(brak),powstaje z `OutboundOrderLine` w alokacji,`PENDING`,`AllocationCreated`,System WMS,P1 krok 4
+Allocation,`PENDING`/`SHORT`,zapas `AVAILABLE` / uzupełniono,`RESERVED`,`AllocationReserved`,System WMS,P1 krok 4
+Allocation,`PENDING`,brak pełnej ilości,`SHORT`,`AllocationShortReserved`,System WMS,P1 krok 4 / P1 »Wyjątki i ścieżki alternatywne« `SHORT_ALLOCATED`
+Allocation,`RESERVED`,"pobranie potwierdzone (`PickTask COMPLETED`/`SHORT_PICKED`, skan `TU` i ilość)",`CONFIRMED`,`AllocationConfirmed`,System WMS,P1 krok 6
+Allocation,`CONFIRMED`,"wydanie — `reservedQty` osiągnęło `0`, linia w `SHIPPED` (`P1 R72`)",`CONSUMED`,`AllocationConsumed`,System WMS,P1 krok 13 (`P1 R72`)
+Allocation,`CONFIRMED`,anulowanie zatwierdzone po pobraniu,`RELEASED`,`AllocationReleased`,System WMS,P4 KROK 2–3
+Allocation,`RESERVED`,zwolnienie (bez pobrania),`RELEASED`,`AllocationReleased`,System WMS/Supervisor,P3 KROK 2
+Allocation,`SHORT`,polityka utrzymania rezerwacji (auto-zwolnienie),`RELEASED`,`AllocationReleased`,System WMS,P1 »Wyjątki i ścieżki alternatywne« `SHORT_ALLOCATED`
+PickTask,(brak),utworzenie zadania,`CREATED`,`PickTaskCreated`,System WMS,P1 krok 5
+PickTask,`CREATED`,"przydział operatorowi zalogowanemu do modułu zbierania, ze zgodną strefą, bez aktywnego zadania",`ASSIGNED`,`PickTaskAssigned`,System WMS,"P1 krok 5, `P1 R54`"
+PickTask,`ASSIGNED`,skan Picking `TU` przed odłożeniem,`IN_PROGRESS`,`PickTaskStarted`,Picker,P1 krok 6
+PickTask,`IN_PROGRESS`,"pobrano pełną ilość, niezależnie od liczby użytych Picking `TU`",`COMPLETED`,`PickTaskCompleted`,Picker/System WMS,P1 krok 6
+PickTask,`IN_PROGRESS`,pobrano mniej niż zlecono,`SHORT_PICKED`,`PickTaskShortPicked`,Picker,P1 krok 6 / P1 »Wyjątki i ścieżki alternatywne« `SHORT_PICKED`
+PickTask,`ASSIGNED`/`IN_PROGRESS`,"zwolnienie `Allocation` w toku pobrania, zanim WO potwierdził odłożenie do `TU`",`CANCELLED`,`PickTaskCancelled`,System WMS,"P3, wyjątek"
+Outbound TU,(brak),"utworzenie: standard (pierwszy skan `PickContainer`, także jako kontynuacja trwającego `PickTask` po zamknięciu poprzedniej `TU` w `PICK_FULL` — `P1 R67`) albo cross-dock (pierwsze odłożenie `SKU` przy rozsortowaniu, także gdy poprzednia docelowa `TU` została zamknięta albo anulowana w trakcie trwania zadania — `P2 R40`)",`CREATED`,`TUCreated`,Picker/System WMS (standard) / Packer (cross-dock),"P1 krok 5–6 (standard, `P1 R67`) / P2 KROK 2 (cross-dock, `P2 R7`, `P2 R40`)"
+Outbound TU,`CREATED`,"skan przy kompletacji, rola `PickContainer`",`IN_PICKING`,`TUPickingStarted`,Picker,P1 krok 6
+Outbound TU,`CREATED`,"cross-dock: `TU` zapełniona fizycznie w trakcie aktywnego `CrossDockPickTask`, zamknięcie skanem RF",`PACKING_SEALED`,`TUPackingSealed`,Packer,P2 KROK 2 (`P2 R10`)
+Outbound TU,`CREATED`,cross-dock: `slaDeadline` osiągnięty (albo miniony) i żaden aktywny ani zaplanowany `CrossDockPickTask` nie wskazuje już tej `TU` jako celu,`PACKING_SEALED`,`TUPackingSealed`,System WMS,P2 KROK 3 (`P2 R10`)
+Outbound TU,`IN_PICKING`,osiągnięcie limitu masy `TUSetup.maxWeight`,`PICK_FULL`,`TUPickFull`,System WMS,P1 krok 6
+Outbound TU,`IN_PICKING`/`PICK_FULL`,decyzja operatora o zamknięciu `TU`; zakończenie `PickTask` samo w sobie nie zamyka `TU`,`READY_TO_PACK`,`TUReadyToPack`,System WMS/Picker,"P1 krok 6, `P1 R55`"
+Outbound TU,`READY_TO_PACK`,spełnia progi wydania,`PACK_QUALIFIED`,`TUPackQualified`,"Packer (sugestia System WMS) albo automatycznie System WMS, gdy `directPackDeclared = true` (`P1 R17`)",P1 krok 6a/7
+Outbound TU,`READY_TO_PACK`,"nie spełnia warunków, przepakowanie",`REPACKED`,`TURepacked`,Packer,P1 krok 7–8
+Outbound TU,`PACK_QUALIFIED`,rola `PackUnit` zamknięta,`PACKING_SEALED`,`TUPackingSealed`,"Packer albo automatycznie System WMS, gdy `directPackDeclared = true` (`P1 R17`)",P1 krok 6a/7
+Outbound TU,`PACKING_SEALED`,wpięcie do jednego `Shipment`,`IN_SHIPMENT`,`TUAssignedToShipment`,Packer/System WMS,P1 krok 9
+Outbound TU,`IN_SHIPMENT`,wydanie,`DISPATCHED`,`TUDispatched`,System WMS,P1 krok 13
+Outbound TU,`CREATED`,"cross-dock: put-back pełnej potwierdzonej ilości przed `PACKING_SEALED` i brak jakiejkolwiek innej potwierdzonej pozycji, przy jednoczesnym braku aktywnego lub zaplanowanego `CrossDockPickTask` wskazującego tę `TU` jako cel; nie czeka na `slaDeadline`",`CANCELLED`,`TUCancelled`,System WMS,P2 KROK 3 (`P2 R34`)
+Outbound TU,`PACKING_SEALED`,wycofanie z `Shipment` po zapakowaniu,`VOIDED`,`TUVoided`,Supervisor,P4 KROK 1 (`P4 R1`)
+Shipment,(brak),powstaje po przygotowaniu pierwszej Packing `TU`,`CREATED`,`ShipmentCreated`,Packer/System WMS,P1 krok 9
+Shipment,`CREATED`,zamknięcie grupowania `TU` (`P1 R28`),`READY_FOR_DISPATCH`,`ShipmentReadyForDispatch`,System WMS,P1 krok 9
+Shipment,`READY_FOR_DISPATCH`,wybór przewoźnika (reguły dają wynik),`CARRIER_SELECTED`,`ShipmentCarrierSelected`,System WMS,P1 krok 10
+Shipment,`READY_FOR_DISPATCH`,"transport własny, wskazany wcześniej",`OWN_TRANSPORT`,`ShipmentOwnTransportAssigned`,Dispatcher,P1 krok 10
+Shipment,`READY_FOR_DISPATCH`,brak wyniku reguł,`CARRIER_PENDING`,`ShipmentCarrierPending`,System WMS,P1 krok 10
+Shipment,`CARRIER_PENDING`,ręczny wybór przewoźnika,`CARRIER_SELECTED`,`ShipmentCarrierSelected`,Warehouse Supervisor,P1 krok 10
+Shipment,`CARRIER_SELECTED`,"etykieta (wydruk WMS, bez zewnętrznego API)",`LABEL_GENERATED`,`ShipmentLabelGenerated`,System WMS,P1 krok 11
+Shipment,`LABEL_GENERATED`/`OWN_TRANSPORT`,zgłoszenie gotowości wydania do ERP,`POSTING_PENDING`,`ShipmentPostingRequested`,System WMS,P1 krok 11a
+Shipment,`POSTING_PENDING`,potwierdzenie ERP (`POST`),`POSTED`,`ShipmentPosted`,System WMS/ERP,P1 krok 11a
+Shipment,`POSTING_PENDING`,jawne odrzucenie ERP,`POSTING_ERROR`,`ShipmentPostingRejected`,System WMS/ERP,P1 krok 11a
+Shipment,`POSTED`,dodanie do manifestu (jeden `Shipment` → jeden manifest),`IN_MANIFEST`,`ShipmentAddedToManifest`,Dispatcher,P1 krok 12
+Shipment,`POSTING_ERROR`,ponowna próba (decyzja Supervisor),`POSTING_PENDING`,`ShipmentPostingRetried`,System WMS/Supervisor,P1 krok 11a (`P1 R37`)
+Shipment,`POSTING_ERROR`,rezygnacja Supervisor,`CANCELLED`,`ShipmentCancelled`,System WMS/Supervisor,P1 krok 11a
+Shipment,`IN_MANIFEST`,fizyczne przekazanie po zamknięciu manifestu,`HANDED_TO_CARRIER`,`ShipmentHandedToCarrier`,Dispatcher/Carrier,P1 krok 13 / §10 tego dokumentu `CLOSED→HANDED_OVER`
+Shipment,`CREATED`/`READY_FOR_DISPATCH`/`CARRIER_SELECTED`/`OWN_TRANSPORT`/`CARRIER_PENDING`/`LABEL_GENERATED`,anulowanie (przed `POSTING_PENDING`),`CANCELLED`,`ShipmentCancelled`,System WMS/Supervisor,"P1 »Wyjątki i ścieżki alternatywne« „Anulowanie ogólne"" pkt 4"
+CarrierManifest,(brak),otwarcie manifestu,`OPEN`,`CarrierManifestOpened`,Dispatcher,P1 krok 12
+CarrierManifest,`OPEN`,"zamknięcie, gotowość do przekazania",`CLOSED`,`CarrierManifestClosed`,Dispatcher,P1 krok 12
+CarrierManifest,`CLOSED`,przekazanie (odbiór przewoźnika/kurs własny),`HANDED_OVER`,`CarrierManifestHandedOver`,Dispatcher/Carrier,P1 krok 13
+CarrierManifest,`HANDED_OVER`,potwierdzenie wydania z magazynu,`CONFIRMED`,`CarrierManifestConfirmed`,Dispatcher,P1 krok 13
+Inventory,(brak),zapas przyjęty (Inbound `POSTED`/GR),`AVAILABLE`,`InventoryMadeAvailable`,—,poza zakresem Outbound (Inbound `model_stanow.md`)
+Inventory,`AVAILABLE`,"`Allocation RESERVED`, flaga `ATP`",`RESERVED`,`InventoryReserved`,System WMS,P1 krok 4
+Inventory,`RESERVED`,zwolnienie bez pobrania,`AVAILABLE`,`InventoryReleased`,System WMS,P3 KROK 2
+Inventory,`RESERVED`,pobranie do Picking `TU`,`PICKED`,`InventoryPicked`,Picker,P1 krok 6
+Inventory,`PICKED`,fizyczny put-back,`AVAILABLE`,`InventoryPutBack`,Operator,P4 KROK 5
+Inventory,`PICKED`,wydanie (zamknięty manifest),`SHIPPED`,`InventoryShipped`,System WMS,P1 krok 13
+PutBackTask,(brak),utworzenie zadania po anulowaniu rezerwacji już pobranej,`CREATED`,`PutBackTaskCreated`,System WMS,P4 KROK 3
+PutBackTask,`CREATED`,"przydział operatorowi zalogowanemu do modułu zwrotów, bez aktywnego zadania",`ASSIGNED`,`PutBackTaskAssigned`,System WMS,"P4 KROK 3, `P4 R9`"
+PutBackTask,`ASSIGNED`,rozpoczęto odkładanie,`IN_PROGRESS`,`PutBackTaskStarted`,Operator,P4 KROK 4
+PutBackTask,`IN_PROGRESS`,wskazano lokalizację (system proponuje lub operator wskazuje),`LOCATION_VALIDATION`,`PutBackTaskLocationSubmitted`,Operator/System WMS,P4 KROK 4
+PutBackTask,`LOCATION_VALIDATION`,lokalizacja odrzucona,`IN_PROGRESS`,`PutBackTaskLocationRejected`,System WMS,P4 KROK 4
+PutBackTask,`LOCATION_VALIDATION`,"lokalizacja zwalidowana, odłożenie",`COMPLETED`,`PutBackTaskCompleted`,Operator,P4 KROK 5
+CrossDockPickTask,(brak),generowanie zadania z `CustomerOrderLine BACKORDERED`,`CREATED`,`CrossDockPickTaskCreated`,System WMS,P2 KROK 1
+CrossDockPickTask,`CREATED`,"przydział operatorowi zalogowanemu do modułu crossdockingu, bez aktywnego zadania",`ASSIGNED`,`CrossDockPickTaskAssigned`,System WMS,"P2 KROK 2, `P2 R39`"
+CrossDockPickTask,`ASSIGNED`,rozpoczęto pobieranie (skan pierwszego SKU),`IN_PROGRESS`,`CrossDockPickTaskStarted`,Packer,P2 KROK 2
+CrossDockPickTask,`IN_PROGRESS`,zakończenie (Packer inicjuje),`COMPLETED`,`CrossDockPickTaskCompleted`,Packer/System WMS,P2 KROK 3
+CrossDockPickTask,`ASSIGNED`,`TU` pusta przed pobraniem,`CANCELLED`,`CrossDockPickTaskCancelled`,System WMS,P2 KROK 2

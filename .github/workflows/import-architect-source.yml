@@ -1,4 +1,4 @@
-name: One-shot Architect Source import
+name: One-shot ETAP2 implementation plan import
 
 on:
   push:
@@ -9,50 +9,37 @@ permissions:
   contents: write
 
 jobs:
-  import-source:
+  import-plan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Download and verify immutable Architect Source
+      - name: Download and verify prepared plan snapshot
         shell: bash
         run: |
           set -euo pipefail
-          dest='01_ARCHITECT_SOURCE/2026-08-31'
-          mkdir -p "$dest"
+          curl -L --fail --retry 3 --retry-all-errors \
+            'https://drive.usercontent.google.com/download?id=1pvNoAArX4aEpwCEzltXrWQh3fjZUg03d&export=download&confirm=t' \
+            -o /tmp/plan.tar.gz
+          printf '%s  %s\n' '17ffc40a978d3cbe8e9fdc8166427c7ae8b32d4cb9bc3061ab053d9d6a9fbd6f' '/tmp/plan.tar.gz' | sha256sum -c -
+          tar -xzf /tmp/plan.tar.gz
+          test -f 07_IMPLEMENTATION_PLAN/TASK_CATALOG.md
+          test -f 07_IMPLEMENTATION_PLAN/task_catalog.csv
+          test "$(grep -Ec '^## (FND|P1|P2|P3|P4|X|ACC)-[0-9]{3} — ' 07_IMPLEMENTATION_PLAN/TASK_CATALOG.md)" -eq 37
+          test "$(($(wc -l < 07_IMPLEMENTATION_PLAN/task_catalog.csv)-1))" -eq 37
 
-          fetch() {
-            local id="$1" file="$2" sha="$3"
-            curl -L --fail --retry 3 --retry-all-errors \
-              "https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t" \
-              -o "$dest/$file"
-            printf '%s  %s\n' "$sha" "$dest/$file" | sha256sum -c -
-          }
-
-          fetch '1DeE-AmhAvm-vMKvDn1_P3c4jVTJCdyvQ' 'SZABLON_PROCESU.md.html' '30b31ed0d70209dad054114a6e2f902aded2ca7d5bcc5d88d83a79626bd3db29'
-          fetch '1CxNao3n3DwNGWR3NZGB3oAGou8K7-mNx' 'decyzje_outbound_wms.md' 'e93f57024c2c939563a14dfab80a9a0d73e886e9b8cca87232f72d6b3356f550'
-          fetch '1ZJN2KurQ7uk3OKml4W1El2EHUqMuOFlC' 'macierz_odpowiedzialnosci_outbound.md' '373a3c9e288b733063bf9b96b61424a5671d54e45b19e28ed5112294f303f147'
-          fetch '18JD4OBC9X4LPFUCH7-eWn4CXseWIACAx' 'macierz_pokrycia_outbound.md' 'b567c92ed43038ed21a4b1c57f1f48236043917046ccca2c3772d84d5e3638d1'
-          fetch '1YersyCy2-fh7VOzlACf1-zfaJ9iQ9Qv0' 'model_stanow_outbound.md' 'eef03bf68531564379d120b2b9a6ccffb06af7d78c23e4e539fe79b3efb9dea8'
-          fetch '1NB5Jk5LuE4Sbls7kJtBf9V69ikRQFCDt' 'proces_1_standard_fulfillment.md' 'e3b46af2c9961560a2f33e574706c6e9fb796f09da67f0fca98f3bb73c861519'
-          fetch '18iB_UvBnkBu3cBTCIyPUjpY6U4TdK-Zb' 'proces_2_outbound_crossdock.md' '544ff95ae80ba60177df38dd7c11b0009f2cb92b1b7aba7c5dcde2a286696b5e'
-          fetch '1mPZoaahM6IUU_YOKeUENNxr-gCEMD_MS' 'proces_3_reservation_release.md' '29a872bac4eb77d91a570335c1287818c0db4ef9c2331f80c77930a5c3ccee76'
-          fetch '1pSBFBmPUylXO9_tqKX-euAI0Zmc9FoVa' 'proces_4_physical_putback.md' 'b4f9852893be72f15e3752fa33ad8e6d252c7e7405fcfdf8d9edfbd20e47de63'
-          fetch '1fiXCB_5EmKlC5o4iJ_HGxkioGztorRCj' 'scenariusze_testowe_outbound.md' 'd1aac304f05de56a58588d8f04a683c17cb1ca098f7b04cbd23a47a8be6443ca'
-          fetch '1GqtwwNRojCusxd5YPHyaw8cb6sABy_zX' 'wymagania_outbound.md' 'ddb0eba86f2506c91a01d41e564a2a761c93f5ec315c6de65fd902f5a99f7b0e'
-
-      - name: Persist exact snapshot
+      - name: Persist complete implementation plan
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'WMS Outbound ETAP 2'
           git config user.email 'actions@users.noreply.github.com'
-          git add 01_ARCHITECT_SOURCE/2026-08-31
+          git add 07_IMPLEMENTATION_PLAN
           if git diff --cached --quiet; then
-            echo 'Snapshot already exact; nothing to commit.'
+            echo 'Plan already exact; nothing to commit.'
           else
-            git commit -m 'docs(source): import verified immutable architect snapshot'
+            git commit -m 'docs(plan): persist complete 37-item implementation catalog'
             git push origin HEAD:main
           fi

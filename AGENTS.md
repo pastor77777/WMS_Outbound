@@ -8,19 +8,27 @@ Do not treat the closed Inbound campaign as current work. Inbound remains histor
 
 ## 2. Mandatory read order
 
-Before changing Outbound behavior:
+Before changing Outbound behavior, an English-speaking agent normally reads:
 
 1. `STATE.md`
-2. `01_ARCHITECT_SOURCE/MANIFEST.md`
-3. `02_CANON/AUTHORITY.md`
+2. `02_CANON/AUTHORITY.md`
+3. `02_CANON/SOURCE_REGISTRY.md`
 4. `02_CANON/OUTBOUND_GOLDEN_RECORD.md`
-5. the specific immutable architect source section for the behavior being changed
+5. the specific English Architect mirror file under `01_ARCHITECT_TRANSLATIONS/2026-08-31/` for the behavior being changed
 6. `03_TRACEABILITY/requirements_index.csv` and `coverage_matrix.csv`
 7. `04_CURRENT_STATE/*` for existing implementation facts
 8. the relevant task in `07_IMPLEMENTATION_PLAN/TASK_CATALOG.md`
 9. `05_EVIDENCE/EVIDENCE_STANDARD.md`
 
 For Scanner work additionally read `06_AGENT_GUIDES/SCANNER_ROUTING.md`.
+
+### Language routing
+
+- The immutable Polish Architect snapshot under `01_ARCHITECT_SOURCE/2026-08-31/` is ultimate provenance. Its hashes are recorded in `01_ARCHITECT_SOURCE/MANIFEST.md`.
+- The paired files under `01_ARCHITECT_TRANSLATIONS/2026-08-31/` are the default detailed Architect reading for English-speaking agents. Mapping/review metadata is in `01_ARCHITECT_TRANSLATIONS/TRANSLATION_MANIFEST.md`.
+- Do **not** read PL and EN for every implementation task. Read the Polish original only when exact provenance or wording is required, a translation ambiguity/defect is suspected, EN and canon appear inconsistent, or explicit translation validation is requested.
+- If EN and PL differ semantically, this is a **TRANSLATION DEFECT**, not an architecture conflict. The Polish original wins and the EN mirror must be corrected.
+- The EN mirror is a readable representation, not a new authority layer. Adding translations does not change the business hierarchy below.
 
 ## 3. Authority hierarchy
 
@@ -35,6 +43,8 @@ When sources disagree:
 7. templates, prompts, handovers, memory, old code and generic WMS/scanner knowledge are not business authority.
 
 Never edit `01_ARCHITECT_SOURCE/<snapshot>/` in place.
+
+Conceptually: `immutable Architect Source → faithful representation/canon → implementation as current-state evidence → implementation plan as delivery route`. The implementation plan may sequence delivery of approved requirements; it may not create, broaden or override business requirements.
 
 ## 4. Evidence classification
 

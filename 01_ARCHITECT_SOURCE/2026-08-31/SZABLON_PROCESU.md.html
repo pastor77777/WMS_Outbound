@@ -1,0 +1,116 @@
+<!--
+SZABLON_PROCESU.md — wzorzec opisu procesu (WMS Outbound / WMSAI)
+Adaptacja wzorca WMSAI_INBOUND/SZABLON_PROCESU.md dla projektu Outbound (BACKLOG.md B5) —
+treść merytoryczna identyczna, referencja źródła statusów zmieniona na model_stanow_outbound.md.
+
+ZASADY OGÓLNE (przeczytaj przed użyciem):
+- Skopiuj ten plik jako proces_N_nazwa.md i wypełnij sekcje.
+- Sekcje 1–11 są OBOWIĄZKOWE i muszą wystąpić w tej kolejności.
+  Jeśli sekcja nie dotyczy procesu — zostaw nagłówek i wpisz "Nie dotyczy" (to decyzja, nie luka).
+- Sekcje OPCJONALNE (Funkcje ciągłe, Uwagi projektowe) dołączasz tylko gdy proces ich wymaga,
+  zawsze pod ustalonym nagłówkiem podanym niżej.
+- Statusy: wyłącznie kanon EN UPPER_SNAKE; proza po polsku.
+  Każdy użyty status MUSI istnieć w model_stanow_outbound.md (źródło prawdy). Proces NIE wprowadza nowych stanów.
+- Reguły biznesowe: numeracja Rn LOKALNA per plik (kontekst = ten proces).
+- Traceability (reguła Rn -> FR-Px-nn) trzymamy WYŁĄCZNIE w macierz_pokrycia.md — NIE w tym pliku.
+- Przy każdej zmianie: podbij wersję w nagłówku + wpis w "Historia zmian";
+  zaktualizuj odwołania w intro.md, scenariusze_testowe.md, macierz_pokrycia.md.
+Komentarze <!-- ... --> usuń w gotowym dokumencie.
+-->
+
+# PROCES N: NAZWA_EN
+
+<!-- N = pozycja w łańcuchu Outbound (P1–P5; P1–P4 mają własne pliki proces_N, P5 żyje w sekcjach wyjątków proces_1/proces_2). NAZWA_EN kanonicznie po angielsku, spójna z model_stanow_outbound.md. -->
+
+**Wersja:** 1.0
+<!-- format x.y; podbijaj przy każdej zmianie procesu -->
+
+## Cel procesu
+
+<!-- 2–4 zdania: po co ten proces istnieje i jaką wartość dostarcza. Bez opisu kroków. -->
+
+## Uczestnicy
+
+<!-- Role biorące udział w procesie. Jedna linia = jedna rola + zakres odpowiedzialności.
+     Rola techniczna "System WMS" opisana zakresem tego, co robi automatycznie. -->
+
+- **Rola A** — zakres odpowiedzialności.
+- **System WMS** — zakres automatyzacji.
+
+## Zdarzenie startowe
+
+<!-- Warunek/zdarzenie, które URUCHAMIA proces (trigger). Jedno, jednoznaczne. -->
+
+## Przebieg procesu
+
+<!-- Ciąg kroków. Numeracja od 1, resetowana per proces (podkroki jak 1a/6a zachowują numerację kroku nadrzędnego).
+     Pętle oznacz 🔁 i nazwij zakres pętli. Rozgałęzienia jako bramki Ścieżka A / Ścieżka B.
+     Jeden KROK = jedna odpowiedzialność. Statusy w EN. -->
+
+### KROK 1 — <opis>
+
+<!-- Kto, co robi, jaki obiekt i w jaki status przechodzi. -->
+
+### KROK 2 — <opis>
+
+<!-- ...kolejne kroki. -->
+
+## Zdarzenie końcowe
+
+<!-- Stan/zdarzenie oznaczające ZAKOŃCZENIE procesu (i ew. wyzwolenie procesu sąsiedniego). -->
+
+## Obiekty danych
+
+<!-- Tabela: obiekt -> kluczowe pola -> status(y) w EN. Spójna z model_stanow_outbound.md. -->
+
+| Obiekt | Kluczowe pola | Status(y) |
+|---|---|---|
+|  |  |  |
+
+## Wyjątki i ścieżki alternatywne
+
+<!-- Odstępstwa od ścieżki głównej: warunek -> zachowanie systemu/roli -> skutek na statusie.
+     Tabela lub lista. -->
+
+| Warunek | Zachowanie | Skutek |
+|---|---|---|
+|  |  |  |
+
+## Reguły biznesowe
+
+<!-- Identyfikator Rn (LOKALNY, per plik). Każda reguła = jedno, jednoznaczne stwierdzenie.
+     NIE dopisuj tu odwołań do FR — mapowanie Rn -> FR-Px-nn żyje w macierz_pokrycia.md.
+     Proza kroków, opisy obiektów/stanów i reguły Rn NIE cytują kodów decyzji (DEC-Lxx) —
+     mają być samowystarczalne (AGENTS.md §65). -->
+
+- **R1** — <reguła>.
+- **R2** — <reguła>.
+
+## Powiązanie z procesami sąsiednimi
+
+<!-- Proces poprzedzający (co i w jakim stanie przekazuje) oraz następujący (co wyzwalamy i czym). -->
+
+- **Poprzedni:** <proces> — przekazuje <obiekt> w stanie <STATUS>.
+- **Następny:** <proces> — wyzwalany przez <zdarzenie/stan>.
+
+<!-- ===================== SEKCJE OPCJONALNE ===================== -->
+
+## Funkcje ciągłe (przekrojowe)
+
+<!-- OPCJONALNA. Dołącz tylko gdy proces ma funkcje działające równolegle do kroków
+     (nie w sekwencji). Nagłówek stały jak wyżej. Identyfikator Fn per plik. -->
+
+### FUNKCJA CIĄGŁA F1 — <opis>
+
+## Uwagi projektowe (do weryfikacji)
+
+<!-- OPCJONALNA. Otwarte kwestie/założenia wymagające decyzji. Nagłówek stały jak wyżej.
+     Gdy kwestia zostanie rozstrzygnięta — przenieś decyzję do właściwej sekcji i usuń stąd. -->
+
+<!-- =============================================================== -->
+
+## Historia zmian
+
+<!-- Wpis przy KAŻDEJ zmianie procesu. Format: - **x.y (RRRR-MM-DD)** — opis zmiany. -->
+
+- **1.0 (RRRR-MM-DD)** — Wersja bazowa.

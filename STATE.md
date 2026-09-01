@@ -1,10 +1,10 @@
 # WMS Outbound — STATE
 
-**As of:** 2026-08-31  
+**As of:** 2026-09-01  
 **Campaign:** WMS Outbound v1  
 **Architecture:** implementation-ready; no unresolved product/architecture blocker recorded  
-**Current phase:** product implementation — foundation complete  
-**Implementation progress:** 3/37 items complete
+**Current phase:** product implementation  
+**Implementation progress:** **7/37 items FINAL PASS**
 
 ## Architect baseline
 
@@ -26,58 +26,78 @@ The complete implementation plan remains in `07_IMPLEMENTATION_PLAN/`: 37 tasks 
 
 The plan is delivery decomposition only. Architect Source/Canon remains business authority.
 
-## Completed foundation
+## Accepted implementation checkpoints
 
-### FND-001 — FINAL PASS
+1. `FND-001` — FINAL PASS — `a3c8d67f3ec65967fd3405b3da8c9901fb46e192`
+2. `FND-002` — FINAL PASS — `d835dc5ec157cb0485cb09cfbc0dfdeedd40c281`
+3. `FND-003` — FINAL PASS — `8fa0214d36308b00aacf32b5df369ef486975ae2`
+4. `P1-001` — FINAL PASS — `435b51007e5411ebdbb1b3b4d30c984fd770d4c6`
+5. `P1-002` — FINAL PASS / Human Verified — `7510ef3f05b6c64c3f9de925a5a85f644913cdfe`
+6. `P1-003` — FINAL PASS / Human Verified — `bae31c2c2ad9b1426b868d6df7a05076669ace0d`
+7. `P1-004` — FINAL PASS — `71b74b5384b3fbfc55d8ed298f1a3715dc477c3c`
 
-Mercato commit:
+## P1-004 accepted boundary relevant to next work
 
-`a3c8d67f3ec65967fd3405b3da8c9901fb46e192`
-
-Established target CustomerOrder/Line and OutboundOrder/Line ownership/persistence boundaries with real PostgreSQL acceptance.
-
-### FND-002 — FINAL PASS
-
-Mercato commit:
-
-`d835dc5ec157cb0485cb09cfbc0dfdeedd40c281`
-
-Established server-authoritative guarded state transitions, durable audit/events, transactional row locking and idempotent replay/concurrency handling.
-
-### FND-003 — FINAL PASS
-
-Mercato commit:
-
-`8fa0214d36308b00aacf32b5df369ef486975ae2`
-
-Established additive compatibility seams for shared Inventory, physical TU identity, Outbound TU_NUMBER ownership, warehouse scope, Outbound warehouse-task ownership and CON-03 source quantity claims without changing accepted Inbound TU process semantics.
+- target Allocation lifecycle and shared Inventory hard reservation are implemented;
+- soft ATP -> hard reservation conversion is atomic;
+- `SHORT` reserves only actual blocked quantity and replenishment reuses the same Allocation;
+- hard-reserved quantity is excluded from future soft ATP availability;
+- canonical Allocation transition events are used;
+- real CON-01 overlap/locking is proven with independent PostgreSQL transactions/PIDs and DB-side wait evidence;
+- `CONFIRMED -> CONSUMED` is blocked while hard quantity remains;
+- existing hard reservation is not priority-stealable;
+- target PickTask creation was intentionally deferred to P1-005, where the actual PickTask side of CON-02 belongs.
 
 ## Current position
 
-Completed:
+Completed: **7/37**.
 
-1. FND-001
-2. FND-002
-3. FND-003
+Next catalog item:
 
-Next planned catalog item:
+**P1-005 — PickTask creation, zone ordering and operator assignment — item 8/37.**
 
-**P1-001 — CustomerOrder intake, validation, hold, warning and continuous aggregation — item 4/37.**
+Requirements:
 
-P1-001 is dependency-valid but requires an explicit owner authorization before implementation.
+- `FR-P1-07`
+- `FR-P1-29`
+- `FR-P1-30`
+- `CON-02`
+
+Dependencies:
+
+- `P1-004` — satisfied
+- `FND-003` — satisfied
+
+Acceptance mapping:
+
+- `TC-001`
+- `TC-004`
+- `TC-096`
+- `TC-097`
+- `TC-098`
+
+P1-005 DoD: two operators cannot receive the same task; an operator with an active warehouse task is blocked; next task respects configured order.
+
+Boundary: P1-005 owns target PickTask creation/assignment and actual PickTask immutability protection. P1-006 owns RF picking execution.
+
+The owner explicitly requested the next fresh supervisor chat to start by grounding P1-005 and generating its first Antigravity prompt.
+
+Do not start P1-006 without separate authorization.
 
 ## Current-state documents
 
-`04_CURRENT_STATE/*` remains the pre-implementation audit baseline captured before ETAP 2 writes. Do not rewrite that baseline to masquerade as current runtime truth; use Git history/current implementation plus steering handover for post-foundation implementation state.
+`04_CURRENT_STATE/*` remains the pre-implementation audit baseline captured before ETAP 2 writes. Do not rewrite that baseline to masquerade as current runtime truth.
+
+For current implementation state use this file, current implementation Git history/runtime evidence and the Devaxonic-WMS current handover.
 
 ## Blockers
 
-No product/architecture blocker is currently recorded.
+No current product/architecture blocker is recorded for starting P1-005.
 
 ## Handover
 
-Operational handover and exact accepted product SHAs are maintained in:
+Current operational handover:
 
-`Devaxonic-WMS/.ai/HANDOVER_OUTBOUND_FOUNDATION_2026-08-31.md`
+`Devaxonic-WMS/.ai/HANDOVER_OUTBOUND_CURRENT_2026-09-01.md`
 
-Fresh supervisor sessions must consume that handover instead of reconstructing foundation state from chat history.
+Fresh supervisor sessions must consume current handover/state instead of reconstructing implementation state from chat history or the historical foundation handover.

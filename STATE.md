@@ -35,7 +35,7 @@ The plan is delivery decomposition only. Architect Source/Canon remains business
 5. `P1-002` — FINAL PASS / Human Verified — `7510ef3f05b6c64c3f9de925a5a85f644913cdfe`
 6. `P1-003` — FINAL PASS / Human Verified — `bae31c2c2ad9b1426b868d6df7a05076669ace0d`
 7. `P1-004` — FINAL PASS — `71b74b5384b3fbfc55d8ed298f1a3715dc477c3c`
-8. `P1-005` — FINAL PASS / PLAYWRIGHT VERIFIED — `d2709c6fb52ecf869e669bd397296c8261399ace` (Mercato) / `ee902f9c2e8643ee67eb83746a5fb5a21e95fbb9` (Scanner)
+8. `P1-005` — FINAL PASS / Human Verified — `0ebc0e8ce44263edf9170293f0c5b0d1a5c54975` (Mercato) / `8199b330cb739a45e2c615a3f2aa3803336be724` (Scanner)
 
 ## P1-005 accepted boundary relevant to next work
 
@@ -45,27 +45,28 @@ The plan is delivery decomposition only. Architect Source/Canon remains business
 - Single active task guard (R56) enforced at server boundary and validated via live Playwright on Scanner UI;
 - Continuation assignment primitive (`continueOrderPickTask` / FR-P1-30 / R55);
 - CON-02 allocation immutability guard when a target PickTask exists;
-- RF scanning picking execution deferred to P1-006.
+- RF scanning picking execution deferred to P1-006 (which depends on P1-005 AND P1-008).
 
 ## Current position
 
 Completed: **8/37**.
 
-Next catalog item:
+Next executable item:
 
-**P1-006 — Single-item / standard picking RF scan execution — item 9/37.**
+**P1-008 — Outbound TU identity, TUSetup, numbering, capacity and issueability — item 12/37.**
 
 Requirements:
 
-- `FR-P1-08`
-- `FR-P1-09`
-- `FR-P1-10`
-- `FR-P1-11`
-- `FR-P1-12`
+- `FR-P1-28`
+- `FR-P1-37`
+- `FR-P1-38`
+- `FR-P1-39`
+- `FR-P1-40`
+- `FR-P1-42`
 
 Dependencies:
 
-- `P1-005` — satisfied
+- `FND-003` — satisfied
 
 Acceptance mapping:
 

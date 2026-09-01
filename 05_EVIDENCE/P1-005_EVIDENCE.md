@@ -10,9 +10,9 @@
 ## 1. Lineage & Repository Commit SHAs
 
 * **Mercato Accepted Base (P1-004):** `71b74b5384b3fbfc55d8ed298f1a3715dc477c3c`
-* **Mercato P1-005 Head (`outbound/p1-005`):** `0ebc0e8ce2943b174db96c73df54f15d48dd965b`
-* **Scanner P1-005 Head (`main`):** `8199b336eb18e95089304e7bc582c0b6efb45946`
-* **Backend Build/Runtime Identity:** Live Next.js server on `http://127.0.0.1:3009` running directly from Mercato commit `0ebc0e8ce2943b174db96c73df54f15d48dd965b`.
+* **Mercato P1-005 Head (`outbound/p1-005`):** `0ebc0e8ce44263edf9170293f0c5b0d1a5c54975`
+* **Scanner P1-005 Head (`main`):** `8199b330cb739a45e2c615a3f2aa3803336be724`
+* **Backend Build/Runtime Identity:** Live Next.js server on `http://127.0.0.1:3009` running directly from Mercato commit `0ebc0e8ce44263edf9170293f0c5b0d1a5c54975`.
 
 ---
 

@@ -35,38 +35,37 @@ The plan is delivery decomposition only. Architect Source/Canon remains business
 5. `P1-002` — FINAL PASS / Human Verified — `7510ef3f05b6c64c3f9de925a5a85f644913cdfe`
 6. `P1-003` — FINAL PASS / Human Verified — `bae31c2c2ad9b1426b868d6df7a05076669ace0d`
 7. `P1-004` — FINAL PASS — `71b74b5384b3fbfc55d8ed298f1a3715dc477c3c`
+8. `P1-005` — FINAL PASS / PLAYWRIGHT VERIFIED — `d2709c6fb52ecf869e669bd397296c8261399ace` (Mercato) / `ee902f9c2e8643ee67eb83746a5fb5a21e95fbb9` (Scanner)
 
-## P1-004 accepted boundary relevant to next work
+## P1-005 accepted boundary relevant to next work
 
-- target Allocation lifecycle and shared Inventory hard reservation are implemented;
-- soft ATP -> hard reservation conversion is atomic;
-- `SHORT` reserves only actual blocked quantity and replenishment reuses the same Allocation;
-- hard-reserved quantity is excluded from future soft ATP availability;
-- canonical Allocation transition events are used;
-- real CON-01 overlap/locking is proven with independent PostgreSQL transactions/PIDs and DB-side wait evidence;
-- `CONFIRMED -> CONSUMED` is blocked while hard quantity remains;
-- existing hard reservation is not priority-stealable;
-- target PickTask creation was intentionally deferred to P1-005, where the actual PickTask side of CON-02 belongs.
+- Multi-zone PickTask generation on `OutboundOrder -> ALLOCATED` (discrete zone tasks in `CREATED` status);
+- Authoritative queue ordering (`SLA_THEN_PRIORITY` and `PRIORITY_THEN_SLA`);
+- Scanner operator assignment via `POST /api/wms_outbound/picking/request-task` with advisory queue locks;
+- Single active task guard (R56) enforced at server boundary and validated via live Playwright on Scanner UI;
+- Continuation assignment primitive (`continueOrderPickTask` / FR-P1-30 / R55);
+- CON-02 allocation immutability guard when a target PickTask exists;
+- RF scanning picking execution deferred to P1-006.
 
 ## Current position
 
-Completed: **7/37**.
+Completed: **8/37**.
 
 Next catalog item:
 
-**P1-005 — PickTask creation, zone ordering and operator assignment — item 8/37.**
+**P1-006 — Single-item / standard picking RF scan execution — item 9/37.**
 
 Requirements:
 
-- `FR-P1-07`
-- `FR-P1-29`
-- `FR-P1-30`
-- `CON-02`
+- `FR-P1-08`
+- `FR-P1-09`
+- `FR-P1-10`
+- `FR-P1-11`
+- `FR-P1-12`
 
 Dependencies:
 
-- `P1-004` — satisfied
-- `FND-003` — satisfied
+- `P1-005` — satisfied
 
 Acceptance mapping:
 

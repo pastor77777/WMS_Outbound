@@ -9,9 +9,9 @@
 
 ## 1. Lineage & Authoritative Repository Commit SHAs
 
-* **Mercato P1-007 Final Head (`outbound/p1-007`):** `4c53cbdeb9a7b1a1169bbb84aba08bb909d9db75`
+* **Mercato P1-007 Final Head (`outbound/p1-007`):** `1979942c993688be84d8765c0baae0eb594f9aa9`
 * **Scanner P1-007 Final Head (`main`):** `b23325aae1c4f83b79d01b3650dbead3486a1041`
-* **Authoritative Outbound Steering Head (`main`):** `17628ca3eed6fa7d0e1a27a57209a5a17c6824cb`
+* **Authoritative Outbound Steering Head (`main`):** `4bf16d97aaed33333695412a654f2d4c82c065d4`
 * **Testing PostgreSQL Database:** Remote DevAxonic Testing Database (`devaxonic-test.info-start.com.pl`).
 * **Live Services:**
   - Mercato Next.js Backend: `https://devaxonic-test.info-start.com.pl` (local runner: `http://localhost:3000`)
@@ -35,17 +35,17 @@
   If either bound is unmet, auto-reallocation ceases immediately and the shortage escalates to the Supervisor without overbooking.
 * **Effective Retry Limit Hierarchy:** Customer override (`CustomerOrder.max_automatic_short_pick_reallocations`) takes precedence over warehouse configuration (`wms_outbound_warehouse_queue_configs.max_automatic_short_pick_reallocations`), defaulting to 1. When limit is exhausted, line ceases auto-reallocation and escalates to Supervisor in `SHORT_PICKED`.
 
-### C. TC-062: SHORT_PICKED Supervisor Outcomes & Real Reversible Migration (Shot 1 Deterministic Proof)
+### C. TC-062: SHORT_PICKED Supervisor Outcomes & Real Migration Lifecycle (Shot 1B Corrective Proof)
 * **Outcome A (WAIT / CZEKAMY):** Rolls back un-packed sister lines of the order. Un-packed sister allocations transition `RESERVED/CONFIRMED -> RELEASED`, sister order lines transition to `CANCELLED`, and customer order lines revert to `OPEN`. CustomerOrder reverts to `ACCEPTED` with `has_warning = true`. Exact unpicked soft ATP promises are restored. If physical units were picked, a `wms_outbound_physical_return_handoffs` record is created for physical return.
 * **Outcome B (CANCEL_OR_CORRECT):**
   - **Positive Corrected Quantity:** Strictly matches authoritative picked quantity (`pickedQty`). Concurrently updates commercial demand (`CustomerOrderLine.orderedQuantity = pickedQty`) and execution demand (`OutboundOrderLine.requiredQty = pickedQty`), and reconciles `WmsInventoryReservation.quantity = pickedQty` per TC-121 lifecycle invariants. Line advances to `PICKED`.
   - **Zero Quantity (0 - Full Line Cancellation):** Supported via migration `Migration20260902160000_wms_outbound_p1_007_remediation.ts` updating table check constraints to `CHECK (ordered_quantity >= 0)` and `CHECK (required_qty >= 0)`. Concurrently updates `CustomerOrderLine.orderedQuantity = 0.000000`, `CustomerOrderLine.status = 'CANCELLED'`, `OutboundOrderLine.requiredQty = 0.000000`, and `OutboundOrderLine.status = 'CANCELLED'`. Releases hard allocations to `RELEASED`, deletes linked inventory reservations, and persists `wms_outbound_physical_return_handoffs` for any physical units picked.
 * **Outcome C (ALLOW_PARTIAL):** Persistently enables `CustomerOrder.allowPartialShipment = true` with mandatory reason audit. Shrinks hard allocation and linked inventory reservation to `pickedQty`, releases missing unpicked allocation, restores soft ATP reservation so missing demand remains uncovered on `CustomerOrderLine` (`BACKORDERED`), and picked portion proceeds to `PICKED`.
-* **Deterministic Reversible Migration Proof with Zero Masking (`Migration20260902160000_wms_outbound_p1_007_remediation.ts`):**
-  - Suite-global `beforeAll` schema patching (`ALTER TABLE ... >= 0`) was completely removed; the test suite executes directly against the migration-managed schema.
-  - Test `6A` executes the actual migration class within an isolated schema without skips or conditionals:
-    - **Path A (Compatible Data):** Unconditionally executes UP (`>= 0`), DOWN (`> 0`), and re-UP (`>= 0`), asserting fresh PostgreSQL constraint state at each transition.
-    - **Path B (Incompatible Data Fail-Safe):** Under UP state with legitimate P1-007 R46 cancelled zero-quantity rows present, DOWN fails fast with an explicit compatibility error *before* any constraint mutation, preserving all zero rows and leaving `>= 0` constraints intact without data loss.
+* **Deterministic Reversible Migration Proof without Shadow Tables (`Migration20260902160000_wms_outbound_p1_007_remediation.ts`):**
+  - Suite-global `beforeAll` schema patching (`ALTER TABLE ... >= 0`) was completely removed; the entire test suite executes directly against the migration-managed schema.
+  - Test `6A` builds an isolated test schema exclusively through the **real preceding project migration lifecycle** (`Migration20260831200000_wms_outbound` through `Migration20260902100000_wms_outbound_p1_007`), completely eliminating hand-written table DDL and shadow table duplication.
+  - **Path A (Compatible Data):** Unconditionally executes remediation migration UP (`>= 0`), DOWN (`> 0`), and re-UP (`>= 0`) without `if` guards or skips, asserting fresh PostgreSQL constraint state at each step.
+  - **Path B (Incompatible Data Fail-Safe):** Under UP state with legitimate P1-007 R46 cancelled zero-quantity rows present in the real migration tables, DOWN fails fast with an explicit compatibility error *before* any constraint mutation, preserving all zero rows and leaving `>= 0` constraints intact without data loss.
 
 ### D. Supervisor Idempotency with Canonical Payload Derivation
 * In `customer-order-service.ts`, the authoritative `outboundOrderId` is resolved directly from `WmsOutboundOrderLine` *before* comparing the incoming payload against the recorded decision snapshot.
@@ -65,9 +65,9 @@ yarn --cwd apps/mercato test src/modules/wms_outbound/services/__tests__/p1-007-
 ```text
   console.log
     [P1-007 Decisive PostgreSQL Lock & Reallocation Concurrency Proof] {
-      actorAPid: 1815350,
-      actorBPid: 1816174,
-      blockingPids: [ 1815350 ],
+      actorAPid: 1816174,
+      actorBPid: 1815350,
+      blockingPids: [ 1816174 ],
       waitEventType: 'Lock',
       lockEvidenceCaptured: true,
       replacementTasksCreated: 1,
@@ -75,7 +75,7 @@ yarn --cwd apps/mercato test src/modules/wms_outbound/services/__tests__/p1-007-
     }
 ```
 
-**Decisive Migration Proof Output (Test 6A — Shot 1):**
+**Decisive Migration Proof Output (Test 6A — Shot 1B Real Migration Lifecycle):**
 ```text
   console.log
     [P1-007 Decisive Migration Proof] {
@@ -90,7 +90,7 @@ yarn --cwd apps/mercato test src/modules/wms_outbound/services/__tests__/p1-007-
 
 **Verbatim Output:**
 ```text
-PASS src/modules/wms_outbound/services/__tests__/p1-007-postgres.integration.test.ts (73.311 s)
+PASS src/modules/wms_outbound/services/__tests__/p1-007-postgres.integration.test.ts (77.045 s)
   P1-007 Genuine PostgreSQL SHORT_ALLOCATED & SHORT_PICKED Recovery Suite
     1. TC-060 SHORT_ALLOCATED Handling & Outcomes
       ✓ 1A: allowPartialShipment = true drives real planning/allocation path: available allocated, shortfall BACKORDERED, no supervisor intervention (2290 ms)
@@ -117,12 +117,12 @@ PASS src/modules/wms_outbound/services/__tests__/p1-007-postgres.integration.tes
       ✓ 4C: Rollback proof: real failure before commit ensures no partial shortage state leaked (1140 ms)
     5. R48 Repack Shortage Backend Seam
       ✓ 5A: Supervisor shortage resolution service preserves repacked carton integrity without phantom allocation leaks (1200 ms)
-      ✓ 6A: Real reversible migration proof: UP/DOWN/re-UP execution with fail-safe incompatible-data protection (1640 ms)
+      ✓ 6A: Real reversible migration proof: UP/DOWN/re-UP execution with fail-safe incompatible-data protection (1710 ms)
 
 Test Suites: 1 passed, 1 total
 Tests:       20 passed, 20 total
 Snapshots:   0 total
-Time:        73.311 s
+Time:        77.045 s
 ```
 
 ---

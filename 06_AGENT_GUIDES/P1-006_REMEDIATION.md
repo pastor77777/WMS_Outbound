@@ -1,153 +1,221 @@
-# P1-006 Remediation — First Shot
+# P1-006 Remediation — Explicit Second Override After STOP
+
+Owner explicitly authorizes ONE more narrow remediation shot after STOP.
 
 Use the **same existing Antigravity session**. Do not start another ticket.
 
 ## FIRST: synchronize this repository locally
 
-Before reading or executing anything below, update the existing local checkout of `WMS_Outbound` from GitHub so this remediation file is present locally.
-
-Required order:
+Before reading or executing the remediation:
 1. Go to the existing local `WMS_Outbound` checkout.
-2. Fetch the remote and fast-forward/pull the current `main` branch. Do not reclone and do not replace the working session.
-3. Verify that `06_AGENT_GUIDES/P1-006_REMEDIATION.md` exists locally and is the current remote version.
-4. Read this local file completely.
-5. Only then execute the remediation below in the SAME Antigravity session.
+2. Fetch remote and safely fast-forward/pull current `main` without discarding unrelated local work.
+3. Verify this local file is the current remote version:
+   `06_AGENT_GUIDES/P1-006_REMEDIATION.md`
+4. Read the LOCAL file completely.
+5. Execute it in the SAME Antigravity session.
 
-If the local checkout has unrelated uncommitted work, preserve it safely and synchronize without discarding it.
+Do not reclone repositories and do not replace the current Antigravity session.
 
-## Current heads
+## Current remediation heads
 
-- Mercato P1-006: `4274403d674a9481d0edc3c851989da49090aaed`
-- Scanner P1-006: `9022d6979a92c196e1333d97a979d9726a46e5e7`
+- Mercato: `dbc8ddef2873d6babde73a1ecd854c5feb1dff0e`
+- Scanner: `7d36f85ab5cf8020746d9a007fe1d8a5795980ae`
+- WMS_Outbound evidence base includes remediation evidence commit `489d3a25ef4a5a2c04ce0893a00e54f76da71ece`
 
-Preserve what is already good:
-- real rendered Scanner RF picking;
-- formal pickedQuantity persistence;
+## Preserve — already accepted in this shot
+
+Do not redesign/regress:
+- real rendered Scanner RF picking and zero-route-mock Playwright;
+- formal picked quantity persistence;
 - task completion without auto-closing TU;
+- real PostgreSQL concurrency lock proof;
 - real application rollback;
-- genuine PostgreSQL lock concurrency proof;
 - warehouse authorization;
-- real R55 same-order continuation concept.
+- R55 rendered Zone A -> Zone B update;
+- P1-009 Direct Pack removed from the P1-006 Scanner journey;
+- canonical authenticated operator identity / no synthetic `'operator'` fallback.
 
-Fix only the blockers below.
+Fix **ONLY the four remaining blockers below**.
 
-## 1. Real pick idempotency
+---
 
-Current `confirmPickLine` has no durable confirmation/idempotency identity. A sequential or concurrent replay of the same partial confirmation must never increment pickedQty/TU contents twice.
+## 1. Idempotency must be mandatory and retry-stable
 
-Implement a durable server-authoritative idempotency contract:
-- Scanner creates one stable confirmation key for one user pick action;
-- network retries reuse the same key;
-- backend persists the key in PostgreSQL using an existing suitable idempotency primitive or the smallest additive P1-006 persistence structure;
-- unique scope prevents duplicate application;
-- same key + same payload returns the already-applied result without second quantity/content write;
-- same key + conflicting payload fails closed;
-- client cannot bypass the invariant.
+### Current defect
 
-Prove with real PostgreSQL:
-- partial pick 4/10 with key K -> picked=4;
-- exact sequential replay K -> still picked=4, one logical TU-content confirmation only;
-- two overlapping real transactions using K -> exactly one applied;
-- fresh independent DB read proves quantity exactly once.
+`idempotencyKey` is optional at the HTTP/service boundary, so a client can bypass the invariant.
+Scanner currently creates a fresh key inside each `handleConfirmPick` using time/randomness, so a retry after a committed request but lost response can generate a new key and double-apply a partial pick.
 
-Use real connections/PIDs and DB-side blocking/unique evidence where material.
+### Required backend contract
 
-## 2. R55 operator zone change
+For human RF pick confirmation:
+- `idempotencyKey` is REQUIRED, non-empty, server-validated.
+- No human `confirm-line` request may execute without it.
+- Service must fail closed if missing when called through the RF confirmation path.
+- Existing durable `wms_outbound_pick_confirmations` unique key remains authoritative.
+- Same key + same canonical payload -> replay prior applied confirmation, no second quantity/TU-content write.
+- Same key + conflicting payload -> fail closed.
 
-After same-order continuation Zone A -> Zone B:
-- Scanner/operator active zone must actually become Zone B;
-- rendered UI must show Zone B;
-- subsequent actions/next-task context must use Zone B, not stale route params.
+Canonical payload comparison must include every material field needed to distinguish a confirmation, including at minimum warehouse, task, task line, TU, scanned location, SKU, quantity and canonical operator identity.
 
-Extend Playwright:
-- assert Zone A before continuation;
-- click continuation;
-- assert Zone B after continuation;
-- same open TU remains;
-- perform Zone B pick.
+### Required Scanner retry behavior
 
-## 3. R62 configurable Picking-TU strategy
+A single logical operator confirmation action must own one stable key.
 
-Implement/reuse warehouse configuration for both Architect strategies:
+Implement the smallest robust state model:
+- generate K when a new pending pick action is created;
+- retain K while the request is in flight or outcome is uncertain;
+- retry of the SAME pending action reuses K;
+- generate a new key only after the prior action has received a decisive success or decisive domain rejection and a genuinely new operator confirmation begins.
 
-### A. `SEPARATE_PER_TASK_OR_ZONE`
-- completed task does not automatically reuse its TU for next-zone task;
-- continuation requires/selects a separate Picking TU according to configured behavior.
+Do not generate a fresh key merely because the button handler ran again.
 
-### B. `SHARED_SAME_ORDER_CONSECUTIVE_ZONES`
-- eligible same-order continuation reuses the same open TU.
+### Required proof
 
-Do not hardcode shared-TU behavior.
+Real PostgreSQL tests:
+1. missing key -> rejected; zero DB mutation;
+2. partial pick 4/10 with K -> picked=4;
+3. sequential exact replay K -> still 4, exactly one logical content/confirmation;
+4. same K conflicting material payload -> rejected;
+5. two overlapping independent real transactions/connections using the SAME K -> exactly one applied, fresh DB read remains 4;
+6. persist/report relevant PIDs and DB-side unique/lock evidence where applicable.
 
-Use the smallest appropriate warehouse-level configuration and additive migration only if no existing canonical field exists.
+Scanner/Playwright:
+- prove one normal confirmation still works;
+- add a focused test at API/client level proving a simulated retry reuses the same key rather than generating a new one.
 
-Prove both strategies with real PostgreSQL integration tests. Playwright may cover the configured strategy used by the acceptance fixture, but backend tests must prove both.
+---
 
-## 4. R67 capacity-driven TU switch
+## 2. R62 must execute both strategies, not only return `requiresNewTu`
 
-Current UI exposes New TU at any time and an over-capacity attempt mutates `PICK_FULL` then throws, so the status rolls back.
+### Current defect
 
-Correct the lifecycle:
-- switching for R67 is available because current TU reached the Architect-permitted operational full/capacity condition, not arbitrarily;
-- capacity/full state must be durable and server-authoritative;
-- do not rely on state mutation rolled back with a rejected pick;
-- task remains active;
-- next TU is created through accepted P1-008 primitives;
-- subsequent pick continues on the same PickTask.
+Backend currently reports `strategy` / `requiresNewTu`, but the `SEPARATE_PER_TASK_OR_ZONE` test only checks the flag and then switches configuration back to SHARED before real continuation.
+Scanner also effectively consumes only the task list and does not execute separate-TU behavior.
 
-Prove TC-118 from an actual persisted capacity/full condition.
+### Required behavior
 
-## 5. Remove P1-009 Direct Pack scope
+#### `SHARED_SAME_ORDER_CONSECUTIVE_ZONES`
+- completed task may continue into an eligible same-order next-zone task using the SAME open Picking TU;
+- prove actual same TU id before/after continuation.
 
-P1-006 must not implement P1-009 directPack behavior.
+#### `SEPARATE_PER_TASK_OR_ZONE`
+- same-order next-zone continuation may still be selected as the next task, but the previous TU MUST NOT be reused for the next task;
+- previous TU is closed/transitioned according to the accepted P1-006/P1-008 boundary;
+- Scanner requires/selects/creates a new Picking TU before the first pick in the continued task;
+- first Zone B pick must be persisted into a DIFFERENT TU id;
+- attempting to confirm Zone B into the old Zone A TU must fail closed.
 
-Remove from the P1-006 Scanner journey:
-- Declare Direct Pack toggle;
-- `directPackDeclared` submission from `confirm-line`;
-- P1-006 assertions requiring directPack inheritance.
+The strategy must be server-authoritative. Do not rely only on a UI hint.
 
-Do not remove the already-accepted underlying P1-008-compatible field/schema if later work needs it; simply do not implement/exercise P1-009 behavior in P1-006.
+### Required proof
 
-## 6. Canonical operator identity
+Real PostgreSQL integration tests must execute BOTH complete flows end-to-end:
+- SHARED: Zone A task -> continuation -> Zone B pick into same TU;
+- SEPARATE: Zone A task -> continuation -> old TU not eligible -> new TU bound -> Zone B pick into different TU.
 
-No `'operator'` fallback on human picking endpoints.
+Scanner must consume returned strategy/`requiresNewTu` and behave accordingly.
 
-For:
-- confirm-line;
-- close-tu;
-- switch-tu;
-- continue-task;
+Extend Playwright or add one focused genuine Scanner Playwright case for the SEPARATE strategy if practical; at minimum the existing Playwright must continue proving SHARED, while genuine backend integration proves SEPARATE decisively.
 
-resolve canonical authenticated user UUID using the accepted platform identity contract.
+---
 
-If canonical human operator UUID is unavailable, fail closed with 401/403. Never persist a synthetic actor string for these operator actions.
+## 3. R67 switch must be impossible until current TU is durably `PICK_FULL`
 
-Add focused HTTP proof.
+### Current defect
 
-## 7. Regression and durable evidence
+`declareTuFull` can persist `PICK_FULL`, but `switchPickingTuForTask` still permits switching an ordinary active TU. Current test switches later TUs without declaring them full first.
 
-Rerun:
+### Required invariant
+
+`switchPickingTuForTask` must fail closed unless:
+- PickTask is active and owned by the operator;
+- current TU belongs to the task/order/warehouse as applicable;
+- current TU status is exactly the Architect-eligible persisted full state (`PICK_FULL`) for the R67 capacity-switch path.
+
+Do not allow arbitrary switch from `CREATED` or ordinary `IN_PICKING` for R67.
+
+The Scanner must:
+- not present/enable `Switch TU` as an R67 action until the active TU is `PICK_FULL`;
+- allow `Declare Full` only while appropriate;
+- after durable `PICK_FULL`, allow switch;
+- new TU remains on the SAME active PickTask.
+
+### Required proof
+
+1. switch while TU is ordinary `IN_PICKING` -> rejected; task and TU unchanged;
+2. durable `declareTuFull` -> fresh DB sees `PICK_FULL`;
+3. switch after `PICK_FULL` -> succeeds;
+4. new TU is different, active, tied to same PickTask;
+5. continue picking and prove authoritative cumulative picked quantity;
+6. every additional R67 switch in the test must first put the current TU into `PICK_FULL` — no shortcut calls.
+
+Update Scanner UI tests as needed to prove the button lifecycle.
+
+---
+
+## 4. Add a real additive migration for the P1-006 schema
+
+### Current defect
+
+Mercato entity model adds:
+- `wms_outbound_pick_confirmations`;
+- `wms_outbound_warehouse_queue_configs.picking_tu_strategy`;
+
+but the remediation commit contains no deployable migration for them.
+
+### Required migration
+
+Add a new forward-only timestamped P1-006 migration after the existing P1-008 migration lineage.
+
+UP must add only P1-006 schema:
+- nullable/default-compatible `picking_tu_strategy` column with accepted default semantics;
+- `wms_outbound_pick_confirmations` table with required scope fields;
+- unique constraint/index enforcing durable idempotency key scope;
+- required supporting index(es).
+
+DOWN must safely remove only the P1-006 additions.
+
+Do NOT rewrite old accepted migrations.
+Do NOT redefine shared Inbound tables.
+
+### Required migration proof
+
+On a real PostgreSQL schema at the accepted prior migration state:
+1. apply P1-006 migration;
+2. verify new column/table/constraints/indexes;
+3. run focused P1-006 tests;
+4. rollback migration and prove only P1-006 additions disappear / prior accepted schema remains;
+5. reapply migration and rerun required focused tests.
+
+Persist exact migration filename and command/output evidence.
+
+---
+
+## Regression / durable evidence
+
+After fixes rerun at minimum:
 - focused P1-006 PostgreSQL suite;
-- real P1-006 Scanner Playwright;
+- genuine P1-006 Scanner Playwright;
 - P1-005 assignment regression;
 - P1-008 TU regression;
-- targeted accepted Inbound shared TU / warehouse regression.
+- targeted accepted Inbound shared TU/warehouse regression.
 
-Update durable P1-006 evidence with:
-- exact Mercato + Scanner SHAs/lineage;
-- durable idempotency proof;
-- Zone A -> Zone B rendered state proof;
-- both R62 strategies;
-- persisted R67 capacity/full proof;
-- canonical operator UUID;
-- rollback/concurrency;
-- exact commands/pass counts;
-- screenshots/trace;
-- regressions.
+Update and PUSH durable P1-006 evidence with:
+- exact Mercato + Scanner SHAs and lineage;
+- migration file and apply/down/reapply proof;
+- mandatory idempotency + stable retry proof;
+- actual SHARED and SEPARATE R62 execution proof;
+- R67 rejected-before-full and succeeds-after-full proof;
+- test commands/pass counts;
+- Playwright result and screenshots/trace where useful;
+- regressions;
+- remaining gaps.
 
-## Boundary
+## Boundary / STOP
 
 - No P1-007.
 - No P1-009.
-- Do not self-declare Human Verified or FINAL PASS.
-- Stop after push.
+- No unrelated redesign.
+- Do NOT self-declare Human Verified or FINAL PASS.
+- STOP after implementation + push + durable evidence.

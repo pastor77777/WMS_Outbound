@@ -1,6 +1,6 @@
 # WMS Outbound — STATE
 
-**As of:** 2026-09-01  
+**As of:** 2026-09-02  
 **Campaign:** WMS Outbound v1  
 **Architecture:** implementation-ready; no unresolved product/architecture blocker recorded  
 **Current phase:** product implementation  
@@ -37,18 +37,20 @@ The plan is delivery decomposition only. Architect Source/Canon remains business
 7. `P1-004` — FINAL PASS — `71b74b5384b3fbfc55d8ed298f1a3715dc477c3c`
 8. `P1-005` — FINAL PASS / Human Verified — `0ebc0e8ce44263edf9170293f0c5b0d1a5c54975` (Mercato) / `8199b330cb739a45e2c615a3f2aa3803336be724` (Scanner)
 9. `P1-008` — FINAL PASS / Human Verified — `9512137702a5d5f5b41910c2de97cf03321a1ccd` (Mercato) / `b5cfb59987c76f39e0ab48af67a52e2e914d9613` (Scanner)
-10. `P1-006` — FINAL PASS / PLAYWRIGHT VERIFIED — `4274403d674a9481d0edc3c851989da49090aaed` (Mercato) / `9022d6979a92c196e1333d97a979d9726a46e5e7` (Scanner)
+10. `P1-006` — FINAL PASS / Human Verified — `353a5001cb8f1941971f960e509a8af643e41e5a` (Mercato) / `7596b7802e7ed55a59dd6dc1f21912ea6331e796` (Scanner) / evidence `43cc7d0e7dd20a48fc00b40150b30275d0c2aa12`
 
 ## P1-006 accepted boundary
 
-- Normal RF picking into Picking TU (R53/R16), formal pickedQty confirmation;
-- Invariant R55: PickTask completion (`IN_PROGRESS -> COMPLETED`) **MUST NOT** auto-close or seal the Picking TU (TU remains `IN_PICKING` with accumulated mass/volume);
-- Invariant R55 (TC-109): Same-order multi-zone continuation seamlessly offers and binds PickTask in next zone into still-open TU without altering directPackDeclared;
-- Invariant R67 / R15 (TC-118): Starting additional TU for same PickTask when reaching mass/volume capacity;
-- Decisive PostgreSQL concurrency lock proof with genuine `pg_blocking_pids` lock-wait evidence;
-- Application-path rollback proof;
-- Zero-route-mock Playwright UI test passing end-to-end;
-- Full WMS Outbound regression battery passing (16/16 suites, 219/219 tests).
+- Normal RF picking into Picking TU with authoritative picked quantity persistence.
+- Mandatory durable pick-confirmation idempotency; same-key sequential/concurrent replay cannot double-pick.
+- Decisive SAME-key PostgreSQL concurrency proof uses independent server PIDs plus strict `pg_blocking_pids` / `wait_event_type = Lock` evidence.
+- R55: completing a PickTask does **not** auto-close/seal the Picking TU; same-order next-zone continuation updates active Scanner zone.
+- R62: both warehouse strategies are implemented — shared TU across consecutive same-order zones and separate TU per task/zone with server-side old-TU rejection.
+- R67: TU switch is blocked until current TU is durably `PICK_FULL`; the new TU remains on the same active PickTask.
+- Additive P1-006 migration for picking-TU strategy and durable pick-confirmation records is reversible.
+- Real Scanner Playwright: full RF picking journey and focused retry-key stability suite are green.
+- P1-005, P1-008, Outbound and targeted Inbound/shared compatibility regressions are green.
+- Owner completed the final Human Verified walkthrough on 2026-09-02.
 
 ## Current position
 
@@ -59,10 +61,10 @@ Next implementation item:
 **P1-007 — SHORT_ALLOCATED / SHORT_PICKED recovery and Supervisor outcomes — item 11/37.**
 
 Requirements: `FR-P1-21`, `FR-P1-22`, `FR-P1-23`, `FR-P1-24`, `FR-P5-01`, `FR-P5-02`, `FR-P5-03`, `FR-P5-04`, `FR-P5-05`, `FR-P5-06`.
-Architect: `P1 R41–R48`, `P1 Wyjątki`.
+Architect: `P1 R42–R48` plus the `SHORT_ALLOCATED` / `SHORT_PICKED` exception table; `R41` is regression context for final CustomerOrder closure.
 Dependencies: `P1-004`, `P1-005`, `P1-006` are satisfied.
 
-Acceptance mapping: `TC-001`, `TC-003`, `TC-005`, `TC-020`, `TC-021`, `TC-022`, `TC-023`, `TC-024`, `TC-025`.
+Acceptance mapping from the current Task Catalog: `TC-001`, `TC-008`, `TC-060`, `TC-061`, `TC-062`, `TC-121`.
 
 ## Current-state documents
 
@@ -72,7 +74,7 @@ For current implementation state use this file, current implementation Git histo
 
 ## Blockers
 
-No current product/architecture blocker is recorded for starting P1-005.
+No current product/architecture blocker is recorded for starting `P1-007`.
 
 ## Handover
 

@@ -4,7 +4,7 @@
 **Campaign:** WMS Outbound v1  
 **Architecture:** implementation-ready; no unresolved product/architecture blocker recorded  
 **Current phase:** product implementation  
-**Implementation progress:** **7/37 items FINAL PASS**
+**Implementation progress:** **9/37 items FINAL PASS**
 
 ## Architect baseline
 
@@ -36,28 +36,30 @@ The plan is delivery decomposition only. Architect Source/Canon remains business
 6. `P1-003` — FINAL PASS / Human Verified — `bae31c2c2ad9b1426b868d6df7a05076669ace0d`
 7. `P1-004` — FINAL PASS — `71b74b5384b3fbfc55d8ed298f1a3715dc477c3c`
 8. `P1-005` — FINAL PASS / Human Verified — `0ebc0e8ce44263edf9170293f0c5b0d1a5c54975` (Mercato) / `8199b330cb739a45e2c615a3f2aa3803336be724` (Scanner)
+9. `P1-008` — FINAL PASS / Human Verified — `9512137702a5d5f5b41910c2de97cf03321a1ccd` (Mercato) / `b5cfb59987c76f39e0ab48af67a52e2e914d9613` (Scanner)
 
-## P1-005 accepted boundary relevant to next work
+## P1-008 accepted boundary
 
-- Multi-zone PickTask generation on `OutboundOrder -> ALLOCATED` (discrete zone tasks in `CREATED` status);
-- Authoritative queue ordering (`SLA_THEN_PRIORITY` and `PRIORITY_THEN_SLA`);
-- Scanner operator assignment via `POST /api/wms_outbound/picking/request-task` with advisory queue locks;
-- Single active task guard (R56) enforced at server boundary and validated via live Playwright on Scanner UI;
-- Continuation assignment primitive (`continueOrderPickTask` / FR-P1-30 / R55);
-- CON-02 allocation immutability guard when a target PickTask exists;
-- RF scanning picking execution deferred to P1-006 (which depends on P1-005 AND P1-008).
+- Outbound TU identity, TUSetup configuration, Code 128 compliant TU_NUMBER generation (R53);
+- Item master authority (R63) for unit mass and volume;
+- Issueability evaluation rules (R64, R65, R66, R68);
+- Operator override persistence with authenticated operator UUID (`auth.sub`);
+- Exactly-one EXTERNAL setup per warehouse constraint;
+- Warehouse-scoped active TU uniqueness;
+- Decisive PostgreSQL application-path concurrency with strict `pg_blocking_pids` lock-wait proof and rollback;
+- Warehouse access authorization at HTTP boundary (fail-closed 403).
 
 ## Current position
 
-Completed: **8/37**.
+Completed: **9/37**.
 
-Next executable item:
+Active implementation item:
 
-**P1-008 — Outbound TU identity, TUSetup, numbering, capacity and issueability — item 12/37.**
+**P1-006 — RF Scanner picking, PickTaskLine confirmation, continuation across zones and task completion — item 10/37.**
 
-Requirements:
-
-- `FR-P1-28`
+Requirements: `FR-P1-08`, `FR-P1-30`, `FR-P1-36`, `FR-P1-41`.
+Architect: `P1 R15–R16`, `R55`, `R62`, `R67`.
+Dependencies: `P1-005` and `P1-008` are satisfied.
 - `FR-P1-37`
 - `FR-P1-38`
 - `FR-P1-39`

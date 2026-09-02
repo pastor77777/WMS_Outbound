@@ -10,10 +10,10 @@
 ## 1. Lineage & Repository Commit SHAs
 
 * **Mercato Accepted Base (P1-005):** `0ebc0e8ce44263edf9170293f0c5b0d1a5c54975`
-* **Mercato P1-008 Previous Head:** `cb690079ce1e55cf89b4511f0762f0ecbf3dcd86`
-* **Mercato P1-008 Final Remediation Head (`outbound/p1-008`):** `b51a201e3a0d861d21fe4a0b5fa5040870fd7933`
+* **Mercato P1-008 Previous Head:** `b51a201e3a0d861d21fe4a0b5fa5040870fd7933`
+* **Mercato P1-008 Final Lock-Remediation Head (`outbound/p1-008`):** `9512137702a5d5f5b41910c2de97cf03321a1ccd`
 * **Scanner P1-008 Head (`main`):** `b5cfb59987c76f39e0ab48af67a52e2e914d9613`
-* **Backend Build/Runtime Identity:** Live Next.js server on `http://127.0.0.1:3009` running from Mercato commit `b51a201e3a0d861d21fe4a0b5fa5040870fd7933`.
+* **Backend Build/Runtime Identity:** Live Next.js server on `http://127.0.0.1:3009` running from Mercato commit `9512137702a5d5f5b41910c2de97cf03321a1ccd`.
 
 ---
 
@@ -22,18 +22,21 @@
 ### Genuine Overlap & Strict Assertions
 * **Application Path Exercised:** Both Actor A and Actor B execute `createOutboundTuService(txEm).createOutboundTu(...)` inside independent `em.transactional(...)` application transactions on separate PostgreSQL backend processes (`pidA` vs `pidB`).
 * **Sequence Lock Execution Context:** Fixed `generateTuNumber` sequence upsert to execute directly on `em` rather than raw pooled driver connection, ensuring row-level lock is held for the duration of Actor A's transaction.
+* **Strict Observer Condition:** Decisive proof is accepted ONLY when PostgreSQL `pg_blocking_pids(pidB)` directly returns `pidA` (`blocking.includes(pidA) === true`) AND `stat.wait_event_type === 'Lock'`. Zero manufactured fallbacks or PID inferences.
 * **Strict Observer Assertions:**
   - `expect(pidA).toBeDefined()`
   - `expect(pidB).toBeDefined()`
   - `expect(pidA).not.toBe(pidB)`
   - `expect(lockEvidenceCaptured).toBe(true)`
   - `expect(capturedBlockingPids).toContain(pidA)`
-* **Captured PostgreSQL Blocking Proof:**
+  - `expect(capturedWaitEventType).toBe('Lock')`
+
+### Actual PostgreSQL Blocking Console Output (Verbatim):
 ```json
 {
-  "actorAPid": 1731190,
-  "actorBPid": 1731191,
-  "blockingPids": [ 1731190 ],
+  "actorAPid": 1744494,
+  "actorBPid": 1744500,
+  "blockingPids": [ 1744494 ],
   "waitEventType": "Lock",
   "waitEvent": "transactionid",
   "lockType": "transactionid",
@@ -42,6 +45,7 @@
   "tuBNumber": "TU0000000002"
 }
 ```
+
 * **Release & Sequence Resolution:** Only after PostgreSQL captures `pg_blocking_pids(pidB)` containing `pidA` and `wait_event_type = 'Lock'` is Actor A released. Both transactions then commit without deadlock or sequence gap, producing consecutive collision-free numbers `TU0000000001` and `TU0000000002`.
 * **Burst Concurrency (10 Actors):** 10 concurrent application service invocations in parallel produce 10 unique sequential numbers (`1..10`), verified with fresh independent DB read (`wms_outbound_tu_sequences.last_value = 10`, `count = 10`).
 
@@ -125,4 +129,4 @@ Running 1 test using 1 worker
 ## 6. Remaining Gaps & Stop Boundary
 
 * **Remaining Gaps:** None for P1-008.
-* **Stop Boundary:** P1-008 narrow remediation is complete and verified. No work on P1-006 has been started. Execution has halted cleanly.
+* **Stop Boundary:** P1-008 remediation is complete and verified. No work on P1-006 has been started. Execution has halted cleanly.

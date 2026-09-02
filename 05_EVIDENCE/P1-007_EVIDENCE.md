@@ -9,12 +9,12 @@
 
 ## 1. Lineage & Authoritative Repository Commit SHAs
 
-* **Mercato P1-007 Final Head (`outbound/p1-007`):** `7b3aad79dda997b7ec23c0c69b492feb0af63efe`
+* **Mercato P1-007 Final Head (`outbound/p1-007`):** `aa7b8e57c685b6ac4de28dfeccbea0b2be79db8f`
 * **Scanner P1-007 Final Head (`main`):** `b23325aae1c4f83b79d01b3650dbead3486a1041`
-* **Authoritative Outbound Steering Head (`main`):** `bae4cf1f4b3386ab870a2da6590acaa4f870bf02`
+* **Authoritative Outbound Steering Head (`main`):** `72f5a79c69548426827a4a080c6d2d03eea719b1`
 * **Testing PostgreSQL Database:** Remote DevAxonic Testing Database (`devaxonic-test.info-start.com.pl`).
 * **Live Services:**
-  - Mercato Next.js Backend: `https://devaxonic-test.info-start.com.pl` (local `http://localhost:3000`)
+  - Mercato Next.js Backend: `https://devaxonic-test.info-start.com.pl` (local runner: `http://localhost:3000`)
   - Scanner Web App: `http://localhost:8081`
 
 ---
@@ -27,7 +27,7 @@
   - **Outcome A (ALLOW_PARTIAL):** Supervisor authorizes partial shipment with mandatory reason audit. System flips `allowPartialShipment = true`, records decision in `wms_outbound_supervisor_decisions`, and transitions line to `ALLOCATED` for partial release.
   - **Outcome B (CANCEL_OUTBOUND_ORDER):** Supervisor cancels short execution order. All associated `wms_outbound_allocations` are released to `RELEASED`, linked `wms_inventory_reservations` removed, `wms_outbound_order_lines` cancelled, and `wms_outbound_customer_orders` is reverted to `ACCEPTED` with `has_warning = true` and `warning_reason` populated for ERP/ATP resolution. Soft ATP reservation is restored on `CustomerOrderLine`.
 
-### B. TC-061: SHORT_PICKED Automatic Reallocation Limits & Location Blocking (Blocker 3 Fixed)
+### B. TC-061: SHORT_PICKED Automatic Reallocation Limits & Location Blocking
 * **R44 Location Shortage Blocking:** Whenever a short pick is reported at location L for SKU S, a persistent record is written to `wms_outbound_location_shortages` with `is_active = true`. Further allocations and picking ignore location L until replenishment/inventory reconciliation.
 * **R44 Two-Bound Availability Enforcement:** Candidate replacement locations are evaluated under SKU lock against both:
   1. Individual unblocked location unreserved stock (`grossStock - locationHardReservations >= shortageQty`).
@@ -35,14 +35,18 @@
   If either bound is unmet, auto-reallocation ceases immediately and the shortage escalates to the Supervisor without overbooking.
 * **Effective Retry Limit Hierarchy:** Customer override (`CustomerOrder.max_automatic_short_pick_reallocations`) takes precedence over warehouse configuration (`wms_outbound_warehouse_queue_configs.max_automatic_short_pick_reallocations`), defaulting to 1. When limit is exhausted, line ceases auto-reallocation and escalates to Supervisor in `SHORT_PICKED`.
 
-### C. TC-062: SHORT_PICKED Supervisor Outcomes (Blocker 2 Fixed)
+### C. TC-062: SHORT_PICKED Supervisor Outcomes & Real Reversible Migration
 * **Outcome A (WAIT / CZEKAMY):** Rolls back un-packed sister lines of the order. Un-packed sister allocations transition `RESERVED/CONFIRMED -> RELEASED`, sister order lines transition to `CANCELLED`, and customer order lines revert to `OPEN`. CustomerOrder reverts to `ACCEPTED` with `has_warning = true`. Exact unpicked soft ATP promises are restored. If physical units were picked, a `wms_outbound_physical_return_handoffs` record is created for physical return.
 * **Outcome B (CANCEL_OR_CORRECT):**
   - **Positive Corrected Quantity:** Strictly matches authoritative picked quantity (`pickedQty`). Concurrently updates commercial demand (`CustomerOrderLine.orderedQuantity = pickedQty`) and execution demand (`OutboundOrderLine.requiredQty = pickedQty`), and reconciles `WmsInventoryReservation.quantity = pickedQty` per TC-121 lifecycle invariants. Line advances to `PICKED`.
   - **Zero Quantity (0 - Full Line Cancellation):** Supported via migration `Migration20260902160000_wms_outbound_p1_007_remediation.ts` updating table check constraints to `CHECK (ordered_quantity >= 0)` and `CHECK (required_qty >= 0)`. Concurrently updates `CustomerOrderLine.orderedQuantity = 0.000000`, `CustomerOrderLine.status = 'CANCELLED'`, `OutboundOrderLine.requiredQty = 0.000000`, and `OutboundOrderLine.status = 'CANCELLED'`. Releases hard allocations to `RELEASED`, deletes linked inventory reservations, and persists `wms_outbound_physical_return_handoffs` for any physical units picked.
 * **Outcome C (ALLOW_PARTIAL):** Persistently enables `CustomerOrder.allowPartialShipment = true` with mandatory reason audit. Shrinks hard allocation and linked inventory reservation to `pickedQty`, releases missing unpicked allocation, restores soft ATP reservation so missing demand remains uncovered on `CustomerOrderLine` (`BACKORDERED`), and picked portion proceeds to `PICKED`.
+* **Real Reversible Migration with Fail-Safe DOWN (`Migration20260902160000_wms_outbound_p1_007_remediation.ts`):**
+  - UP alters constraints from `> 0` to `>= 0`.
+  - DOWN detects whether any zero/negative rows exist; if found, it fails fast with an explicit error explaining that rollback is blocked by legitimate P1-007 R46 data, preserving zero rows and `>= 0` constraints without data loss.
+  - If data is compatible (no zero rows), DOWN cleanly restores original `> 0` check constraints.
 
-### D. Supervisor Idempotency with Canonical Payload Derivation (Blocker 1 Fixed)
+### D. Supervisor Idempotency with Canonical Payload Derivation
 * In `customer-order-service.ts`, the authoritative `outboundOrderId` is resolved directly from `WmsOutboundOrderLine` *before* comparing the incoming payload against the recorded decision snapshot.
 * Replays with identical key + canonical payload succeed idempotently without duplicate writes.
 * Replays with same key + conflicting payload (different decision, different correctedQuantity, or different reason) fail closed and raise a structured `409 Conflict`.
@@ -60,9 +64,9 @@ yarn --cwd apps/mercato test src/modules/wms_outbound/services/__tests__/p1-007-
 ```text
   console.log
     [P1-007 Decisive PostgreSQL Lock & Reallocation Concurrency Proof] {
-      actorAPid: 1801733,
-      actorBPid: 1801732,
-      blockingPids: [ 1801733 ],
+      actorAPid: 1815272,
+      actorBPid: 1806572,
+      blockingPids: [ 1815272 ],
       waitEventType: 'Lock',
       lockEvidenceCaptured: true,
       replacementTasksCreated: 1,
@@ -72,7 +76,7 @@ yarn --cwd apps/mercato test src/modules/wms_outbound/services/__tests__/p1-007-
 
 **Verbatim Output:**
 ```text
-PASS src/modules/wms_outbound/services/__tests__/p1-007-postgres.integration.test.ts (70.496 s)
+PASS src/modules/wms_outbound/services/__tests__/p1-007-postgres.integration.test.ts (71.747 s)
   P1-007 Genuine PostgreSQL SHORT_ALLOCATED & SHORT_PICKED Recovery Suite
     1. TC-060 SHORT_ALLOCATED Handling & Outcomes
       ✓ 1A: allowPartialShipment = true drives real planning/allocation path: available allocated, shortfall BACKORDERED, no supervisor intervention (2290 ms)
@@ -99,70 +103,62 @@ PASS src/modules/wms_outbound/services/__tests__/p1-007-postgres.integration.tes
       ✓ 4C: Rollback proof: real failure before commit ensures no partial shortage state leaked (1140 ms)
     5. R48 Repack Shortage Backend Seam
       ✓ 5A: Supervisor shortage resolution service preserves repacked carton integrity without phantom allocation leaks (1200 ms)
-      ✓ 6A: Migration UP / DOWN / re-UP verification test proves constraints on ordered_quantity and required_qty (1450 ms)
+      ✓ 6A: Real reversible migration proof: UP/DOWN/re-UP execution with fail-safe incompatible-data protection (1520 ms)
 
 Test Suites: 1 passed, 1 total
 Tests:       20 passed, 20 total
 Snapshots:   0 total
-Time:        70.496 s
+Time:        71.747 s
 ```
 
 ---
 
-## 4. Full Outbound Regression Gate (17/17 Suites, 245/245 PASSED)
-
-**Test Command:**
-```bash
-yarn --cwd apps/mercato test src/modules/wms_outbound --runInBand
-```
-
-**Verbatim Output:**
-```text
-Test Suites: 17 passed, 17 total
-Tests:       245 passed, 245 total
-Snapshots:   0 total
-Time:        348.736 s
-Ran all test suites matching src/modules/wms_outbound.
-```
-
-**Inbound ATP Regression Test:**
-```bash
-yarn --cwd apps/mercato test src/modules/wms_inventory/services/__tests__/atp-service.test.ts --runInBand
-```
-```text
-Test Suites: 1 passed, 1 total
-Tests:       1 passed, 1 total
-Snapshots:   0 total
-Time:        0.632 s
-Ran all test suites matching src/modules/wms_inventory/services/__tests__/atp-service.test.ts.
-```
-
----
-
-## 5. Real Rendered UI Playwright Evidence
+## 4. Real Rendered UI Playwright Evidence
 
 ### A. Supervisor Web UI E2E Suite (`P1-007-shortages-supervisor-ui.spec.ts`) — 6/6 Outcomes Verified
 * **Target URL:** `http://localhost:3000/backend/shortages`
-* **Test Suite:** `apps/mercato/src/modules/wms_outbound/__integration__/P1-007-shortages-supervisor-ui.spec.ts`
-* **Execution Result:** `6 passed (2.6m)`
+* **Test Command:**
+```bash
+PLAYWRIGHT_TEST_BASE_URL=http://localhost:3000 npx playwright test src/modules/wms_outbound/__integration__/P1-007-shortages-supervisor-ui.spec.ts
+```
+* **Execution Result:** `6 passed (2.7m)`
 * **All 6 Distinct UI Outcomes Verified:**
-  1. `Outcome 1: SHORT_ALLOCATED -> ALLOW_PARTIAL (persistent with reason)` (29.9s)
-  2. `Outcome 2: SHORT_ALLOCATED -> CANCEL_OUTBOUND_ORDER` (26.4s)
-  3. `Outcome 3: SHORT_PICKED -> WAIT` (25.5s)
-  4. `Outcome 4: SHORT_PICKED -> CANCEL_OR_CORRECT (exact picked quantity 4)` (24.6s)
-  5. `Outcome 5: SHORT_PICKED -> CANCEL_OR_CORRECT (0 cancellation)` (24.4s)
-  6. `Outcome 6: SHORT_PICKED -> ALLOW_PARTIAL (persistent with mandatory reason)` (25.2s)
+  1. `Outcome 1: SHORT_ALLOCATED -> ALLOW_PARTIAL (persistent with reason)` (26.6s)
+  2. `Outcome 2: SHORT_ALLOCATED -> CANCEL_OUTBOUND_ORDER` (27.6s)
+  3. `Outcome 3: SHORT_PICKED -> WAIT` (27.8s)
+  4. `Outcome 4: SHORT_PICKED -> CANCEL_OR_CORRECT (exact picked quantity 4)` (24.2s)
+  5. `Outcome 5: SHORT_PICKED -> CANCEL_OR_CORRECT (0 cancellation)` (25.5s)
+  6. `Outcome 6: SHORT_PICKED -> ALLOW_PARTIAL (persistent with mandatory reason)` (27.1s)
 * **Decisive Proof:** Real rendered React UI displayed both `SHORT_ALLOCATED` and `SHORT_PICKED` exception tables, submitted modal decisions with audit reasons and canonical UUIDs, and verified database persistence across all 6 outcomes in remote PostgreSQL.
 
 ### B. RF Scanner Short Pick & Replacement Continuation E2E Suite (`p1-007-real-scanner-short-pick.spec.ts`)
 * **Target URL:** `http://localhost:8081`
-* **Test Suite:** `Devaxonic-scanner/e2e/p1-007-real-scanner-short-pick.spec.ts`
-* **Execution Result:** `1 passed (18.1s)`
+* **Test Command:**
+```bash
+PLAYWRIGHT_TEST_BASE_URL=http://localhost:3000 npx playwright test e2e/p1-007-real-scanner-short-pick.spec.ts
+```
+* **Execution Result:** `1 passed (18.8s)`
 * **Decisive Proof:** Operator authenticated against backend via proxy, bound picking TU, reported short quantity (2 picked out of 5), verified `⚠️ Report Short Pick` UI action, validated task status `SHORT_PICKED` in PostgreSQL, verified `wms_outbound_location_shortages` recorded active block (`short_quantity = 3`, `is_active = true`), requested next task in zone, received replacement task at Loc B for 3 units, completed pick of 3 units, verified task completion banner in UI, and verified in PostgreSQL:
   - Original task: `SHORT_PICKED`
   - Replacement task: `COMPLETED`
   - Cumulative picked quantity: 5
   - `OutboundOrderLine`: `status = 'PICKED'`
+
+---
+
+## 5. Every Required Targeted Regression Gate (Cross-Ticket Proof)
+
+| Gate | Scope / Invariant Covered | Test Command | Result |
+| :--- | :--- | :--- | :--- |
+| **P1-004** | Allocation / Hard-Reservation | `yarn test src/modules/wms_outbound/services/__tests__/p1-004-postgres.integration.test.ts --runInBand` | **1 passed, 11/11 tests (46.658 s)** |
+| **P1-005** | PickTask creation / assignment / single-active | `yarn test src/modules/wms_outbound/services/__tests__/p1-005-postgres.integration.test.ts --runInBand` | **1 passed, 10/10 tests (23.694 s)** |
+| **P1-006 (Backend)** | Real RF picking + SAME-key concurrency & retry | `yarn test src/modules/wms_outbound/services/__tests__/p1-006-postgres.integration.test.ts --runInBand` | **1 passed, 12/12 tests (68.776 s)** |
+| **P1-006 (Scanner)** | Real scanner picking & retry key stability | `PLAYWRIGHT_TEST_BASE_URL=http://localhost:3000 npx playwright test e2e/p1-006-real-scanner-picking.spec.ts e2e/p1-006-retry-key.spec.ts` | **2 passed (33.0 s)** |
+| **P1-001** | CustomerOrder lifecycle & aggregation | `yarn test src/modules/wms_outbound/services/__tests__/p1-001-customer-order-lifecycle.test.ts src/modules/wms_outbound/services/__tests__/p1-001-postgres.integration.test.ts --runInBand` | **2 passed, 21/21 tests (11.807 s)** |
+| **P1-003** | Planning & requiredQty | `yarn test src/modules/wms_outbound/services/__tests__/p1-003-postgres.integration.test.ts src/modules/wms_outbound/services/__tests__/p1-003-detail-api-postgres.integration.test.ts --runInBand` | **2 passed, 15/15 tests (56.587 s)** |
+| **P1-008** | TU regression (*zero TU code touched in sixth override*) | `yarn test src/modules/wms_outbound/services/__tests__/p1-008-postgres.integration.test.ts --runInBand` | **1 passed, 22/22 tests (23.88 s)** |
+| **Inbound & Shared Compatibility** | ATP & shared boundaries | `yarn test src/modules/wms_inventory/services/__tests__/atp-service.test.ts src/modules/wms_outbound/services/__tests__/fnd-003-shared-compatibility.test.ts src/modules/wms_outbound/services/__tests__/fnd-003-postgres.integration.test.ts --runInBand` | **3 passed, 17/17 tests (6.711 s)** |
+| **Full Outbound Gate** | Entire `wms_outbound` suite (Umbrella) | `yarn test src/modules/wms_outbound --runInBand` | **17 passed, 245/245 tests (352.937 s)** |
 
 ---
 

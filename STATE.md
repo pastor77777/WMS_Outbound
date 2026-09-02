@@ -1,10 +1,10 @@
 # WMS Outbound — STATE
 
-**As of:** 2026-09-02  
+**As of:** 2026-09-03  
 **Campaign:** WMS Outbound v1  
 **Architecture:** implementation-ready; no unresolved product/architecture blocker recorded  
 **Current phase:** product implementation  
-**Implementation progress:** **10/37 items FINAL PASS**
+**Implementation progress:** **11/37 items FINAL PASS**
 
 ## Architect baseline
 
@@ -38,48 +38,85 @@ The plan is delivery decomposition only. Architect Source/Canon remains business
 8. `P1-005` — FINAL PASS / Human Verified — `0ebc0e8ce44263edf9170293f0c5b0d1a5c54975` (Mercato) / `8199b330cb739a45e2c615a3f2aa3803336be724` (Scanner)
 9. `P1-008` — FINAL PASS / Human Verified — `9512137702a5d5f5b41910c2de97cf03321a1ccd` (Mercato) / `b5cfb59987c76f39e0ab48af67a52e2e914d9613` (Scanner)
 10. `P1-006` — FINAL PASS / Human Verified — `353a5001cb8f1941971f960e509a8af643e41e5a` (Mercato) / `7596b7802e7ed55a59dd6dc1f21912ea6331e796` (Scanner) / evidence `43cc7d0e7dd20a48fc00b40150b30275d0c2aa12`
+11. `P1-007` — FINAL PASS / Owner Accepted based on PLAYWRIGHT VERIFIED + real PostgreSQL evidence — `134db31381b4db726cd550abe6ecd4079ac21d8c` (Mercato) / `b23325aae1c4f83b79d01b3650dbead3486a1041` (Scanner) / evidence `10be7a6e2c10a05d1fe5ce6dc5aacdd93dc400a8`
 
-## P1-006 accepted boundary
+## P1-007 accepted boundary
 
-- Normal RF picking into Picking TU with authoritative picked quantity persistence.
-- Mandatory durable pick-confirmation idempotency; same-key sequential/concurrent replay cannot double-pick.
-- Decisive SAME-key PostgreSQL concurrency proof uses independent server PIDs plus strict `pg_blocking_pids` / `wait_event_type = Lock` evidence.
-- R55: completing a PickTask does **not** auto-close/seal the Picking TU; same-order next-zone continuation updates active Scanner zone.
-- R62: both warehouse strategies are implemented — shared TU across consecutive same-order zones and separate TU per task/zone with server-side old-TU rejection.
-- R67: TU switch is blocked until current TU is durably `PICK_FULL`; the new TU remains on the same active PickTask.
-- Additive P1-006 migration for picking-TU strategy and durable pick-confirmation records is reversible.
-- Real Scanner Playwright: full RF picking journey and focused retry-key stability suite are green.
-- P1-005, P1-008, Outbound and targeted Inbound/shared compatibility regressions are green.
-- Owner completed the final Human Verified walkthrough on 2026-09-02.
+- `SHORT_ALLOCATED` partial/non-partial behavior matches P1 R42–R43 and FR-P1-21 / FR-P5-01..02.
+- `SHORT_PICKED` blocks the short source, records durable shortage identity and enforces effective automatic-reallocation limits.
+- R44 replacement allocation checks both per-location unreserved stock and warehouse-wide hard-reservation capacity, including active pre-PickTask reservations.
+- Same unresolved shortage cannot exceed retry limit or duplicate replacement PickTasks under replay/concurrency.
+- Supervisor outcomes are accepted: WAIT, exact-picked correction, true zero cancellation, persistent per-CustomerOrder ALLOW_PARTIAL, and SHORT_ALLOCATED cancellation/allow-partial outcomes.
+- R46 zero cancellation persists `CustomerOrderLine.orderedQuantity = 0` and `OutboundOrderLine.requiredQty = 0` and uses a durable physical-return handoff for already picked stock.
+- P1-007 intentionally does **not** implement the future P4 PutBackTask/RF lifecycle; the durable physical-return handoff is the accepted P1-007 boundary.
+- Canonical Supervisor idempotency derives authoritative target identifiers before payload comparison; exact replay succeeds and conflicting same-key payload fails closed.
+- Decisive PostgreSQL evidence includes distinct PIDs / `pg_blocking_pids`, real rollback, and genuine MikroORM `Migrator` UP -> DOWN -> re-UP plus incompatible-zero fail-safe proof.
+- Real Mercato Playwright covers all 6 Supervisor outcomes; real Scanner Playwright covers short-pick and replacement continuation.
+- Fresh targeted regressions are green for P1-004, P1-005, P1-006 backend+Scanner, P1-001, P1-003, P1-008, accepted Inbound/shared compatibility and full Outbound umbrella.
+- Automated evidence remains labelled `PLAYWRIGHT VERIFIED`; owner accepted final closure on 2026-09-03 based on the independently reviewed automation + real PostgreSQL evidence.
 
 ## Current position
 
-Completed: **10/37**.
+Completed: **11/37**.
 
 Next implementation item:
 
-**P1-007 — SHORT_ALLOCATED / SHORT_PICKED recovery and Supervisor outcomes — item 11/37.**
+**P1-009 — Direct Pack declaration and automatic sealing — item 12/37.**
 
-Requirements: `FR-P1-21`, `FR-P1-22`, `FR-P1-23`, `FR-P1-24`, `FR-P5-01`, `FR-P5-02`, `FR-P5-03`, `FR-P5-04`, `FR-P5-05`, `FR-P5-06`.
-Architect: `P1 R42–R48` plus the `SHORT_ALLOCATED` / `SHORT_PICKED` exception table; `R41` is regression context for final CustomerOrder closure.
-Dependencies: `P1-004`, `P1-005`, `P1-006` are satisfied.
+Requirements: `FR-P1-08`, `FR-P1-09`.
+Architect: `P1 R15–R18`.
+Dependencies: `P1-006` and `P1-008` are satisfied.
 
-Acceptance mapping from the current Task Catalog: `TC-001`, `TC-008`, `TC-060`, `TC-061`, `TC-062`, `TC-121`.
+Acceptance mapping from the current Task Catalog: `TC-001`, `TC-004`, `TC-005`.
+
+P1-009 boundary:
+
+- `directPackDeclared` is immutable after the architect-defined first-scan declaration point;
+- successful direct-pack qualification follows the automatic `READY_TO_PACK -> PACK_QUALIFIED -> PACKING_SEALED` / line `PACKED` path without an invented manual Packer step;
+- do not absorb P1-010 repack/consolidation/discrepancy UI into P1-009;
+- reuse accepted P1-006 Picking TU continuation and P1-008 TU issueability semantics without redesigning them.
+
+## Authority and architecture-context rule
+
+For Outbound business behavior, authority order is:
+
+1. `01_ARCHITECT_SOURCE` / faithful Architect translations and `02_CANON`;
+2. traceability and exact current task docs;
+3. current Mercato/Scanner/DB/runtime as implementation evidence;
+4. `07_IMPLEMENTATION_PLAN` as delivery decomposition only.
+
+Installed `wms-outbound` skill routes Outbound work to this authority chain. Installed `architecture-context` is reference-only for accepted Inbound/shared Inventory/TU/warehouse/lock/orchestration compatibility. It must not redefine Outbound R-rules or expand a ticket into future P4/P1-010 scope.
+
+Inbound remains **CLOSED / REFERENCE** except targeted regression when an authorized Outbound diff touches shared primitives.
 
 ## Current-state documents
 
 `04_CURRENT_STATE/*` remains the pre-implementation audit baseline captured before ETAP 2 writes. Do not rewrite that baseline to masquerade as current runtime truth.
 
-For current implementation state use this file, current implementation Git history/runtime evidence and the Devaxonic-WMS current handover.
+For current implementation state use this file, current Git refs/runtime evidence, `08_HANDOVER/HANDOVER_CURRENT_2026-09-03.md`, and the current Devaxonic-WMS `.ai` handover/state.
+
+## Operating workflow
+
+Canonical prompt/executor workflow is now persisted in:
+
+`06_AGENT_GUIDES/GIT_PROMPT_WORKFLOW.md`
+
+Key rhythm: **WRITE PROMPT/GUIDE TO GIT -> short owner-facing launch prompt -> SAME Antigravity session -> `done` -> supervisor independently FETCHES/VERIFIES Git refs/evidence -> next shot or STOP.**
+
+The owner should never need to paste Antigravity logs into chat.
 
 ## Blockers
 
-No current product/architecture blocker is recorded for starting `P1-007`.
+No current product/architecture blocker is recorded for starting `P1-009`.
 
 ## Handover
 
-Current operational handover:
+Current authoritative Outbound handover:
 
-`Devaxonic-WMS/.ai/HANDOVER_OUTBOUND_CURRENT_2026-09-01.md`
+`08_HANDOVER/HANDOVER_CURRENT_2026-09-03.md`
 
-Fresh supervisor sessions must consume current handover/state instead of reconstructing implementation state from chat history or the historical foundation handover.
+Current operational mirror in Devaxonic-WMS:
+
+`.ai/HANDOVER_OUTBOUND_CURRENT_2026-09-03.md`
+
+Fresh supervisor sessions must consume current handover/state and `06_AGENT_GUIDES/GIT_PROMPT_WORKFLOW.md` instead of reconstructing implementation state or operating rules from chat history.

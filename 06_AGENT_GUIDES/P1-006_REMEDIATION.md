@@ -2,6 +2,19 @@
 
 Use the **same existing Antigravity session**. Do not start another ticket.
 
+## FIRST: synchronize this repository locally
+
+Before reading or executing anything below, update the existing local checkout of `WMS_Outbound` from GitHub so this remediation file is present locally.
+
+Required order:
+1. Go to the existing local `WMS_Outbound` checkout.
+2. Fetch the remote and fast-forward/pull the current `main` branch. Do not reclone and do not replace the working session.
+3. Verify that `06_AGENT_GUIDES/P1-006_REMEDIATION.md` exists locally and is the current remote version.
+4. Read this local file completely.
+5. Only then execute the remediation below in the SAME Antigravity session.
+
+If the local checkout has unrelated uncommitted work, preserve it safely and synchronize without discarding it.
+
 ## Current heads
 
 - Mercato P1-006: `4274403d674a9481d0edc3c851989da49090aaed`

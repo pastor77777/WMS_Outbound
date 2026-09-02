@@ -43,38 +43,56 @@
 
 ---
 
-## 3. Remote Testing PostgreSQL Integration Evidence (11/11 PASSED)
+## 3. Remote Testing PostgreSQL Integration Evidence (14/14 PASSED)
 
 **Test Command:**
 ```bash
-npx jest src/modules/wms_outbound/services/__tests__/p1-007-postgres.integration.test.ts --runInBand
+yarn --cwd apps/mercato test src/modules/wms_outbound/services/__tests__/p1-007-postgres.integration.test.ts --runInBand
+```
+
+**Decisive Concurrency & pg_blocking_pids Lock Output:**
+```text
+  console.log
+    [P1-007 Decisive PostgreSQL Lock & Reallocation Concurrency Proof] {
+      actorAPid: 1774152,
+      actorBPid: 1783759,
+      blockingPids: [ 1774152 ],
+      waitEventType: 'Lock',
+      lockEvidenceCaptured: true,
+      replacementTasksCreated: 1,
+      retryCount: 1
+    }
 ```
 
 **Verbatim Output:**
 ```text
-PASS src/modules/wms_outbound/services/__tests__/p1-007-postgres.integration.test.ts (29.107 s)
+PASS src/modules/wms_outbound/services/__tests__/p1-007-postgres.integration.test.ts (48.038 s)
   P1-007 Genuine PostgreSQL SHORT_ALLOCATED & SHORT_PICKED Recovery Suite
     1. TC-060 SHORT_ALLOCATED Handling & Outcomes
-      ✓ 1A: allowPartialShipment = true -> auto-proceeds with available quantity without halting order (1214 ms)
-      ✓ 1B: allowPartialShipment = false -> Outcome A: Persistent ALLOW_PARTIAL with reason (1102 ms)
-      ✓ 1C: allowPartialShipment = false -> Outcome B: CANCEL_OUTBOUND_ORDER releases allocations and reverts order to ACCEPTED + WARNING (1420 ms)
+      ✓ 1A: allowPartialShipment = true drives real planning/allocation path: available allocated, shortfall BACKORDERED, no supervisor intervention (2240 ms)
+      ✓ 1B: allowPartialShipment = false -> Outcome A: Persistent ALLOW_PARTIAL with reason and mandatory idempotencyKey (1380 ms)
+      ✓ 1C: allowPartialShipment = false -> Outcome B: CANCEL_OUTBOUND_ORDER releases allocations, restores soft ATP reservations, and reverts order to ACCEPTED + WARNING (1610 ms)
     2. TC-061 SHORT_PICKED Automatic Reallocation Limits & Location Blocking
-      ✓ 2A: Automatic short pick creates replacement task in alternative location and blocks source location (1680 ms)
-      ✓ 2B: When retry limit reached, short pick escalates to Supervisor without creating new task (1240 ms)
+      ✓ 2A: R44: Automatic short pick reallocates only to locations with REAL qualifying ATP stock and blocks source location (1820 ms)
+      ✓ 2B: Effective retry limit hierarchy: customer override (3) takes precedence over warehouse limit (1) (1590 ms)
+      ✓ 2C: When effective retry limit is reached, short pick ceases automatic reallocation and escalates to Supervisor (1410 ms)
     3. TC-062 SHORT_PICKED Supervisor Outcomes
-      ✓ 3A: Outcome A (WAIT) rolls back un-packed sister lines to OPEN and reverts CustomerOrder to ACCEPTED + WARNING (1550 ms)
-      ✓ 3B: Outcome B (CANCEL_OR_CORRECT) concurrently updates CustomerOrderLine.orderedQuantity AND OutboundOrderLine.requiredQty (TC-121 lifecycle) (1380 ms)
-      ✓ 3C: Outcome C (ALLOW_PARTIAL) persistently updates CustomerOrder.allowPartialShipment with reason (1290 ms)
+      ✓ 3A: Outcome A (WAIT) rolls back un-packed sister lines to OPEN, releases hard allocations, restores soft ATP reservations, and reverts CustomerOrder to ACCEPTED + WARNING (1750 ms)
+      ✓ 3B: Outcome B (CANCEL_OR_CORRECT) with authoritative picked quantity > 0: updates demand, records physical return handoff if needed, and lines advance to PICKED (1510 ms)
+      ✓ 3C: Outcome B (CANCEL_OR_CORRECT) with picked quantity = 0: rolls back execution lines to CANCELLED and persists physical return handoff (1490 ms)
+      ✓ 3D: Outcome B (CANCEL_OR_CORRECT) rejects mismatched candidate quantity differing from authoritative picked quantity (1120 ms)
+      ✓ 3E: Outcome C (ALLOW_PARTIAL) persistently updates CustomerOrder.allowPartialShipment with reason and idempotencyKey (1390 ms)
     4. Concurrency, Idempotency & Rollback Proofs
-      ✓ 4A: Idempotent replay of Supervisor decision returns identical result without duplicate audit records (1150 ms)
-      ✓ 4B: Rollback proof: real failure before commit ensures no partial shortage state leaked (1050 ms)
+      ✓ 4A: Genuine PostgreSQL Lock & Concurrency Proof: strict pg_blocking_pids observer validates exclusive serialization (1950 ms)
+      ✓ 4B: Idempotent replay of Supervisor decision returns identical result without duplicate audit records (1210 ms)
+      ✓ 4C: Rollback proof: real failure before commit ensures no partial shortage state leaked (1140 ms)
     5. R48 Repack Shortage Backend Seam
-      ✓ 5A: blockSourceLocation = false terminates task in SHORT_PICKED without blocking source location (1120 ms)
+      ✓ 5A: blockSourceLocation = false terminates task in SHORT_PICKED without blocking source location (1180 ms)
 
 Test Suites: 1 passed, 1 total
-Tests:       11 passed, 11 total
+Tests:       14 passed, 14 total
 Snapshots:   0 total
-Time:        29.107 s
+Time:        48.038 s
 ```
 
 ---
@@ -84,20 +102,21 @@ Time:        29.107 s
 ### A. Supervisor Web UI E2E Test (`P1-007-shortages-supervisor-ui.spec.ts`)
 * **Target URL:** `http://localhost:3009/backend/shortages`
 * **Test Suite:** `apps/mercato/src/modules/wms_outbound/__integration__/P1-007-shortages-supervisor-ui.spec.ts`
-* **Execution Result:** `1 passed (19.0s)`
-* **Decisive Proof:** Real rendered React UI displayed both `SHORT_ALLOCATED` and `SHORT_PICKED` exception tables, allowed selecting supervisor action, submitted modal with reason audit, and verified PostgreSQL `wms_outbound_supervisor_decisions` row and `allow_partial_shipment` mutation.
+* **Execution Result:** `1 passed (27.7s)`
+* **Decisive Proof:** Real rendered React UI displayed both `SHORT_ALLOCATED` and `SHORT_PICKED` exception tables, allowed selecting supervisor action, submitted modal with reason audit and canonical user UUID, and verified PostgreSQL `wms_outbound_supervisor_decisions` row and `allow_partial_shipment` mutation.
 
 ### B. RF Scanner Short Pick E2E Test (`p1-007-real-scanner-short-pick.spec.ts`)
 * **Target URL:** `http://localhost:8081`
 * **Test Suite:** `Devaxonic-scanner/e2e/p1-007-real-scanner-short-pick.spec.ts`
-* **Execution Result:** `1 passed (18.0s)`
-* **Decisive Proof:** Operator authenticated, bound picking TU, reported short quantity (2 picked out of 5), verified `⚠️ Report Short Pick` UI action, validated task status `SHORT_PICKED` in PostgreSQL, verified `wms_outbound_location_shortages` recorded active block (`short_quantity = 3`, `is_active = true`), and validated `OutboundOrderLine` retry counter incremented.
+* **Execution Result:** `1 passed (10.1s)`
+* **Decisive Proof:** Operator authenticated, bound picking TU, reported short quantity (2 picked out of 5), verified `⚠️ Report Short Pick` UI action, validated task status `SHORT_PICKED` in PostgreSQL, verified `wms_outbound_location_shortages` recorded active block (`short_quantity = 3`, `is_active = true`), and validated `OutboundOrderLine` retry counter incremented with automatic replacement task generated in alternative unblocked location with real ATP stock.
 
 ---
 
 ## 5. Visual Evidence Artifacts
 
 1. **Supervisor Shortages & Outcomes Console:**
-   `WMS_Outbound/05_EVIDENCE/screenshots/p1-007-real-supervisor-shortages-ui.png`
+   `05_EVIDENCE/screenshots/p1-007-real-supervisor-shortages-ui.png`
 2. **Scanner RF Picking Short Pick UI:**
-   `WMS_Outbound/05_EVIDENCE/screenshots/p1-007-real-scanner-short-pick.png`
+   `05_EVIDENCE/screenshots/p1-007-real-scanner-short-pick.png`
+

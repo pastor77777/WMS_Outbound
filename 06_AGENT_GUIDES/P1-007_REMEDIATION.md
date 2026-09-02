@@ -1,297 +1,270 @@
-# P1-007 Remediation — First Shot
+# P1-007 Remediation — Third Override (Narrow)
 
-This is the **first remediation shot** for `P1-007` after independent acceptance review.
+Owner explicitly overrides the second-strike STOP for one more **narrow P1-007 remediation**.
 
-Use the **same existing Antigravity session**. Do not restart, replace, or create a second agent session.
+Use the **same existing Antigravity session**. Do not restart, replace, or create another agent session.
 
 ## FIRST: synchronize locally
 
 1. Go to the existing local `WMS_Outbound` checkout.
 2. Fetch remote and safely fast-forward/pull current `main`, preserving unrelated local work.
-3. Verify this local file exists and is current:
+3. Verify this LOCAL file is current:
    `06_AGENT_GUIDES/P1-007_REMEDIATION.md`
 4. Read this LOCAL file completely.
-5. Refresh the same authority listed in `P1-007_EXECUTION.md`, especially current Architect P1 R42–R48, FR-P1-21..24, FR-P5-01..06, TC-060/061/062/121, current evidence contract/testing/operations docs.
-6. Then remediate in the SAME Antigravity session.
+5. Refresh current Architect/canon and current evidence/testing/operations contract before editing.
+6. Then remediate only the blockers below.
 
-## Current heads
+## Current remediation bases
 
-Preserve these as the remediation bases:
+Preserve these exact current product heads as the base for this override:
 
-- Mercato `outbound/p1-007`: `e9ec7d3b839923def1ecd1f0a1896c2767e9a8f8`
-- Scanner: `e45967ab6d57631a2214df3a93aa57762f235ee4`
-- Current P1-007 evidence: `WMS_Outbound` commit `8b4b83a27b6db6a99cb498ab98c22d1c4ae18f9b`
-- Accepted P1-006 bases remain immutable.
+- Mercato `outbound/p1-007`: `f841950643cf67147e7ec3d4b690fc333b36a841`
+- Scanner `main`: `404b2fff9534dc4fef42fdb64488b9bd88e0b55a`
+- Current P1-007 evidence commit: `30dab894197c631768390aeb4fb4e10766f7e71c`
+- Accepted P1-006 heads remain immutable.
 
-Preserve what is already good:
-- explicit RF Short Pick action exists;
-- short task can terminate `SHORT_PICKED`;
-- rendered Mercato shortage/recovery surface exists;
-- additive P1-007 migration exists;
-- R48 `blockSourceLocation=false` backend seam exists;
-- no P1-009/P1-010/P4 UI scope expansion.
+Preserve what is already good and **do not rework it without necessity**:
 
-Fix **ONLY** the acceptance blockers below.
+- customer override -> warehouse -> default `1` retry hierarchy;
+- canonical Supervisor UUID / fail-closed route actor;
+- `wms_outbound.manage_orders` route permission;
+- mandatory HTTP idempotency key;
+- stable UI action key per open Supervisor action;
+- physical-return handoff persistence;
+- strict two-connection PostgreSQL lock proof for SAME-K short-pick replay;
+- R48 `blockSourceLocation=false` seam;
+- current P1-007 migration additions.
+
+Fix only the six remaining acceptance blockers below.
 
 ---
 
-## 1. R44 reallocation must use REAL eligible ATP stock, not any unblocked location
+## 1. R44: replacement location must individually cover the reserved quantity and use the accepted P1-004 reservation path
 
 ### Current defect
 
-Current `confirmPickLine` finds all `WmsWarehouseLocation` rows, excludes blocked/source locations, and selects the first remaining location. It does **not** prove that the location contains qualified ATP inventory for the SKU or enough eligible quantity.
+Current `confirmPickLine` collects eligible ATP rows, computes `totalAvailableStock` across **all** candidate locations, checks whether the total covers the shortage, then selects `candidateLocs[0]` for the replacement PickTask.
 
-Current code also directly rewrites/creates `WmsOutboundAllocation` instead of executing the accepted P1-004 reservation path.
+This is invalid. Example: shortage `3`, location B has `2`, location C has `2`. Aggregate stock is `4`, so current code proceeds, but the generated task may point to B for `3` even though B only has `2`.
 
-This can create a replacement PickTask against an empty location and can bypass hard-reservation/ATP invariants.
+Current reallocation also still mutates/creates `WmsOutboundAllocation` and `WmsInventoryReservation` directly inside `confirmPickLine` instead of reusing the accepted P1-004 reservation/conversion primitive.
 
 ### Required behavior
 
-For automatic SHORT_PICKED reallocation:
+For one replacement PickTask:
 
-- locate only real inventory for the same SKU in the same warehouse;
-- stock must be ATP-eligible under the accepted Inventory contract;
-- exclude the short/blocked source location and every active blocked location;
-- use only actually available/unreserved quantity;
-- reserve exactly the unresolved shortage quantity or the exact Architect-permitted available part;
-- perform the hard reservation through the accepted P1-004 Allocation/Inventory application primitive, not ad-hoc `status/reservedQty` mutation;
-- replacement PickTask must reference the resulting authoritative Allocation and exact eligible location;
-- no phantom candidate location may create a replacement task.
-
-If no eligible ATP stock exists, escalate to Supervisor and create no replacement Allocation/PickTask.
+- choose a **specific eligible unblocked location** that can authoritatively support the exact quantity reserved for that task;
+- if the Architect/current accepted allocation contract allows splitting the unresolved shortage across multiple allocations/tasks, implement that only if current canon explicitly requires it; otherwise require one candidate location to cover the unresolved replacement quantity;
+- never use aggregate quantity from several locations to justify one task against a single insufficient location;
+- account for hard reservations / already reserved stock using the accepted P1-004 semantics;
+- perform replacement hard reservation through the existing accepted Allocation/ATP application primitive, or refactor the smallest reusable primitive from that accepted service and call it from both paths;
+- do not duplicate reservation rules in `confirmPickLine`;
+- replacement PickTask must reference the exact authoritative Allocation and exact location that backs it;
+- if no single eligible location can support the required replacement quantity, do not create a phantom task; escalate according to R44.
 
 ### Required proof
 
-Real PostgreSQL integration:
+Real PostgreSQL tests:
 
-A. another unblocked location exists but has **zero/no ATP inventory** -> no replacement task, Supervisor escalation;
-B. another location has non-ATP stock only -> no replacement task;
-C. another location has eligible ATP stock -> exactly one replacement reservation + PickTask for the missing quantity;
-D. fresh DB read proves the reservation/Inventory facts are consistent with accepted P1-004 invariants.
+A. shortage `3`, candidate B=`2`, candidate C=`2` -> **no single 3-unit task** may be created;
+B. shortage `3`, B=`3+` -> exactly one replacement reservation/task on B for `3`;
+C. blocked source with eligible stock is excluded;
+D. non-ATP/non-POSTED stock is excluded;
+E. fresh DB verifies Allocation + hard Inventory reservation quantity/location consistency and no over-reservation.
 
-Update Scanner Playwright fixture so the alternative location contains **real eligible ATP stock** before proving auto-retry.
+Keep existing strict concurrency proof and make sure it still passes after using the accepted reservation primitive.
 
 ---
 
-## 2. R44 effective retry limit hierarchy is incomplete
+## 2. R47 SHORT_PICKED `ALLOW_PARTIAL`: release the unresolved hard reservation and leave missing demand correctly uncovered
 
 ### Current defect
 
-Current implementation resolves only:
+Current SHORT_PICKED `ALLOW_PARTIAL` only:
 
-`warehouse.maxAutomaticShortPickReallocations ?? 1`
+- sets `CustomerOrder.allowPartialShipment = true`;
+- moves the affected `OutboundOrderLine` to `PICKED` when `pickedQty > 0`;
+- records the Supervisor decision.
 
-Architect requires:
-
-1. customer-specific override when it is not `null`;
-2. otherwise warehouse setting;
-3. otherwise default `1`.
+It does **not** settle the unresolved missing part of the hard Allocation/Inventory reservation.
 
 ### Required behavior
 
-Search for the existing canonical customer-level configuration first. Reuse it if present.
+For persistent `ALLOW_PARTIAL` after SHORT_PICKED:
 
-If no canonical field exists, add the smallest additive configuration needed in the correct customer/config ownership surface. Do not invent a duplicate concept on an unrelated execution row.
+- picked quantity remains executable and may proceed;
+- unresolved missing quantity is no longer held by a stale hard reservation;
+- shrink/release the hard Allocation/Inventory reservation using the accepted P1-004/ATP recovery primitive, not ad-hoc field writes;
+- keep the still-uncovered commercial quantity available for later planning/backorder handling according to Architect R47;
+- do **not** silently shrink `CustomerOrderLine.orderedQuantity` in this outcome;
+- future shortages for this CustomerOrder use the persisted `allowPartialShipment=true` without another Supervisor approval;
+- fresh DB must show exact picked quantity, exact remaining commercial demand, exact soft/uncovered quantity, and no stale hard reservation for missing stock.
 
-Snapshot/use the effective limit consistently for the unresolved shortage case and prove:
-
-- customer override wins over warehouse;
-- null customer override uses warehouse;
-- null/unconfigured warehouse uses default 1.
-
----
-
-## 3. SHORT_PICKED reallocation concurrency / exactly-once proof is missing
-
-### Current defect
-
-The focused P1-007 suite contains no independent real-connection concurrency proof for automatic reallocation. There is no strict `pg_blocking_pids` evidence for the same unresolved shortage and no parallel limit-boundary proof.
-
-### Required behavior and proof
-
-Use the real application service path with two independent MikroORM EntityManagers/connections and distinct PostgreSQL PIDs.
-
-Prove:
-
-A. two overlapping attempts to process the **same unresolved SHORT_PICKED case** create at most one replacement Allocation and one replacement PickTask;
-B. retry counter increments exactly once;
-C. at `maxAutomaticShortPickReallocations - 1`, parallel attempts cannot advance beyond the limit or create a second retry;
-D. fresh independent DB read proves exact final count/rows;
-E. when serialization blocks, capture strict observer evidence only if:
-   - `pg_blocking_pids(pidB)` contains `pidA`, AND
-   - `wait_event_type = 'Lock'`.
-
-No manufactured blocker fallback and no raw-SQL-only business proof.
-
-Also prove duplicate/replayed explicit SHORT_PICKED declaration does not double-apply picked quantity, duplicate location-shortage facts, or duplicate replacement work.
+Add a focused real-PG test for this exact quantity lifecycle.
 
 ---
 
-## 4. Supervisor authorization and idempotency must fail closed
+## 3. R46 `CANCEL_OR_CORRECT`: finish the commercial + hard-reservation quantity contract
 
-### Current defect
+### Current defects
 
-Both Supervisor decision routes currently:
+#### A. `correctedQuantity = 0`
+Current full-cancel path cancels statuses and releases Allocation, but does not set `CustomerOrderLine.orderedQuantity = 0` as required by the commercial correction decision.
 
-- require only `wms_outbound.view`;
-- allow `idempotencyKey` to be omitted;
-- use `auth.sub || auth.userId || 'SUPERVISOR'`.
-
-The Mercato UI generates `Date.now()` idempotency keys inside each click handler, so an uncertain/lost response followed by retry creates a new key and can apply a second decision.
+#### B. positive correction == authoritative picked quantity
+Current code correctly rejects arbitrary positive values, but then changes `Allocation.reservedQty` to picked quantity without reconciling the linked `WmsInventoryReservation` through the accepted reservation primitive.
 
 ### Required behavior
 
-For both SHORT_ALLOCATED and SHORT_PICKED Supervisor decisions:
+For `correctedQuantity = 0`:
 
-- enforce the accepted Warehouse Supervisor permission/role contract, not generic read-only access;
-- resolve canonical authenticated human user UUID;
-- if canonical Supervisor identity/permission is unavailable, fail closed 401/403;
-- never persist synthetic `'SUPERVISOR'` or another fallback actor;
-- `idempotencyKey` is mandatory and non-empty at HTTP + service boundary;
-- one logical pending Supervisor action owns one stable key;
-- retry after uncertain transport outcome reuses the same key;
-- generate a fresh key only for a genuinely new decision action;
-- same key + same canonical decision payload returns prior committed result without duplicate audit/business writes;
-- same key + conflicting material payload fails closed.
+- set the affected `CustomerOrderLine.orderedQuantity = 0` in the same authoritative operation;
+- cancel/release the execution quantity;
+- release hard reservation using accepted P1-004/ATP recovery semantics;
+- preserve physical-return handoff for already-picked goods;
+- do not fake physical Inventory return.
 
-Material payload comparison must include the affected order/line ids, decision, correctedQuantity when applicable, reason where material, and canonical Supervisor identity.
+For positive correction:
 
-Add focused HTTP/real-service proof for unauthorized/read-only/non-Supervisor caller and missing canonical actor.
+- only authoritative persisted `pickedQty` is allowed;
+- update `CustomerOrderLine.orderedQuantity` and `OutboundOrderLine.requiredQty` together;
+- hard Allocation and linked `WmsInventoryReservation` must reconcile consistently to the quantity that remains legitimately committed;
+- no stale excess hard reservation may survive;
+- no arbitrary direct rewrite that bypasses the accepted reservation ledger.
+
+Required tests must fresh-read:
+
+- commercial ordered quantity;
+- execution required quantity;
+- Allocation qty/status;
+- linked hard Inventory reservation qty/status/existence;
+- physical-return handoff for zero-cancel;
+- rejection of positive quantity different from authoritative picked qty.
 
 ---
 
-## 5. R42 / R45 reservation return must use accepted ATP/Allocation recovery semantics
+## 4. Supervisor idempotency: same key must compare the full canonical material payload
 
 ### Current defect
 
-Current shortage decision service directly marks Allocations `RELEASED`, but the inspected SHORT_ALLOCATED cancel / SHORT_PICKED WAIT paths do not execute the authoritative ATP restoration flow required by Architect and the accepted P1-004/P1-002 contract.
+The service-level replay check is still too weak.
+
+SHORT_ALLOCATED currently compares only CustomerOrder + decision.
+SHORT_PICKED compares CustomerOrder + OutboundOrderLine + decision.
+
+Therefore the same key can be reused with a materially changed payload of the same decision type and be treated as a successful replay.
 
 ### Required behavior
 
-For SHORT_ALLOCATED cancellation and SHORT_PICKED WAIT/cancel recovery:
+Persist and compare a canonical material decision payload (or deterministic hash) for every Supervisor decision.
 
-- release Allocation through the accepted reservation/release application primitive;
-- restore exactly the Architect-defined quantity to the proper CustomerOrderLine ATPReservation/soft-reservation state;
-- do not double-return quantities already physically/formally picked;
-- do not mutate Inventory/ATP with ad-hoc field writes if an accepted service exists;
-- preserve hard-reservation ledger/exactly-once invariants.
+At minimum compare as applicable:
 
-Specific Architect outcomes must be proved:
+- canonical Supervisor user UUID;
+- CustomerOrder id;
+- OutboundOrder id when applicable;
+- OutboundOrderLine id when applicable;
+- decision type;
+- correctedQuantity when applicable;
+- normalized reason when reason is material/required.
 
-- SHORT_ALLOCATED cancel: failed line -> BACKORDERED; sister lines -> OPEN; released quantity returns correctly to ATPReservation; CustomerOrder aggregate outcome as R42;
-- SHORT_PICKED WAIT: short line unresolved quantity returned correctly; other rolled-back ALLOCATED/PICKED non-PACKED lines returned through the same accepted recovery path; PACKED untouched.
+Rules:
 
-Fresh independent DB reads must prove exact quantities, not only statuses.
+- same key + exact canonical material payload -> return prior committed result exactly once;
+- same key + any material difference -> fail closed with conflict;
+- concurrent same-key decision cannot duplicate business writes/audit row;
+- missing/empty key remains rejected at HTTP boundary;
+- UI retry of one pending modal action continues to reuse the same key.
+
+Add focused tests for:
+
+- same key/same payload replay;
+- same key/different reason;
+- same key/different correctedQuantity;
+- same key/different target order/line;
+- same key/different Supervisor actor;
+- concurrent same-key decision exactly once where practical under current service locking/unique constraint.
 
 ---
 
-## 6. R46 CANCEL_OR_CORRECT currently accepts arbitrary positive quantity
+## 5. Complete the decisive Playwright acceptance paths
+
+### Scanner Playwright
+
+Current test proves Short Pick and DB-side replacement creation, but it stops before the operator consumes the replacement task.
+
+Extend the real rendered Scanner journey, with no decisive route mocks:
+
+1. login / warehouse / Picking / zone;
+2. receive original task;
+3. bind TU;
+4. report explicit SHORT_PICKED through UI;
+5. verify visible shortage result;
+6. receive/continue the **actual generated replacement PickTask** through the normal Scanner flow;
+7. rendered location/task changes to the specific eligible alternative location;
+8. pick the unresolved quantity through UI;
+9. fresh DB proves exact cumulative picked quantity, old task remains SHORT_PICKED, replacement task completes correctly, and no duplicate replacement work exists.
+
+Use a fixture with **one specific alternative location that individually has enough real ATP stock** so this also proves blocker #1.
+
+### Mercato Supervisor Playwright
+
+Current test only executes SHORT_ALLOCATED `ALLOW_PARTIAL`.
+
+Add real rendered UI coverage for the distinct outcomes needed for TC-060/TC-062:
+
+- SHORT_ALLOCATED `ALLOW_PARTIAL`;
+- SHORT_ALLOCATED `CANCEL_OUTBOUND_ORDER`;
+- SHORT_PICKED `WAIT`;
+- SHORT_PICKED `CANCEL_OR_CORRECT` to authoritative picked qty;
+- SHORT_PICKED full cancel (`0`) if best represented as a separate deterministic fixture;
+- SHORT_PICKED persistent `ALLOW_PARTIAL` with mandatory reason.
+
+Fixtures may seed deterministic state, but every decisive Supervisor action must be clicked/submitted through the rendered Mercato UI and real backend.
+
+For each path assert the visible result plus decisive fresh DB quantity/state facts.
+
+---
+
+## 6. Durable evidence + required regressions must match the actual final heads
 
 ### Current defect
 
-Current service accepts any `correctedQuantity >= 0` and, for any positive value, rewrites `CustomerOrderLine.orderedQuantity`, `OutboundOrderLine.requiredQty`, and Allocation quantity.
+Current `05_EVIDENCE/P1-007_EVIDENCE.md` still reports the **old first-shot heads**:
 
-Architect allows only two named outcomes:
+- Mercato `e9ec...`
+- Scanner `e459...`
 
-A. commercial quantity becomes `0` -> full cancellation/release + physical-return handoff for already picked goods;
-B. quantity is corrected to the **authoritative quantity actually picked** -> no PutBack for that picked quantity, and `CustomerOrderLine.Quantity` + `OutboundOrderLine.requiredQty` change together.
+Actual remediation bases are already:
 
-### Required behavior
+- Mercato `f841950643cf67147e7ec3d4b690fc333b36a841`
+- Scanner `404b2fff9534dc4fef42fdb64488b9bd88e0b55a`
 
-- `0` is allowed for full cancellation;
-- any positive corrected quantity must equal the authoritative persisted actual picked quantity for the affected execution scope;
-- reject arbitrary positive values, stale values and values larger/smaller than authoritative picked quantity;
-- never trust the UI default as the invariant;
-- do not directly rewrite Allocation reservedQty to an arbitrary commercial correction.
+The evidence also does not contain the complete required regression record.
 
-Prove TC-121 with fresh DB reads and explicit rejection tests for invalid positive corrections.
+### Required final evidence
 
----
+After fixing blockers 1–5, update durable P1-007 evidence with:
 
-## 7. Persist the physical-return handoff required by R45/R46 without implementing P4
+- exact actual final 40-char Mercato and Scanner SHAs;
+- clean lineage from accepted P1-006 via all P1-007 commits;
+- exact changed files/migrations;
+- R44 per-location ATP proof and accepted Allocation/Inventory reservation path proof;
+- customer->warehouse->default retry hierarchy proof (preserve existing good proof);
+- strict concurrency/PID/`pg_blocking_pids` proof (preserve existing good proof);
+- R47 missing-hard-reservation release proof;
+- R46 zero vs exact-picked correction with hard reservation reconciliation;
+- full canonical Supervisor idempotency conflict proof;
+- real Scanner replacement-task continuation Playwright;
+- real Mercato UI outcomes listed above;
+- rollback proof;
+- physical-return handoff proof;
+- R48 proof;
+- exact test commands and pass counts.
 
-### Current defect
+Run and record at minimum:
 
-WAIT and full cancellation can involve already-picked physical stock, but the inspected service has no durable PutBack/physical-return handoff fact for later P4 consumption.
-
-### Required behavior
-
-Do **not** implement P4 PutBackTask lifecycle or RF PutBack.
-
-Persist/reuse the smallest accepted durable recovery handoff/event required to say:
-
-- physical stock has already moved;
-- logical Allocation/execution is being cancelled/released;
-- a later P4 physical-return process is required;
-- exact CustomerOrder/OutboundOrder/Line/SKU/quantity/TU/source context and correlation are retained where available.
-
-Use FND-002 transition/audit/outbox primitives if they are the canonical seam; otherwise add only the smallest additive P1-007 recovery-handoff persistence required.
-
-Prove no immediate fake Inventory return occurs for physically picked goods.
-
----
-
-## 8. TC-060 `allowPartialShipment=true` must execute a real application path
-
-### Current defect
-
-The current `1A` test manually seeds an already-ALLOCATED OutboundOrderLine/Allocation and then asserts those seeded values. It does not execute the shortage/allocation business operation that is supposed to produce the Architect outcome.
-
-### Required proof
-
-Drive the real application Allocation/planning/shortage path from a state where required quantity exceeds eligible hard-reservable stock and `allowPartialShipment=true`.
-
-Prove the application itself produces:
-
-- available portion executable/allocated;
-- missing portion remains uncovered/BACKORDERED;
-- no Supervisor decision/audit row;
-- later planning remains possible for missing quantity.
-
-No fixture-only assertion as decisive proof.
-
----
-
-## 9. Playwright coverage is incomplete
-
-### Scanner
-
-Current Scanner Playwright reports short and proves replacement generation, but acceptance requires the real auto-retry continuation.
-
-With real eligible ATP in the alternative location:
-
-1. report SHORT_PICKED through rendered Scanner UI;
-2. prove old task is SHORT_PICKED;
-3. receive/continue the actual replacement task through normal Scanner flow;
-4. rendered task/location changes to the eligible alternative location;
-5. perform the missing pick through UI;
-6. fresh DB verifies exact cumulative picked quantity and no duplicate work.
-
-No decisive route mocks.
-
-### Mercato Supervisor
-
-Current Playwright executes only SHORT_ALLOCATED `ALLOW_PARTIAL`.
-
-Add genuine rendered Supervisor UI coverage for distinct SHORT_PICKED outcomes:
-
-- WAIT;
-- CANCEL_OR_CORRECT to authoritative picked quantity (and full cancel path where practical/required by fixture split);
-- persistent ALLOW_PARTIAL with reason.
-
-Also cover SHORT_ALLOCATED cancellation or otherwise provide decisive normal-UI coverage for both TC-060 Supervisor branches.
-
-Fixtures may prepare state; decisive decisions must go through rendered UI and real backend.
-
----
-
-## 10. Regression and evidence must be complete and exact
-
-Current durable evidence has incorrect/nonexistent head SHAs and omits required regression runs.
-
-After remediation rerun and persist exact command/pass counts for:
-
-- P1-007 real PostgreSQL suite;
+- focused P1-007 real PostgreSQL suite;
 - P1-007 Scanner Playwright;
 - P1-007 Mercato Supervisor Playwright;
 - P1-004 Allocation regression;
@@ -299,34 +272,24 @@ After remediation rerun and persist exact command/pass counts for:
 - P1-006 RF + idempotency regression;
 - P1-001 CustomerOrder aggregation/policy regression;
 - P1-003 planning/requiredQty regression;
-- P1-008/TU targeted regression if TU code remains touched;
-- accepted Inbound Inventory/location/warehouse/TU compatibility regression for every shared primitive touched.
+- targeted P1-008/TU regression if TU code remains touched;
+- targeted accepted Inbound Inventory/location/warehouse/TU compatibility regressions for shared primitives touched.
 
-Update `05_EVIDENCE/P1-007_EVIDENCE.md` with:
+Evidence may say **PLAYWRIGHT VERIFIED**. Never self-declare `HUMAN VERIFIED` or `FINAL PASS`.
 
-- exact actual 40-char Mercato + Scanner SHAs and clean lineage;
-- correct P1-007 scope including R42–R48 / FR-P1-21..24 / FR-P5-01..06;
-- real ATP candidate/reallocation proof;
-- customer->warehouse->default retry hierarchy proof;
-- independent concurrent reallocation PIDs/lock evidence;
-- stable Supervisor retry idempotency and authorization proof;
-- exact ATP/Allocation return quantities;
-- R46 0 vs exact-picked correction proof;
-- physical-return handoff proof without P4 implementation;
-- real TC-060 partial-true application path;
-- all real Playwright results;
-- all regressions;
-- remaining gaps, if any.
-
-Evidence labels may say `PLAYWRIGHT VERIFIED`; never self-declare `HUMAN VERIFIED` or `FINAL PASS`.
+---
 
 ## Hard boundary / STOP
 
-- No P1-009.
-- No P1-010 packing UI/repack/QC.
-- No Shipment/Carrier/label/ERP/manifest work.
-- No P4 PutBackTask model/FIFO/RF implementation.
-- No unrelated redesign.
-- Do not rewrite accepted P1-006 history.
+Do not start or implement:
 
-Push remediation implementation + durable evidence, then **STOP**.
+- P1-009;
+- P1-010 packing/repack/QC UI;
+- Shipment / Carrier / labels / ERP / manifest;
+- P4 PutBackTask lifecycle/FIFO/RF;
+- unrelated cleanup/redesign;
+- accepted P1-006 history rewrites.
+
+Do not broaden this override beyond the six blockers above.
+
+Push product/test changes + corrected durable evidence, then **STOP**.

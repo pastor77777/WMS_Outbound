@@ -10,27 +10,81 @@
 ## 1. Lineage & Repository Commit SHAs
 
 * **Mercato Accepted Base (P1-005):** `0ebc0e8ce44263edf9170293f0c5b0d1a5c54975`
-* **Mercato P1-008 Previous Head:** `2a8fbb26774c562e6f97398e0f27e3ff1e830607`
-* **Mercato P1-008 Final DB-Remediation Head (`outbound/p1-008`):** `cb690079ce1e55cf89b4511f0762f0ecbf3dcd86`
+* **Mercato P1-008 Previous Head:** `cb690079ce1e55cf89b4511f0762f0ecbf3dcd86`
+* **Mercato P1-008 Final Remediation Head (`outbound/p1-008`):** `b51a201e3a0d861d21fe4a0b5fa5040870fd7933`
 * **Scanner P1-008 Head (`main`):** `b5cfb59987c76f39e0ab48af67a52e2e914d9613`
-* **Backend Build/Runtime Identity:** Live Next.js server on `http://127.0.0.1:3009` running from Mercato commit `cb690079ce1e55cf89b4511f0762f0ecbf3dcd86`.
+* **Backend Build/Runtime Identity:** Live Next.js server on `http://127.0.0.1:3009` running from Mercato commit `b51a201e3a0d861d21fe4a0b5fa5040870fd7933`.
 
 ---
 
-## 2. Real Playwright Acceptance Run (Preserved & Zero Route Mocks)
+## 2. Decisive Lock-Wait & Blocking Assertion Proof (PostgreSQL Application Path)
 
-> **Note:** The decisive user-facing acceptance was executed through real rendered Scanner UI interactions and verified against Testing PostgreSQL. It was not replaced by DB-only evidence.
+### Genuine Overlap & Strict Assertions
+* **Application Path Exercised:** Both Actor A and Actor B execute `createOutboundTuService(txEm).createOutboundTu(...)` inside independent `em.transactional(...)` application transactions on separate PostgreSQL backend processes (`pidA` vs `pidB`).
+* **Sequence Lock Execution Context:** Fixed `generateTuNumber` sequence upsert to execute directly on `em` rather than raw pooled driver connection, ensuring row-level lock is held for the duration of Actor A's transaction.
+* **Strict Observer Assertions:**
+  - `expect(pidA).toBeDefined()`
+  - `expect(pidB).toBeDefined()`
+  - `expect(pidA).not.toBe(pidB)`
+  - `expect(lockEvidenceCaptured).toBe(true)`
+  - `expect(capturedBlockingPids).toContain(pidA)`
+* **Captured PostgreSQL Blocking Proof:**
+```json
+{
+  "actorAPid": 1731190,
+  "actorBPid": 1731191,
+  "blockingPids": [ 1731190 ],
+  "waitEventType": "Lock",
+  "waitEvent": "transactionid",
+  "lockType": "transactionid",
+  "lockMode": "ShareLock",
+  "tuANumber": "TU0000000001",
+  "tuBNumber": "TU0000000002"
+}
+```
+* **Release & Sequence Resolution:** Only after PostgreSQL captures `pg_blocking_pids(pidB)` containing `pidA` and `wait_event_type = 'Lock'` is Actor A released. Both transactions then commit without deadlock or sequence gap, producing consecutive collision-free numbers `TU0000000001` and `TU0000000002`.
+* **Burst Concurrency (10 Actors):** 10 concurrent application service invocations in parallel produce 10 unique sequential numbers (`1..10`), verified with fresh independent DB read (`wms_outbound_tu_sequences.last_value = 10`, `count = 10`).
 
-### Real Rendered UI Journey:
-1. **Interactive Operator Login:** Operator logs in through the rendered form (`operator-p1008-ui-...@devaxonic.com`).
-2. **Mode Navigation:** Selects warehouse and clicks into `outboundTu` mode screen.
-3. **TU Creation via Rendered UI:** Selects `TUSetup` chip and clicks **"Create Outbound TU"** button (`page.getByText('Create Outbound TU')`).
-4. **Alphanumeric TU_NUMBER Inspection:** Inspects generated `TU_NUMBER` (matching `^TU\d{10}$`) and initial `BELOW_THRESHOLDS` badge on screen.
+---
+
+## 3. Warehouse Access Authorization at HTTP Boundary
+
+### Existing Primitive Reused
+* Reused existing `UserWarehouseService` / `wms_user_warehouses` assignment primitive through `assertUserWarehouseAccess(userWarehouseService, auth, warehouseId)`.
+* Applied to all P1-008 HTTP route entrypoints:
+  - `POST /api/wms_outbound/transport-units`
+  - `GET /api/wms_outbound/transport-units?warehouseId=...`
+  - `POST /api/wms_outbound/tu-setups`
+  - `GET /api/wms_outbound/tu-setups?warehouseId=...`
+  - `POST /api/wms_outbound/transport-units/[id]/contents`
+  - `POST /api/wms_outbound/transport-units/[id]/override-issueability`
+  - `GET /api/wms_outbound/transport-units/[id]/issueability`
+
+### Verified Scenarios (Genuine HTTP Route Invocations):
+1. **User A assigned to Warehouse A only:**
+   - Authorized operations in Warehouse A (`POST/GET tu-setups`, `POST/GET transport-units`, `POST contents`, `GET issueability`, `POST override-issueability`) return **201 / 200**.
+   - Unauthorized attempts targeting Warehouse B (`POST/GET tu-setups`, `POST/GET transport-units`, mutating/reading Warehouse B TU `[id]/contents`, `[id]/override-issueability`, `[id]/issueability`) **FAIL CLOSED with 403 Forbidden** (`User is not assigned to warehouse "..."`).
+2. **User AB assigned to both Warehouse A and Warehouse B:**
+   - Operations in Warehouse B return **201 / 200**.
+3. **Super Admin User:**
+   - Permitted across warehouses without explicit individual `wms_user_warehouses` assignment row.
+4. **Tenant/Org Isolation:**
+   - Cross-tenant/unauthenticated attempts fail with 401/403.
+
+---
+
+## 4. Real Scanner UI Playwright Acceptance (Zero Route Mocks)
+
+### Rendered Operator Journey:
+1. **Interactive Login:** Operator logs in through the rendered form (`operator-p1008-ui-...@devaxonic.com`).
+2. **Mode Selection:** Selects active warehouse and navigates to `outboundTu` mode screen.
+3. **TU Creation via Rendered UI:** Selects `TUSetup` chip and clicks **"Create Outbound TU"** button.
+4. **Alphanumeric TU_NUMBER Inspection:** Inspects generated `TU_NUMBER` (`TU0000000006`) and initial `BELOW_THRESHOLDS` badge on screen.
 5. **Item Master Content Addition:** Inputs SKU code and quantity into rendered text fields and clicks **"Add Item to TU"** button. The server authoritatively looks up `MasterdataItem` dimensions (`weight: 5.0 kg`, `volume: 0.05 m³`), computing `currentWeight: 10.000000 kg` and `currentContentVolume: 0.100000 m³` rendered on screen.
 6. **Operator Issueability Override:** Types reason (`Urgent order before SLA cutoff`) into rendered field and clicks **"Apply Issueability Override"** button.
 7. **UI Confirmation & Operator Binding:** UI transitions to `OPERATOR_OVERRIDE_APPLIED` badge displaying authenticated operator UUID.
 8. **Real PostgreSQL Verification:** Independent DB connection confirms:
-   - `wms_outbound_transport_units.tu_number === generatedTuNumber`
+   - `wms_outbound_transport_units.tu_number === 'TU0000000006'`
    - `wms_outbound_transport_units.override_by === testUserId` (authenticated operator UUID, not trusted from request body)
    - `wms_outbound_transport_units.override_reason === 'Urgent order before SLA cutoff'`
    - `wms_outbound_tu_contents.unit_weight === 5.000000`, `unit_volume === 0.050000` (exact item master correlation).
@@ -49,86 +103,26 @@ set -a && . /home/ubuntu/git/Devaxonic-mercato/apps/mercato/.env && set +a
 ```
 Running 1 test using 1 worker
 
-  ✓ 1 [chromium] › e2e/p1-008-real-tu-identity.spec.ts:110:7 › P1-008 Real Playwright Outbound TU Identity, TUSetup & Issueability Suite (Zero Route Mocks) › Real Scanner UI Operator Journey: Login -> Select Outbound TU Mode -> Create TU -> Add SKU Content -> View Mass/Volume -> Apply Override -> DB Verification (7.6s)
+  ✓ 1 [chromium] › e2e/p1-008-real-tu-identity.spec.ts:110:7 › P1-008 Real Playwright Outbound TU Identity, TUSetup & Issueability Suite (Zero Route Mocks) › Real Scanner UI Operator Journey: Login -> Select Outbound TU Mode -> Create TU -> Add SKU Content -> View Mass/Volume -> Apply Override -> DB Verification (14.2s)
 
-  1 passed (10.0s)
+  1 passed (17.0s)
 ```
-
-### Artifact Screenshot:
-* **Rendered UI Screenshot:** `/home/ubuntu/p1-008-real-scanner-tu.png`
 
 ---
 
-## 3. Genuine PostgreSQL Integration Test Battery (Application Paths)
+## 5. Test Verification Matrix & Pass Counts
 
-### Test Command:
-```bash
-cd /home/ubuntu/git/Devaxonic-mercato
-export PATH="/home/ubuntu/.nvm/versions/node/v24.19.0/bin:$PATH"
-export NODE_TLS_REJECT_UNAUTHORIZED=0
-set -a && . apps/mercato/.env && set +a
-corepack yarn workspace @open-mercato/app test p1-008
-```
-
-### Test Result:
-```
-Test Suites: 1 passed, 1 total
-Tests:       18 passed, 18 total
-Snapshots:   0 total
-Time:        17.065 s
-```
-
-### Detailed Acceptance & Remediation Matrix:
-
-#### 1. App-Path Real Concurrency & Lock Barrier
-* **Application Method Exercised:** `createOutboundTuService(txEm).createOutboundTu(scope, { warehouseId, tuSetupCode, role: 'PickContainer' })`
-* **Real Connection & Transaction Isolation:**
-  - Actor A starts `emA.transactional(...)` (DB PID `1727112`), invokes application `createOutboundTu`, and holds transaction open.
-  - Actor B starts `emB.transactional(...)` on separate connection (DB PID `1727108`), concurrently invoking application `createOutboundTu` for the same warehouse.
-  - Observer connection queries PostgreSQL `pg_stat_activity` / `pg_locks` and captures lock evidence: Actor B is blocked at PostgreSQL waiting on sequence row lock held by Actor A (`lockEvidenceCaptured: true`).
-  - Actor A transaction commits and releases lock; Actor B immediately unblocks and commits.
-  - Generates distinct, collision-free sequential numbers: `tuANumber: 'TU0000000001'`, `tuBNumber: 'TU0000000002'`.
-* **Application Concurrency Burst:**
-  - 10 concurrent actors invoke application `createOutboundTu` via separate EntityManager forks in parallel.
-  - Produces 10 unique sequential numbers (`1..10`).
-  - Fresh independent PostgreSQL connection confirms `wms_outbound_tu_sequences.last_value = 10` and 10 rows in `wms_outbound_transport_units`.
-
-#### 2. App-Path Real Rollback & Clean Abort
-* **Application Method Exercised:** `em.transactional(async (txEm) => { ... })` invoking `service.createTuSetup`, `service.createOutboundTu`, and `service.addTuContent`.
-* **Failure & Rollback Behavior:** After flushing application entities through MikroORM, an error is deliberately thrown before commit.
-* **Fresh Independent Read:** Fresh PostgreSQL connection queries `wms_outbound_tu_setups`, `wms_outbound_transport_units`, and `wms_outbound_tu_contents` and confirms **0 rows committed**.
-
-#### 3. Real Warehouse Isolation & Tenant Scoping
-* **Setup Scoping:** Warehouse A setups are completely isolated from Warehouse B (`BOX-WH-A` is not visible or accessible in Warehouse B).
-* **Active TU_NUMBER Uniqueness is Warehouse-Scoped (Architect R53):**
-  - In Warehouse A, creating an active TU with `tuNumber = 'TUSHARED0001'` succeeds.
-  - Duplicate `TUSHARED0001` in Warehouse A is blocked (`already in use by an active Outbound TU`).
-  - In Warehouse B, creating an active TU with the **same** `tuNumber = 'TUSHARED0001'` **succeeds** independently without collision.
-* **Mutation Guard:** Attempting to create a TU in Warehouse B using a `tuSetupCode` belonging to Warehouse A fails closed (`not found in warehouse`).
-
-#### 4. Item Master Authority & Metric Calculation (R63 / FR-P1-37 / TC-110, TC-111)
-* Authoritatively resolves `dimensions.weight` and `dimensions.volume` from `masterdata_items` table in PostgreSQL.
-* Calculates `currentWeight` and `currentContentVolume` from line contents; exposes line sum (never `TUSetup.maxWeight`).
-
-#### 5. Issueability Evaluation Order & Override Gates (R64, R65, R66, R68 / TC-114..TC-120)
-* **TC-114 (R64 step 2):** INTERNAL `externalIssuable = true` TU passes when content volume reaches `minIssueVolume` (`0.12 m³ >= 0.10 m³`) while weight (`1.0 kg < 20.0 kg`) does not.
-* **TC-115 (R65):** Below-threshold override persists authenticated operator UUID and reason, transitioning to `OPERATOR_OVERRIDE_APPLIED`.
-* **TC-116 (R66):** Repack target sealing guard blocks non-issuable repack target TU (`externalIssuable = false`).
-* **TC-117 (R65):** `externalIssuable = false` is an absolute block that cannot be overridden.
-* **TC-120 / R68:** EXTERNAL recognition only via `TUSetup.processUsage = 'EXTERNAL'` -> automatic issueability without reading lower thresholds.
-* **R68 DB Constraint:** Exactly one EXTERNAL setup per warehouse enforced by PostgreSQL partial unique index `wms_outbound_tu_setups_external_uq`.
+| Test Suite | Command | Result | Pass Count |
+|---|---|---|---|
+| **P1-008 PostgreSQL Suite** | `yarn workspace @open-mercato/app test p1-008` | PASSED | **22 / 22** |
+| **Real Scanner UI Playwright** | `playwright test e2e/p1-008-real-tu-identity.spec.ts` | PASSED | **1 / 1** |
+| **Outbound Module Battery** | `yarn workspace @open-mercato/app test wms_outbound` | PASSED | **212 / 212** (15 suites) |
+| **FND-003 Compatibility** | `yarn workspace @open-mercato/app test fnd-003` | PASSED | **16 / 16** (2 suites) |
+| **WMS Receiving Regression** | `yarn workspace @open-mercato/app test wms_receiving` | PASSED | **84 / 84** (10 suites) |
 
 ---
 
-## 4. Module-Wide Regression Protection
-
-* **Full WMS Outbound Suite:** `15/15` suites passed, `208/208` tests passed.
-* **FND-003 Shared Compatibility Suite:** `8/8` passed (`fnd-003-postgres.integration.test.ts`).
-* **WMS Receiving Suite:** `10/10` suites passed, `84/84` tests passed.
-
----
-
-## 5. Remaining Gaps & Stop Boundary
+## 6. Remaining Gaps & Stop Boundary
 
 * **Remaining Gaps:** None for P1-008.
-* **Stop Boundary:** P1-008 execution is complete and verified. No work on P1-006 has been started. Execution has halted.
+* **Stop Boundary:** P1-008 narrow remediation is complete and verified. No work on P1-006 has been started. Execution has halted cleanly.

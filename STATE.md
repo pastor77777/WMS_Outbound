@@ -4,7 +4,7 @@
 **Campaign:** WMS Outbound v1  
 **Architecture:** implementation-ready; no unresolved product/architecture blocker recorded  
 **Current phase:** product implementation  
-**Implementation progress:** **12/37 items FINAL PASS**
+**Implementation progress:** **13/37 items FINAL PASS**
 
 ## Architect baseline
 
@@ -40,44 +40,41 @@ The plan is delivery decomposition only. Architect Source/Canon remains business
 10. `P1-006` — FINAL PASS / Human Verified — `353a5001cb8f1941971f960e509a8af643e41e5a` (Mercato) / `7596b7802e7ed55a59dd6dc1f21912ea6331e796` (Scanner) / evidence `43cc7d0e7dd20a48fc00b40150b30275d0c2aa12`
 11. `P1-007` — FINAL PASS / Owner Accepted based on PLAYWRIGHT VERIFIED + real PostgreSQL evidence — `134db31381b4db726cd550abe6ecd4079ac21d8c` (Mercato) / `b23325aae1c4f83b79d01b3650dbead3486a1041` (Scanner) / evidence `10be7a6e2c10a05d1fe5ce6dc5aacdd93dc400a8`
 12. `P1-009` — FINAL PASS / Owner Accepted based on PLAYWRIGHT VERIFIED + real PostgreSQL evidence — `5d780dabeb605bc657bb521bd2b2fdcc2e516f77` (Mercato) / `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` (Scanner) / evidence `6c78a97ece567d90d3cb7d0580bb38669c9f9722`
+13. `P1-010` — FINAL PASS / Owner Accepted based on reviewed PLAYWRIGHT VERIFIED + real PostgreSQL evidence — `19dbf77d9dbf5a36b36adc88a9dbb6debdd15643` (Mercato) / Scanner frozen `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `b5bb6429717402e0fb6969f7437ddaf673a8a174`
 
-## P1-009 accepted boundary
+## P1-010 accepted boundary
 
-- `directPackDeclared` is bound at the architect-defined first Picking TU scan and is immutable once picking begins; exact same-intent replay is safe and conflicting mutation fails closed.
-- Same-TU multi-zone continuation preserves the declaration without re-prompting; P1 R67 replacement TU after `PICK_FULL` inherits it without re-prompting.
-- Qualifying direct-pack TU automatically executes `READY_TO_PACK -> PACK_QUALIFIED -> PACKING_SEALED`, retains TU identity as `PackUnit`, and moves eligible line quantity to `PACKED` with atomic `packedQty` persistence without a Packer action.
-- Non-issuable / below-threshold paths remain at `READY_TO_PACK`; incomplete / `SHORT_PICKED` paths do not falsely mark the line PACKED.
-- Final proof is labelled `PLAYWRIGHT VERIFIED` and includes genuine remote PostgreSQL identity, real lock contention with distinct PostgreSQL PIDs, real rollback, P1-009 backend 15/15, Scanner direct-pack 4/4, Scanner P1-006/P1-007/P1-008 regressions 3/3, backend P1-006/P1-007/P1-008 regressions 54/54, and full `wms_outbound` 260/260.
-- Final implementation diff from accepted bases is clean: the historical P1-007 migration is unchanged; Mercato/Scanner heads remained frozen throughout evidence-only closeout.
+- Standard Packer processing from `READY_TO_PACK` supports keep-same-TU, repack-all, repack-by-SKU and compatible consolidation through the normal Mercato UI.
+- Keep-same-TU preserves TU identity, promotes the TU to `PackUnit` and seals it through `PACK_QUALIFIED -> PACKING_SEALED` when allowed.
+- Repack-all and repack-by-SKU preserve accounting; source completion requires expected quantity to be accounted for as packed, QC or explicitly confirmed missing.
+- Packing shortage requires recheck + explicit confirmation and uses the accepted SHORT_PICKED recovery without source-location blocking. DAMAGED routes to QC and uses shortage recovery; unexpected/overage routes to QC without creating shortage.
+- Consolidation enforces accepted R60 compatibility and rendered incompatible/compatible paths are covered by real UI + PostgreSQL evidence.
+- Repack/keep respects accepted issueability and R66: `externalIssuable=false` is non-overridable.
+- Warehouse Supervisor deviation authority is server-side only: authenticated candidate, same tenant, same organization and `RbacService.userHasAllFeatures(..., ['wms_outbound.manage_orders'], scope)`; no email/name/role-name heuristic or client authority assertion.
+- Same-tenant/different-organization Supervisor approval is rejected before RBAC feature evaluation; negative DB assertions prove no override/audit mutation.
+- Final proof remains labelled `PLAYWRIGHT VERIFIED`: P1-010 backend 16/16, P1-010 Mercato Playwright 6/6, Scanner P1-009 Playwright 4/4, backend P1-009 15/15, P1-008 22/22, P1-007 20/20, P1-006 12/12, full `src/modules/wms_outbound` 276/276, real PostgreSQL identity/locking/rollback, and exact final evidence on the frozen product heads.
 
 ## Current position
 
-Completed: **12/37**.
+Completed: **13/37**.
 
 Next implementation item:
 
-**P1-010 — Packing, repack, consolidation and discrepancy handling — item 13/37.**
+**P1-011 — Shipment grouping, closure and partial-shipment gates — item 14/37.**
 
-Task Catalog ownership:
+Fresh Task Catalog grounding:
 
-- objective: process `READY_TO_PACK` through Packer keep/repack/consolidate paths and handle packing discrepancies;
-- Architect: P1 R19–R26, with inherited compatibility constraints from current KROK 7–8 / R48 / R60 / R63 / R66 where they govern the same packing actions;
-- requirements: `FR-P1-10`, `FR-P1-11`, `FR-P1-12`, `FR-P1-13`, `FR-P5-07`;
-- dependencies: `P1-006`, `P1-008` — satisfied; preserve accepted P1-009 direct-pack behavior as an upstream alternative path;
-- target components: Packing backend, Mercato/Packer UI, TU contents, QC handoff;
-- acceptance: `TC-001`, `TC-005`, `TC-006`, `TC-063`.
+- objective: create stable Shipment grouping from packed TUs and enforce SLA / `allowPartialShipment` / CustomerOrder completeness guards, including late-TU follow-up shipments;
+- Architect source: P1 R25–R30, R57, R58, R60, P1 exception P5 E17, and P1 R37–R41;
+- requirements: `FR-P1-13`, `FR-P1-14`, `FR-P1-15`, `FR-P1-31`, `FR-P1-32`, `FR-P1-34`, `FR-P5-17`, `CON-04`;
+- dependencies: `P1-003`, `P1-009`, `P1-010` — satisfied;
+- target components: Shipment, Shipment-TU/line links, CustomerOrder guard;
+- DB impact: persist grouping keys, contributing TUs/orders/lines and closure boundary;
+- backend: idempotent grouping/closure and the `allowPartialShipment=false` gate;
+- Mercato: Shipment operational view and blocked reason;
+- Scanner: no new RF ownership beyond handoff-state visibility if required by current source.
 
-P1-010 hard boundary:
-
-- Packer evaluates standard `READY_TO_PACK` TU: keep / repack / consolidate; deviation from the WMS suggestion continues to obey accepted R18 Supervisor approval semantics.
-- Keep preserves TU identity; repack/consolidate makes the source PickContainer `REPACKED` and prepares one or more Packing TUs.
-- Repack v1 has two warehouse-configurable modes: `repack all` and `repack by SKU`; do not invent SKU-guidance order for by-SKU mode.
-- Packing consolidation has no category/temperature compatibility rules in v1. Enforce the architect packing mass limit; content volume is not a repack blocking limit. Preserve R60 cross-order compatibility and one-Shipment-per-Packing-TU constraint at the packing seam.
-- Repack target must be externally issuable per accepted P1-008/R66; non-issuable target cannot be sealed.
-- By-SKU shortage requires recheck + explicit confirmation before invoking the accepted SHORT_PICKED recovery mechanism, with no source-location block.
-- DAMAGED quantity goes to QC, is recorded as DAMAGED, and uses the same shortage mechanism; unexpected/overage SKU goes to QC but must not create a shortage.
-- Source TU completion requires every expected SKU quantity to be accounted for as packed, QC, or confirmed missing; otherwise continue or explicitly confirm missing after recheck.
-- R26 is only the packing-to-Shipment grouping seam. Do **not** absorb P1-011 Shipment lifecycle/readiness/partial-shipment gates, P1-012 Carrier selection, labels, ERP posting, manifest or dispatch work.
+Do not absorb carrier selection, label generation, ERP posting, manifest or dispatch work into P1-011 unless the exact current Architect/Task Catalog places it there. Re-ground the exact P1-011 acceptance scenarios and source before writing any execution guide.
 
 ## Authority and architecture-context rule
 
@@ -110,7 +107,7 @@ The owner should never need to paste Antigravity logs into chat.
 
 ## Blockers
 
-No current product/architecture blocker is recorded for starting `P1-010`.
+No current product/architecture blocker is recorded for starting `P1-011`. A future P1-011 execution session must first fresh-ground exact Architect rules, requirements, acceptance scenarios and current refs.
 
 ## Handover
 

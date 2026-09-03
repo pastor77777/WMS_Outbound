@@ -10,11 +10,11 @@
 ## 1. Lineage & Authoritative Repository Commit SHAs
 
 * **Mercato P1-009 Base Head:** `5d780dabeb605bc657bb521bd2b2fdcc2e516f77`
-* **Mercato P1-010 Final Frozen Head (`outbound/p1-010`):** `d2a703e4103a2e1ea7fdfe1b1ce51ee43ae9afb6`
+* **Mercato P1-010 Final Head (`outbound/p1-010`):** `19dbf77d9dbf5a36b36adc88a9dbb6debdd15643`
 * **Scanner Frozen Head (`outbound/p1-009`):** `f4a404600efb1120cb2f1c5b86383ad148cd1e1a`
-* **Authoritative Outbound Steering Head (`main` before evidence commit):** `b59446d07a768bf0be8fbe52377d3992df2e47aa`
+* **Authoritative Outbound Steering Head (`main` before evidence commit):** `6a2e8aa8ccc3091200c35c68ad8ff921f763addf`
 * **Testing Database:** Remote DevAxonic Testing PostgreSQL Database (`2a05:d014:128e:9502:1a68:6cc3:7449:a079:5432`)
-* **Product Repositories State:** Both `Devaxonic-mercato` and `Devaxonic-scanner` are clean and frozen; zero product source, test, or configuration commits were created during this evidence rerun.
+* **Product Repositories State:** `Devaxonic-mercato` clean on `outbound/p1-010` at commit `19dbf77d9dbf5a36b36adc88a9dbb6debdd15643`; `Devaxonic-scanner` clean and frozen at `f4a404600efb1120cb2f1c5b86383ad148cd1e1a`.
 
 ---
 
@@ -44,14 +44,14 @@
 ## 3. Remote Testing PostgreSQL Concurrency & Contention Proof
 
 * **Working Directory:** `/home/ubuntu/git/Devaxonic-mercato/apps/mercato`
-* **Target Head:** `d2a703e4103a2e1ea7fdfe1b1ce51ee43ae9afb6`
+* **Target Head:** `19dbf77d9dbf5a36b36adc88a9dbb6debdd15643`
 * **Test Case:** `16. real concurrency/locking proof for the shared mutable packing/repack accounting path using independent overlapping transactions/connections and DB-side participant evidence where the operation can race`
 * **Mechanism:** Two independent PostgreSQL sessions with distinct backend PIDs executing concurrent `packKeepSameTu` / `packRepackAll` mutating transactions against the same row in `wms_outbound_transport_units`.
 
 ```json
 [P1-010 Decisive PostgreSQL Lock Contention Captured] {
-  "blockedPid": 1927611,
-  "blockingPid": 1924571,
+  "blockedPid": 1931409,
+  "blockingPid": 1927648,
   "waitEventType": "Lock",
   "waitEvent": "transactionid"
 }
@@ -64,17 +64,32 @@
 
 ---
 
-## 4. Blocker A Closure — Real Server-Side Supervisor Authority
+## 4. Supervisor Authority & Strict Organization Boundary
 
-1. **Server-Side Enforcement:** The API route `/api/wms_outbound/packing/keep-same-tu` derives operator identity strictly from request authentication context (`auth.sub || auth.userId`) and never trusts client-supplied `supervisorId`.
-2. **Rejection of Normal Operator Deviation:** Normal operators/packers attempting to approve their own deviation by sending a reason or arbitrary identifier are strictly rejected by the server (`packKeepSameTu` enforces `checkSupervisorAuthority` via `RbacService`).
-3. **Supervisor Role & Privilege Validation:** Authorized supervisors (possessing `wms_outbound.manage_orders` / `wms_outbound.*` or role `warehouse_supervisor`, `admin`, `superadmin`) are authenticated and verified against the database.
-4. **Audit Persistence:** On supervisor approval, `wms_outbound_transport_units` records `isOverrideApplied = true`, `overrideBy = supervisorUserId`, `overrideReason = reason`, and a corresponding `WmsOutboundSupervisorDecision` audit entry is persisted.
-5. **R66 Non-Overridable Guard:** Transport units with `externalIssuable = false` remain strictly non-overridable and reject keep attempts even when supervisor authorization is provided.
+1. **Strict 4-Part Server-Side Boundary Check:**
+   In `packing-service.ts` (`checkSupervisorAuthority`), supervisor authorization requires all 4 conditions:
+   - Supervisor user ID is non-empty and maps to an active, non-deleted `User` record in PostgreSQL.
+   - Strict tenant boundary: `user.tenantId === scope.tenantId`.
+   - Strict organization boundary: `user.organizationId === scope.organizationId`.
+   - Server-side feature check: `RbacService.userHasAllFeatures(..., ['wms_outbound.manage_orders'], { tenantId, organizationId })` succeeds (evaluating user and role ACLs including only the wildcard/super-admin semantics implemented by `RbacService`).
+2. **Same-Tenant Different-Organization Negative Rejection:**
+   A same-tenant user whose own `User.organizationId` differs from `scope.organizationId` is strictly rejected even when assigned a broad role/ACL that would satisfy feature matching across organizations (`organizationsJson = null`). The mutation fails with:
+   `"User <id> is not authorized as a Warehouse Supervisor in organization <orgId> (must belong to the same organization)."`
+   Independent DB inspection confirms:
+   - Source TU remains untouched in `READY_TO_PACK`
+   - `isOverrideApplied = false`
+   - `overrideBy = null`
+   - Zero `WmsOutboundSupervisorDecision` records created.
+3. **No Unchecked Role-Name Heuristics:**
+   Authorization does not rely on name/email heuristics, client-supplied role flags, or hard-coded role names such as `warehouse_supervisor`, `admin`, or `manager`. Authority is strictly grounded in `user.tenantId`, `user.organizationId`, and `RbacService.userHasAllFeatures`.
+4. **Audit Persistence:**
+   On genuine authorized supervisor approval, `wms_outbound_transport_units` records `isOverrideApplied = true`, `overrideBy = supervisorUserId`, `overrideReason = reason`, and a corresponding `WmsOutboundSupervisorDecision` audit entry is persisted.
+5. **R66 Non-Overridable Guard:**
+   Transport units with `externalIssuable = false` remain strictly non-overridable and reject keep attempts even when valid supervisor authorization is provided.
 
 ---
 
-## 5. Blocker B Closure — Rendered UI Consolidation & Incompatibility Proof
+## 5. Rendered UI Consolidation & Incompatibility Proof
 
 1. **Incompatible Consolidation Rejection (Journey 6A):**
    - Operator selects Source TU (Order 1, Customer A, Address A) in the Packer Workstation.
@@ -96,7 +111,7 @@
 ## 6. Decisive P1-010 PostgreSQL Integration Suite (16/16 Passed)
 
 * **Working Directory:** `/home/ubuntu/git/Devaxonic-mercato/apps/mercato`
-* **Target Head:** `d2a703e4103a2e1ea7fdfe1b1ce51ee43ae9afb6`
+* **Target Head:** `19dbf77d9dbf5a36b36adc88a9dbb6debdd15643`
 * **Exact Command Line:**
   ```bash
   NODE_TLS_REJECT_UNAUTHORIZED=0 yarn test src/modules/wms_outbound/services/__tests__/p1-010-postgres.integration.test.ts
@@ -104,7 +119,7 @@
 * **Exact Fresh Output:**
 
 ```text
-PASS src/modules/wms_outbound/services/__tests__/p1-010-postgres.integration.test.ts (40.096 s)
+PASS src/modules/wms_outbound/services/__tests__/p1-010-postgres.integration.test.ts (39.684 s)
   P1-010 Genuine PostgreSQL Packing, Repack, Consolidation & Discrepancies Suite
     ✓ 1. evaluating Transport Units at the packer workstation returns KEEP_SAME_TU vs REPACK suggestions (442 ms)
     ✓ 2. Keep Same TU (R19) path preserves the transport unit identifier, assigns PackUnit role, and transitions TU to PACKING_SEALED (420 ms)
@@ -126,7 +141,7 @@ PASS src/modules/wms_outbound/services/__tests__/p1-010-postgres.integration.tes
 Test Suites: 1 passed, 1 total
 Tests:       16 passed, 16 total
 Snapshots:   0 total
-Time:        40.096 s
+Time:        39.684 s, estimated 40 s
 Ran all test suites matching src/modules/wms_outbound/services/__tests__/p1-010-postgres.integration.test.ts.
 ```
 
@@ -135,7 +150,7 @@ Ran all test suites matching src/modules/wms_outbound/services/__tests__/p1-010-
 ## 7. Playwright Packer Workstation UI & Repack Journeys (6/6 Passed)
 
 * **Working Directory:** `/home/ubuntu/git/Devaxonic-mercato/apps/mercato`
-* **Target Head:** `d2a703e4103a2e1ea7fdfe1b1ce51ee43ae9afb6`
+* **Target Head:** `19dbf77d9dbf5a36b36adc88a9dbb6debdd15643`
 * **Evidence Label:** `PLAYWRIGHT VERIFIED`
 * **Exact Command Line:**
   ```bash
@@ -147,14 +162,14 @@ Ran all test suites matching src/modules/wms_outbound/services/__tests__/p1-010-
 ```text
 Running 6 tests using 1 worker
 
-  ✓  1 src/modules/wms_outbound/__integration__/P1-010-packer-workstation-ui.spec.ts:310:3 › P1-010 Real Mercato Packer Workstation UI & Repack Journeys › Journey 1: Keep same TU — operator selects TU, reviews suggestion, confirms pack as-is, TU seals as PackUnit (22.0s)
-  ✓  2 src/modules/wms_outbound/__integration__/P1-010-packer-workstation-ui.spec.ts:348:3 › P1-010 Real Mercato Packer Workstation UI & Repack Journeys › Journey 2: Repack All — operator transfers entire contents to a new shipping box, source TU marks REPACKED (17.0s)
-  ✓  3 src/modules/wms_outbound/__integration__/P1-010-packer-workstation-ui.spec.ts:381:3 › P1-010 Real Mercato Packer Workstation UI & Repack Journeys › Journey 3: Repack by SKU / Defer / Missing — operator defers count with 0 shortage, then reports confirmed missing (18.8s)
-  ✓  4 src/modules/wms_outbound/__integration__/P1-010-packer-workstation-ui.spec.ts:446:3 › P1-010 Real Mercato Packer Workstation UI & Repack Journeys › Journey 4: Damaged Stock & Unexpected SKU routed to QC (Architect R23, R24) (18.2s)
-  ✓  5 src/modules/wms_outbound/__integration__/P1-010-packer-workstation-ui.spec.ts:515:3 › P1-010 Real Mercato Packer Workstation UI & Repack Journeys › Journey 5: Supervisor Authorization for Suggestion Deviation (Architect R18, R65) (32.5s)
-  ✓  6 src/modules/wms_outbound/__integration__/P1-010-packer-workstation-ui.spec.ts:617:3 › P1-010 Real Mercato Packer Workstation UI & Repack Journeys › Journey 6: Rendered Compatible & Incompatible Packing Consolidation (Architect R25, R26, R60) (22.4s)
+  ✓  1 src/modules/wms_outbound/__integration__/P1-010-packer-workstation-ui.spec.ts:310:3 › P1-010 Real Mercato Packer Workstation UI & Repack Journeys › Journey 1: Keep same TU — operator selects TU, reviews suggestion, confirms pack as-is, TU seals as PackUnit (26.3s)
+  ✓  2 src/modules/wms_outbound/__integration__/P1-010-packer-workstation-ui.spec.ts:348:3 › P1-010 Real Mercato Packer Workstation UI & Repack Journeys › Journey 2: Repack All — operator transfers entire contents to a new shipping box, source TU marks REPACKED (16.9s)
+  ✓  3 src/modules/wms_outbound/__integration__/P1-010-packer-workstation-ui.spec.ts:381:3 › P1-010 Real Mercato Packer Workstation UI & Repack Journeys › Journey 3: Repack by SKU / Defer / Missing — operator defers count with 0 shortage, then reports confirmed missing (19.6s)
+  ✓  4 src/modules/wms_outbound/__integration__/P1-010-packer-workstation-ui.spec.ts:446:3 › P1-010 Real Mercato Packer Workstation UI & Repack Journeys › Journey 4: Damaged Stock & Unexpected SKU routed to QC (Architect R23, R24) (18.5s)
+  ✓  5 src/modules/wms_outbound/__integration__/P1-010-packer-workstation-ui.spec.ts:515:3 › P1-010 Real Mercato Packer Workstation UI & Repack Journeys › Journey 5: Supervisor Authorization for Suggestion Deviation (Architect R18, R65) (32.2s)
+  ✓  6 src/modules/wms_outbound/__integration__/P1-010-packer-workstation-ui.spec.ts:617:3 › P1-010 Real Mercato Packer Workstation UI & Repack Journeys › Journey 6: Rendered Compatible & Incompatible Packing Consolidation (Architect R25, R26, R60) (20.0s)
 
-  6 passed (2.2m)
+  6 passed (2.3m)
 ```
 
 ### Journey 1: Keep Same TU (Architect R19)
@@ -202,12 +217,12 @@ The operator tests consolidation in rendered UI: attempting to consolidate into 
 ```text
 Running 4 tests using 1 worker
 
-  ✓  1 e2e/p1-009-real-scanner-direct-pack.spec.ts:214:7 › P1-009 Real Playwright Outbound Scanner Direct Pack & Automatic Sealing Suite › Journey 1: Happy path direct pack: declare at first TU creation, pick, close TU -> automatic sealing to PACKING_SEALED, PackUnit role, and line PACKED (14.2s)
-  ✓  2 e2e/p1-009-real-scanner-direct-pack.spec.ts:370:7 › P1-009 Real Playwright Outbound Scanner Direct Pack & Automatic Sealing Suite › Journey 2: Same-TU multi-zone continuation: Zone A pick, continue into Zone B without direct pack re-prompt, complete pick, declaration persists (16.7s)
-  ✓  3 e2e/p1-009-real-scanner-direct-pack.spec.ts:563:7 › P1-009 Real Playwright Outbound Scanner Direct Pack & Automatic Sealing Suite › Journey 3: R67 PICK_FULL inheritance: declare TU full (PICK_FULL), switch TU for task, new TU inherits directPackDeclared without re-prompt (13.4s)
-  ✓  4 e2e/p1-009-real-scanner-direct-pack.spec.ts:723:7 › P1-009 Real Playwright Outbound Scanner Direct Pack & Automatic Sealing Suite › Journey 4: Negative issueability: non-issuable direct pack TU stops at READY_TO_PACK on close, UI does not claim auto-sealing, and line remains PICKED (10.0s)
+  ✓  1 e2e/p1-009-real-scanner-direct-pack.spec.ts:214:7 › P1-009 Real Playwright Outbound Scanner Direct Pack & Automatic Sealing Suite › Journey 1: Happy path direct pack: declare at first TU creation, pick, close TU -> automatic sealing to PACKING_SEALED, PackUnit role, and line PACKED (12.1s)
+  ✓  2 e2e/p1-009-real-scanner-direct-pack.spec.ts:370:7 › P1-009 Real Playwright Outbound Scanner Direct Pack & Automatic Sealing Suite › Journey 2: Same-TU multi-zone continuation: Zone A pick, continue into Zone B without direct pack re-prompt, complete pick, declaration persists (16.4s)
+  ✓  3 e2e/p1-009-real-scanner-direct-pack.spec.ts:563:7 › P1-009 Real Playwright Outbound Scanner Direct Pack & Automatic Sealing Suite › Journey 3: R67 PICK_FULL inheritance: declare TU full (PICK_FULL), switch TU for task, new TU inherits directPackDeclared without re-prompt (17.0s)
+  ✓  4 e2e/p1-009-real-scanner-direct-pack.spec.ts:723:7 › P1-009 Real Playwright Outbound Scanner Direct Pack & Automatic Sealing Suite › Journey 4: Negative issueability: non-issuable direct pack TU stops at READY_TO_PACK on close, UI does not claim auto-sealing, and line remains PICKED (11.7s)
 
-  4 passed (58.1s)
+  4 passed (1.0m)
 ```
 
 ---
@@ -215,7 +230,7 @@ Running 4 tests using 1 worker
 ## 9. Full WMS Outbound Backend Umbrella Suite (19 Suites / 276 Tests Passed)
 
 * **Working Directory:** `/home/ubuntu/git/Devaxonic-mercato/apps/mercato`
-* **Target Head:** `d2a703e4103a2e1ea7fdfe1b1ce51ee43ae9afb6`
+* **Target Head:** `19dbf77d9dbf5a36b36adc88a9dbb6debdd15643`
 * **Exact Command Line:**
   ```bash
   NODE_TLS_REJECT_UNAUTHORIZED=0 yarn test src/modules/wms_outbound
@@ -226,7 +241,7 @@ Running 4 tests using 1 worker
 Test Suites: 19 passed, 19 total
 Tests:       276 passed, 276 total
 Snapshots:   0 total
-Time:        234.191 s
+Time:        231.037 s, estimated 234 s
 Ran all test suites matching src/modules/wms_outbound.
 ```
 
@@ -236,23 +251,31 @@ Ran all test suites matching src/modules/wms_outbound.
 
 ### A. P1-009 Direct Pack & Automatic Sealing Suite (15/15 Passed)
 * **Working Directory:** `/home/ubuntu/git/Devaxonic-mercato/apps/mercato`
+* **Target Head:** `19dbf77d9dbf5a36b36adc88a9dbb6debdd15643`
 * **Command:** `NODE_TLS_REJECT_UNAUTHORIZED=0 yarn test src/modules/wms_outbound/services/__tests__/p1-009-postgres.integration.test.ts`
-* **Output Summary:** `Test Suites: 1 passed, 1 total. Tests: 15 passed, 15 total. Snapshots: 0 total. Time: 61.085 s`
+* **Output Summary:** `Test Suites: 1 passed, 1 total. Tests: 15 passed, 15 total. Snapshots: 0 total. Time: 60.88 s`
+* **Captured Contention:** `blockedPid: 1927648, blockingPid: 1931409, waitEventType: 'Lock', waitEvent: 'transactionid'`
 
 ### B. P1-008 TU Identity & Issueability Suite (22/22 Passed)
 * **Working Directory:** `/home/ubuntu/git/Devaxonic-mercato/apps/mercato`
+* **Target Head:** `19dbf77d9dbf5a36b36adc88a9dbb6debdd15643`
 * **Command:** `NODE_TLS_REJECT_UNAUTHORIZED=0 yarn test src/modules/wms_outbound/services/__tests__/p1-008-postgres.integration.test.ts`
-* **Output Summary:** `Test Suites: 1 passed, 1 total. Tests: 22 passed, 22 total. Snapshots: 0 total. Time: 25.309 s`
+* **Output Summary:** `Test Suites: 1 passed, 1 total. Tests: 22 passed, 22 total. Snapshots: 0 total. Time: 25.128 s`
+* **Captured Contention:** `actorAPid: 1927648, actorBPid: 1931409, blockingPids: [ 1927648 ], waitEventType: 'Lock', waitEvent: 'transactionid'`
 
 ### C. P1-007 Discrepancies & Recovery Suite (20/20 Passed)
 * **Working Directory:** `/home/ubuntu/git/Devaxonic-mercato/apps/mercato`
+* **Target Head:** `19dbf77d9dbf5a36b36adc88a9dbb6debdd15643`
 * **Command:** `NODE_TLS_REJECT_UNAUTHORIZED=0 yarn test src/modules/wms_outbound/services/__tests__/p1-007-postgres.integration.test.ts`
-* **Output Summary:** `Test Suites: 1 passed, 1 total. Tests: 20 passed, 20 total. Snapshots: 0 total. Time: 83.032 s`
+* **Output Summary:** `Test Suites: 1 passed, 1 total. Tests: 20 passed, 20 total. Snapshots: 0 total. Time: 85.203 s`
+* **Captured Contention:** `actorAPid: 1931409, actorBPid: 1931463, blockingPids: [ 1931409 ], waitEventType: 'Lock'`
 
 ### D. P1-006 Picking Execution Suite (12/12 Passed)
 * **Working Directory:** `/home/ubuntu/git/Devaxonic-mercato/apps/mercato`
+* **Target Head:** `19dbf77d9dbf5a36b36adc88a9dbb6debdd15643`
 * **Command:** `NODE_TLS_REJECT_UNAUTHORIZED=0 yarn test src/modules/wms_outbound/services/__tests__/p1-006-postgres.integration.test.ts`
-* **Output Summary:** `Test Suites: 1 passed, 1 total. Tests: 12 passed, 12 total. Snapshots: 0 total. Time: 72.66 s`
+* **Output Summary:** `Test Suites: 1 passed, 1 total. Tests: 12 passed, 12 total. Snapshots: 0 total. Time: 72.732 s`
+* **Captured Contention:** `actorAPid: 1931463, actorBPid: 1931409, blockingPids: [ 1931463 ], waitEventType: 'Lock'`
 
 ---
 
@@ -260,14 +283,14 @@ Ran all test suites matching src/modules/wms_outbound.
 
 | Test Suite / Area | Working Dir | Tests Executed | Passed | Status | Execution Time |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **P1-010 Packing & Discrepancies Suite** | `Devaxonic-mercato/apps/mercato` | 16 | 16 | **PASS** | 40.096 s |
-| **P1-010 Packer Workstation Playwright UI** | `Devaxonic-mercato/apps/mercato` | 6 | 6 | **PASS** (`PLAYWRIGHT VERIFIED`) | 2.2 m |
-| **P1-009 Direct Pack & Automatic Sealing Suite** | `Devaxonic-mercato/apps/mercato` | 15 | 15 | **PASS** | 61.085 s |
-| **P1-008 TU Identity & Issueability Suite** | `Devaxonic-mercato/apps/mercato` | 22 | 22 | **PASS** | 25.309 s |
-| **P1-007 Discrepancies & Recovery Suite** | `Devaxonic-mercato/apps/mercato` | 20 | 20 | **PASS** | 83.032 s |
-| **P1-006 Picking Execution Suite** | `Devaxonic-mercato/apps/mercato` | 12 | 12 | **PASS** | 72.66 s |
-| **Scanner Direct Pack Playwright Suite** | `Devaxonic-scanner` | 4 | 4 | **PASS** | 58.1 s |
-| **WMS Outbound Backend Umbrella Suite** | `Devaxonic-mercato/apps/mercato` | 276 (19 suites) | 276 | **PASS** | 234.191 s |
+| **P1-010 Packing & Discrepancies Suite** | `Devaxonic-mercato/apps/mercato` | 16 | 16 | **PASS** | 39.684 s |
+| **P1-010 Packer Workstation Playwright UI** | `Devaxonic-mercato/apps/mercato` | 6 | 6 | **PASS** (`PLAYWRIGHT VERIFIED`) | 2.3 m |
+| **P1-009 Direct Pack & Automatic Sealing Suite** | `Devaxonic-mercato/apps/mercato` | 15 | 15 | **PASS** | 60.88 s |
+| **P1-008 TU Identity & Issueability Suite** | `Devaxonic-mercato/apps/mercato` | 22 | 22 | **PASS** | 25.128 s |
+| **P1-007 Discrepancies & Recovery Suite** | `Devaxonic-mercato/apps/mercato` | 20 | 20 | **PASS** | 85.203 s |
+| **P1-006 Picking Execution Suite** | `Devaxonic-mercato/apps/mercato` | 12 | 12 | **PASS** | 72.732 s |
+| **Scanner Direct Pack Playwright Suite** | `Devaxonic-scanner` | 4 | 4 | **PASS** | 1.0 m |
+| **WMS Outbound Backend Umbrella Suite** | `Devaxonic-mercato/apps/mercato` | 276 (19 suites) | 276 | **PASS** | 231.037 s |
 
 ---
 
@@ -275,7 +298,7 @@ Ran all test suites matching src/modules/wms_outbound.
 
 | Requirement / Rule | Description | Implementation Surface | Verified Evidence |
 | :--- | :--- | :--- | :--- |
-| **R18 / R65** | Suggestion Deviation: Supervisor authorization required to keep below-threshold TU | `packing-service.ts#packKeepSameTu`, `/api/wms_outbound/packing/keep-same-tu` | Jest Test 13, Playwright Journey 5 |
+| **R18 / R65** | Suggestion Deviation: Supervisor authorization required (same tenant, same org, RbacService manage_orders) | `packing-service.ts#packKeepSameTu`, `/api/wms_outbound/packing/keep-same-tu` | Jest Test 13 (Cases 1–7), Playwright Journey 5 |
 | **R19 / KROK 7** | Keep Same TU: preserve TU identity, role -> PackUnit, seal as PACKING_SEALED | `packing-service.ts#packKeepSameTu`, `/api/wms_outbound/packing/keep-same-tu` | Jest Test 2, Playwright Journey 1 |
 | **R20 / KROK 8** | Repack All: transfer all contents into new shipping box, source -> REPACKED | `packing-service.ts#packRepackAll`, `/api/wms_outbound/packing/repack-all` | Jest Test 3, Playwright Journey 2 |
 | **R21 / KROK 8** | Repack by SKU: transfer item line with mass/volume recalculation | `packing-service.ts#packRepackBySku`, `/api/wms_outbound/packing/repack-by-sku` | Jest Test 4/5, Playwright Journey 3 |
@@ -284,14 +307,14 @@ Ran all test suites matching src/modules/wms_outbound.
 | **R24** | Unexpected SKU / Overage: route to QC location, 0 shortage created | `packing-service.ts#reportRepackUnexpectedSku`, `/api/wms_outbound/packing/report-unexpected` | Jest Test 8, Playwright Journey 4 |
 | **R25 / R26 / R60** | Multi-Order Consolidation: evaluate customer & delivery address compatibility, reject incompatible | `packing-service.ts#validateConsolidationCompatibility`, `page.tsx` | Jest Test 9/10, Playwright Journey 6 |
 | **R27** | Order Completion: transitioning all order lines to PACKED sets OutboundOrder to PACKED | `packing-service.ts#packKeepSameTu` / `#completeSourceRepack` | Jest Test 12 |
-| **R66** | Non-Overridable Guard: `externalIssuable=false` strictly cannot be packed as shipping unit | `packing-service.ts#packKeepSameTu` | Jest Test 13 |
+| **R66** | Non-Overridable Guard: `externalIssuable=false` strictly cannot be packed as shipping unit | `packing-service.ts#packKeepSameTu` | Jest Test 13 (Case 6) |
 
 ---
 
 ## 13. Final Stop Boundary & Scope Integrity
 
-* **Authorized Scope:** Item 13/37 (`P1-010` Packing, Repack, Consolidation & Discrepancies) evidence rerun completed.
-* **Product Code Freeze:** Product refs are frozen at `d2a703e4103a2e1ea7fdfe1b1ce51ee43ae9afb6` (Mercato) and `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` (Scanner); 0 product files were touched.
+* **Authorized Scope:** Item 13/37 (`P1-010` Packing, Repack, Consolidation & Discrepancies) supervisor organization-boundary closeout completed.
+* **Product Code Freeze:** Product refs are at `19dbf77d9dbf5a36b36adc88a9dbb6debdd15643` (Mercato `outbound/p1-010`) and `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` (Scanner `outbound/p1-009`); Scanner remained strictly frozen.
 * **Non-Goals Preserved:** Full Shipment lifecycle, carrier integration/label generation (P1-011), and staging/loading (P1-012) remain deferred.
 * **Shared Primitives:** Zero shared Inbound/warehouse schema primitives were altered.
 * **Execution Status:** **STOP — P1-010 COMPLETE**.

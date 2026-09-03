@@ -4,7 +4,7 @@
 **Campaign:** WMS Outbound v1  
 **Architecture:** implementation-ready; no unresolved product/architecture blocker recorded  
 **Current phase:** product implementation  
-**Implementation progress:** **11/37 items FINAL PASS**
+**Implementation progress:** **12/37 items FINAL PASS**
 
 ## Architect baseline
 
@@ -22,7 +22,7 @@ Requirements: 109 IDs = 98 FR + 6 INT + 5 CON.
 
 ## Implementation plan
 
-The complete implementation plan remains in `07_IMPLEMENTATION_PLAN/`: 37 tasks with 109/109 requirements mapped and final Playwright + Human Verified acceptance gates.
+The complete implementation plan remains in `07_IMPLEMENTATION_PLAN/`: 37 tasks with 109/109 requirements mapped.
 
 The plan is delivery decomposition only. Architect Source/Canon remains business authority.
 
@@ -39,42 +39,45 @@ The plan is delivery decomposition only. Architect Source/Canon remains business
 9. `P1-008` — FINAL PASS / Human Verified — `9512137702a5d5f5b41910c2de97cf03321a1ccd` (Mercato) / `b5cfb59987c76f39e0ab48af67a52e2e914d9613` (Scanner)
 10. `P1-006` — FINAL PASS / Human Verified — `353a5001cb8f1941971f960e509a8af643e41e5a` (Mercato) / `7596b7802e7ed55a59dd6dc1f21912ea6331e796` (Scanner) / evidence `43cc7d0e7dd20a48fc00b40150b30275d0c2aa12`
 11. `P1-007` — FINAL PASS / Owner Accepted based on PLAYWRIGHT VERIFIED + real PostgreSQL evidence — `134db31381b4db726cd550abe6ecd4079ac21d8c` (Mercato) / `b23325aae1c4f83b79d01b3650dbead3486a1041` (Scanner) / evidence `10be7a6e2c10a05d1fe5ce6dc5aacdd93dc400a8`
+12. `P1-009` — FINAL PASS / Owner Accepted based on PLAYWRIGHT VERIFIED + real PostgreSQL evidence — `5d780dabeb605bc657bb521bd2b2fdcc2e516f77` (Mercato) / `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` (Scanner) / evidence `6c78a97ece567d90d3cb7d0580bb38669c9f9722`
 
-## P1-007 accepted boundary
+## P1-009 accepted boundary
 
-- `SHORT_ALLOCATED` partial/non-partial behavior matches P1 R42–R43 and FR-P1-21 / FR-P5-01..02.
-- `SHORT_PICKED` blocks the short source, records durable shortage identity and enforces effective automatic-reallocation limits.
-- R44 replacement allocation checks both per-location unreserved stock and warehouse-wide hard-reservation capacity, including active pre-PickTask reservations.
-- Same unresolved shortage cannot exceed retry limit or duplicate replacement PickTasks under replay/concurrency.
-- Supervisor outcomes are accepted: WAIT, exact-picked correction, true zero cancellation, persistent per-CustomerOrder ALLOW_PARTIAL, and SHORT_ALLOCATED cancellation/allow-partial outcomes.
-- R46 zero cancellation persists `CustomerOrderLine.orderedQuantity = 0` and `OutboundOrderLine.requiredQty = 0` and uses a durable physical-return handoff for already picked stock.
-- P1-007 intentionally does **not** implement the future P4 PutBackTask/RF lifecycle; the durable physical-return handoff is the accepted P1-007 boundary.
-- Canonical Supervisor idempotency derives authoritative target identifiers before payload comparison; exact replay succeeds and conflicting same-key payload fails closed.
-- Decisive PostgreSQL evidence includes distinct PIDs / `pg_blocking_pids`, real rollback, and genuine MikroORM `Migrator` UP -> DOWN -> re-UP plus incompatible-zero fail-safe proof.
-- Real Mercato Playwright covers all 6 Supervisor outcomes; real Scanner Playwright covers short-pick and replacement continuation.
-- Fresh targeted regressions are green for P1-004, P1-005, P1-006 backend+Scanner, P1-001, P1-003, P1-008, accepted Inbound/shared compatibility and full Outbound umbrella.
-- Automated evidence remains labelled `PLAYWRIGHT VERIFIED`; owner accepted final closure on 2026-09-03 based on the independently reviewed automation + real PostgreSQL evidence.
+- `directPackDeclared` is bound at the architect-defined first Picking TU scan and is immutable once picking begins; exact same-intent replay is safe and conflicting mutation fails closed.
+- Same-TU multi-zone continuation preserves the declaration without re-prompting; P1 R67 replacement TU after `PICK_FULL` inherits it without re-prompting.
+- Qualifying direct-pack TU automatically executes `READY_TO_PACK -> PACK_QUALIFIED -> PACKING_SEALED`, retains TU identity as `PackUnit`, and moves eligible line quantity to `PACKED` with atomic `packedQty` persistence without a Packer action.
+- Non-issuable / below-threshold paths remain at `READY_TO_PACK`; incomplete / `SHORT_PICKED` paths do not falsely mark the line PACKED.
+- Final proof is labelled `PLAYWRIGHT VERIFIED` and includes genuine remote PostgreSQL identity, real lock contention with distinct PostgreSQL PIDs, real rollback, P1-009 backend 15/15, Scanner direct-pack 4/4, Scanner P1-006/P1-007/P1-008 regressions 3/3, backend P1-006/P1-007/P1-008 regressions 54/54, and full `wms_outbound` 260/260.
+- Final implementation diff from accepted bases is clean: the historical P1-007 migration is unchanged; Mercato/Scanner heads remained frozen throughout evidence-only closeout.
 
 ## Current position
 
-Completed: **11/37**.
+Completed: **12/37**.
 
 Next implementation item:
 
-**P1-009 — Direct Pack declaration and automatic sealing — item 12/37.**
+**P1-010 — Packing, repack, consolidation and discrepancy handling — item 13/37.**
 
-Requirements: `FR-P1-08`, `FR-P1-09`.
-Architect: `P1 R15–R18`.
-Dependencies: `P1-006` and `P1-008` are satisfied.
+Task Catalog ownership:
 
-Acceptance mapping from the current Task Catalog: `TC-001`, `TC-004`, `TC-005`.
+- objective: process `READY_TO_PACK` through Packer keep/repack/consolidate paths and handle packing discrepancies;
+- Architect: P1 R19–R26, with inherited compatibility constraints from current KROK 7–8 / R48 / R60 / R63 / R66 where they govern the same packing actions;
+- requirements: `FR-P1-10`, `FR-P1-11`, `FR-P1-12`, `FR-P1-13`, `FR-P5-07`;
+- dependencies: `P1-006`, `P1-008` — satisfied; preserve accepted P1-009 direct-pack behavior as an upstream alternative path;
+- target components: Packing backend, Mercato/Packer UI, TU contents, QC handoff;
+- acceptance: `TC-001`, `TC-005`, `TC-006`, `TC-063`.
 
-P1-009 boundary:
+P1-010 hard boundary:
 
-- `directPackDeclared` is immutable after the architect-defined first-scan declaration point;
-- successful direct-pack qualification follows the automatic `READY_TO_PACK -> PACK_QUALIFIED -> PACKING_SEALED` / line `PACKED` path without an invented manual Packer step;
-- do not absorb P1-010 repack/consolidation/discrepancy UI into P1-009;
-- reuse accepted P1-006 Picking TU continuation and P1-008 TU issueability semantics without redesigning them.
+- Packer evaluates standard `READY_TO_PACK` TU: keep / repack / consolidate; deviation from the WMS suggestion continues to obey accepted R18 Supervisor approval semantics.
+- Keep preserves TU identity; repack/consolidate makes the source PickContainer `REPACKED` and prepares one or more Packing TUs.
+- Repack v1 has two warehouse-configurable modes: `repack all` and `repack by SKU`; do not invent SKU-guidance order for by-SKU mode.
+- Packing consolidation has no category/temperature compatibility rules in v1. Enforce the architect packing mass limit; content volume is not a repack blocking limit. Preserve R60 cross-order compatibility and one-Shipment-per-Packing-TU constraint at the packing seam.
+- Repack target must be externally issuable per accepted P1-008/R66; non-issuable target cannot be sealed.
+- By-SKU shortage requires recheck + explicit confirmation before invoking the accepted SHORT_PICKED recovery mechanism, with no source-location block.
+- DAMAGED quantity goes to QC, is recorded as DAMAGED, and uses the same shortage mechanism; unexpected/overage SKU goes to QC but must not create a shortage.
+- Source TU completion requires every expected SKU quantity to be accounted for as packed, QC, or confirmed missing; otherwise continue or explicitly confirm missing after recheck.
+- R26 is only the packing-to-Shipment grouping seam. Do **not** absorb P1-011 Shipment lifecycle/readiness/partial-shipment gates, P1-012 Carrier selection, labels, ERP posting, manifest or dispatch work.
 
 ## Authority and architecture-context rule
 
@@ -85,7 +88,7 @@ For Outbound business behavior, authority order is:
 3. current Mercato/Scanner/DB/runtime as implementation evidence;
 4. `07_IMPLEMENTATION_PLAN` as delivery decomposition only.
 
-Installed `wms-outbound` skill routes Outbound work to this authority chain. Installed `architecture-context` is reference-only for accepted Inbound/shared Inventory/TU/warehouse/lock/orchestration compatibility. It must not redefine Outbound R-rules or expand a ticket into future P4/P1-010 scope.
+Installed `wms-outbound` skill routes Outbound work to this authority chain. Installed `architecture-context` is reference-only for accepted Inbound/shared Inventory/TU/warehouse/lock/orchestration compatibility. It must not redefine Outbound R-rules or expand a ticket into later scope.
 
 Inbound remains **CLOSED / REFERENCE** except targeted regression when an authorized Outbound diff touches shared primitives.
 
@@ -97,7 +100,7 @@ For current implementation state use this file, current Git refs/runtime evidenc
 
 ## Operating workflow
 
-Canonical prompt/executor workflow is now persisted in:
+Canonical prompt/executor workflow is persisted in:
 
 `06_AGENT_GUIDES/GIT_PROMPT_WORKFLOW.md`
 
@@ -107,7 +110,7 @@ The owner should never need to paste Antigravity logs into chat.
 
 ## Blockers
 
-No current product/architecture blocker is recorded for starting `P1-009`.
+No current product/architecture blocker is recorded for starting `P1-010`.
 
 ## Handover
 

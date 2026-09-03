@@ -12,7 +12,7 @@
 * **Mercato P1-009 Base Head:** `5d780dabeb605bc657bb521bd2b2fdcc2e516f77`
 * **Mercato P1-010 Final Head (`outbound/p1-010`):** `19dbf77d9dbf5a36b36adc88a9dbb6debdd15643`
 * **Scanner Frozen Head (`outbound/p1-009`):** `f4a404600efb1120cb2f1c5b86383ad148cd1e1a`
-* **Authoritative Outbound Steering Head (`main` before evidence commit):** `6a2e8aa8ccc3091200c35c68ad8ff921f763addf`
+* **Authoritative Outbound Steering Head (`main` before evidence commit):** `f3a9e5358681fb496a40fa4a7607535548dc79ac`
 * **Testing Database:** Remote DevAxonic Testing PostgreSQL Database (`2a05:d014:128e:9502:1a68:6cc3:7449:a079:5432`)
 * **Product Repositories State:** `Devaxonic-mercato` clean on `outbound/p1-010` at commit `19dbf77d9dbf5a36b36adc88a9dbb6debdd15643`; `Devaxonic-scanner` clean and frozen at `f4a404600efb1120cb2f1c5b86383ad148cd1e1a`.
 
@@ -50,8 +50,8 @@
 
 ```json
 [P1-010 Decisive PostgreSQL Lock Contention Captured] {
-  "blockedPid": 1931409,
-  "blockingPid": 1927648,
+  "blockedPid": 1933761,
+  "blockingPid": 1931466,
   "waitEventType": "Lock",
   "waitEvent": "transactionid"
 }
@@ -73,9 +73,8 @@
    - Strict organization boundary: `user.organizationId === scope.organizationId`.
    - Server-side feature check: `RbacService.userHasAllFeatures(..., ['wms_outbound.manage_orders'], { tenantId, organizationId })` succeeds (evaluating user and role ACLs including only the wildcard/super-admin semantics implemented by `RbacService`).
 2. **Same-Tenant Different-Organization Negative Rejection:**
-   A same-tenant user whose own `User.organizationId` differs from `scope.organizationId` is strictly rejected even when assigned a broad role/ACL that would satisfy feature matching across organizations (`organizationsJson = null`). The mutation fails with:
-   `"User <id> is not authorized as a Warehouse Supervisor in organization <orgId> (must belong to the same organization)."`
-   Independent DB inspection confirms:
+   In `packing-service.ts`, `checkSupervisorAuthority` rejects the candidate because `user.organizationId !== scope.organizationId` before the RBAC feature check. `packKeepSameTu` then exposes the existing generic unauthorized Warehouse Supervisor error (`User "<id>" is not authorized as a Warehouse Supervisor to override packing suggestion (Architect R18, R65).`) for a failed authority check.
+   The decisive proof of the organization boundary is the server-side organization ID equality check (`user.organizationId === scope.organizationId`) plus the genuine PostgreSQL negative test (Case 5b) and independent DB assertions:
    - Source TU remains untouched in `READY_TO_PACK`
    - `isOverrideApplied = false`
    - `overrideBy = null`
@@ -119,29 +118,20 @@
 * **Exact Fresh Output:**
 
 ```text
-PASS src/modules/wms_outbound/services/__tests__/p1-010-postgres.integration.test.ts (39.684 s)
-  P1-010 Genuine PostgreSQL Packing, Repack, Consolidation & Discrepancies Suite
-    ✓ 1. evaluating Transport Units at the packer workstation returns KEEP_SAME_TU vs REPACK suggestions (442 ms)
-    ✓ 2. Keep Same TU (R19) path preserves the transport unit identifier, assigns PackUnit role, and transitions TU to PACKING_SEALED (420 ms)
-    ✓ 3. Repack All (R20) transfers all contents into a new shipping box, seals it as a PackUnit (PACKING_SEALED), and marks the source TU as REPACKED (510 ms)
-    ✓ 4. Repack by SKU (R21) correctly decrements the source TU content and updates weights and volumes (555 ms)
-    ✓ 5. Repack by SKU with empty source marks the source TU as REPACKED upon completion (445 ms)
-    ✓ 6. reporting repack shortages (R22) requires explicit operator recheck confirmation, records a packing discrepancy, and transitions the OutboundOrderLine to SHORT_PICKED without creating location shortages (518 ms)
-    ✓ 7. reporting repack damaged stock (R23) records discrepancy, hands off to QC, and transitions OutboundOrderLine to SHORT_PICKED (502 ms)
-    ✓ 8. reporting unexpected/overage SKUs (R24) records discrepancy, hands off to QC, without creating location shortages (455 ms)
-    ✓ 9. multi-order consolidation (R25/R26) enforces same customer and delivery address compatibility (335 ms)
-    ✓ 10. multi-order consolidation rejects orders with mismatched customers or different addresses (310 ms)
-    ✓ 11. deferring SKU count preserves state with 0 shortage (R22) (398 ms)
-    ✓ 12. completing order lines transitions OutboundOrder to PACKED (R27) (485 ms)
-    ✓ 13. deviation from WMS suggestion requires valid Warehouse Supervisor authorization and leaves an auditable reason/actor trail (Architect R18, R65, R66) (688 ms)
-    ✓ 14. quantity integrity prevents overpacking/double settlement (365 ms)
-    ✓ 15. proves 0 partial state committed on transaction abort via em.transactional (412 ms)
-    ✓ 16. real concurrency/locking proof for the shared mutable packing/repack accounting path using independent overlapping transactions/connections and DB-side participant evidence where the operation can race (1550 ms)
+  console.log
+    [P1-010 Decisive PostgreSQL Lock Contention Captured] {
+      blockedPid: 1933761,
+      blockingPid: 1931466,
+      waitEventType: 'Lock',
+      waitEvent: 'transactionid'
+    }
+
+      at Object.<anonymous> (src/modules/wms_outbound/services/__tests__/p1-010-postgres.integration.test.ts:1198:15)
 
 Test Suites: 1 passed, 1 total
 Tests:       16 passed, 16 total
 Snapshots:   0 total
-Time:        39.684 s, estimated 40 s
+Time:        43.427 s
 Ran all test suites matching src/modules/wms_outbound/services/__tests__/p1-010-postgres.integration.test.ts.
 ```
 
@@ -283,7 +273,7 @@ Ran all test suites matching src/modules/wms_outbound.
 
 | Test Suite / Area | Working Dir | Tests Executed | Passed | Status | Execution Time |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **P1-010 Packing & Discrepancies Suite** | `Devaxonic-mercato/apps/mercato` | 16 | 16 | **PASS** | 39.684 s |
+| **P1-010 Packing & Discrepancies Suite** | `Devaxonic-mercato/apps/mercato` | 16 | 16 | **PASS** | 43.427 s |
 | **P1-010 Packer Workstation Playwright UI** | `Devaxonic-mercato/apps/mercato` | 6 | 6 | **PASS** (`PLAYWRIGHT VERIFIED`) | 2.3 m |
 | **P1-009 Direct Pack & Automatic Sealing Suite** | `Devaxonic-mercato/apps/mercato` | 15 | 15 | **PASS** | 60.88 s |
 | **P1-008 TU Identity & Issueability Suite** | `Devaxonic-mercato/apps/mercato` | 22 | 22 | **PASS** | 25.128 s |

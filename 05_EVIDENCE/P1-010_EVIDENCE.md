@@ -10,9 +10,9 @@
 ## 1. Lineage & Authoritative Repository Commit SHAs
 
 * **Mercato P1-009 Base Head:** `5d780dabeb605bc657bb521bd2b2fdcc2e516f77`
-* **Mercato P1-010 Final Override Head (`outbound/p1-010`):** `d072ce47b`
+* **Mercato P1-010 Final Override Head (`outbound/p1-010`):** `d2a703e4103a2e1ea7fdfe1b1ce51ee43ae9afb6`
 * **Scanner Frozen Head (`outbound/p1-009`):** `f4a404600efb1120cb2f1c5b86383ad148cd1e1a`
-* **Authoritative Outbound Steering Head (`main` before evidence commit):** `b0d7c11`
+* **Authoritative Outbound Steering Head (`main` before evidence commit):** `fea99110aa207aa3291dbbc722d8f783f064e07b`
 * **Testing Database:** Remote DevAxonic Testing PostgreSQL Database (`2a05:d014:128e:9502:1a68:6cc3:7449:a079:5432`)
 
 ---
@@ -40,7 +40,7 @@
 ## 3. Remote Testing PostgreSQL Concurrency & Contention Proof
 
 * **Working Directory:** `/home/ubuntu/git/Devaxonic-mercato/apps/mercato`
-* **Target Head:** `d072ce47b`
+* **Target Head:** `d2a703e4103a2e1ea7fdfe1b1ce51ee43ae9afb6`
 * **Test Case:** `16. real concurrency/locking proof for the shared mutable packing/repack accounting path using independent overlapping transactions/connections and DB-side participant evidence where the operation can race`
 * **Mechanism:** Two independent PostgreSQL sessions with distinct backend PIDs executing concurrent `packKeepSameTu` / `packRepackAll` mutating transactions against the same row in `wms_outbound_transport_units`.
 
@@ -92,7 +92,7 @@
 ## 6. Decisive P1-010 PostgreSQL Integration Suite (16/16 Passed)
 
 * **Working Directory:** `/home/ubuntu/git/Devaxonic-mercato/apps/mercato`
-* **Target Head:** `d072ce47b`
+* **Target Head:** `d2a703e4103a2e1ea7fdfe1b1ce51ee43ae9afb6`
 * **Exact Command Line:**
   ```bash
   NODE_TLS_REJECT_UNAUTHORIZED=0 yarn test src/modules/wms_outbound/services/__tests__/p1-010-postgres.integration.test.ts
@@ -130,7 +130,7 @@ Time:        37.721 s
 ## 7. Playwright Packer Workstation UI & Repack Journeys (6/6 Passed)
 
 * **Working Directory:** `/home/ubuntu/git/Devaxonic-mercato/apps/mercato`
-* **Target Head:** `d072ce47b`
+* **Target Head:** `d2a703e4103a2e1ea7fdfe1b1ce51ee43ae9afb6`
 * **Evidence Label:** `PLAYWRIGHT VERIFIED`
 * **Exact Command Line:**
   ```bash
@@ -209,7 +209,7 @@ Running 4 tests using 1 worker
 ## 9. Full WMS Outbound Backend Umbrella Suite (19 Suites / 276 Tests Passed)
 
 * **Working Directory:** `/home/ubuntu/git/Devaxonic-mercato/apps/mercato`
-* **Target Head:** `d072ce47b`
+* **Target Head:** `d2a703e4103a2e1ea7fdfe1b1ce51ee43ae9afb6`
 * **Exact Command Line:**
   ```bash
   NODE_TLS_REJECT_UNAUTHORIZED=0 yarn test src/modules/wms_outbound

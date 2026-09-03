@@ -145,11 +145,11 @@ Running 4 tests using 1 worker
 ```text
 Running 3 tests using 1 worker
 
-  ✓  1 Complete RF Picking Flow: TU creation, Pick confirmation, R55 TU persistence, Multi-Zone Continuation, and TU Closure (Zero Route Mocks) (15.1s)
-  ✓  2 Short Pick Flow: Reports shortage, verifies location shortage block & automatic replacement task generation (17.2s)
-  ✓  3 Transport Unit Setup & Role Lifecycle: Create TU -> Add Content -> View Mass/Volume -> Apply Override -> DB Verification (7.2s)
+  ✓  1 Complete RF Picking Flow: TU creation, Pick confirmation, R55 TU persistence, Multi-Zone Continuation, and TU Closure (Zero Route Mocks) (22.7s)
+  ✓  2 Scanner operator reports short pick, verifies location shortage block & automatic replacement task generation (24.9s)
+  ✓  3 Real Scanner UI Operator Journey: Login -> Select Outbound TU Mode -> Create TU -> Add SKU Content -> View Mass/Volume -> Apply Override -> DB Verification (7.2s)
 
-3 passed (44.5s)
+3 passed (54.8s)
 ```
 
 ---

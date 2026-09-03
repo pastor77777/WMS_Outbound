@@ -12,7 +12,7 @@
 * **Mercato P1-009 Base Head:** `5d780dabeb605bc657bb521bd2b2fdcc2e516f77`
 * **Mercato P1-010 Final Override Head (`outbound/p1-010`):** `d072ce47b`
 * **Scanner Frozen Head (`outbound/p1-009`):** `f4a404600efb1120cb2f1c5b86383ad148cd1e1a`
-* **Authoritative Outbound Steering Head (`main` before evidence commit):** `e4277f7`
+* **Authoritative Outbound Steering Head (`main` before evidence commit):** `b0d7c11`
 * **Testing Database:** Remote DevAxonic Testing PostgreSQL Database (`2a05:d014:128e:9502:1a68:6cc3:7449:a079:5432`)
 
 ---
@@ -132,6 +132,10 @@ Time:        37.721 s
 * **Working Directory:** `/home/ubuntu/git/Devaxonic-mercato/apps/mercato`
 * **Target Head:** `d072ce47b`
 * **Evidence Label:** `PLAYWRIGHT VERIFIED`
+* **Exact Command Line:**
+  ```bash
+  NODE_TLS_REJECT_UNAUTHORIZED=0 npx playwright test src/modules/wms_outbound/__integration__/P1-010-packer-workstation-ui.spec.ts
+  ```
 * **Browser Test Spec:** `src/modules/wms_outbound/__integration__/P1-010-packer-workstation-ui.spec.ts`
 
 ```text
@@ -179,20 +183,65 @@ The operator tests consolidation in rendered UI: attempting to consolidate into 
 
 ---
 
-## 8. Full Regression Matrix Summary
+## 8. Frozen Scanner Direct Pack Playwright Regression (4/4 Passed)
 
-| Test Suite / Area | Tests Executed | Passed | Status | Execution Time |
-| :--- | :--- | :--- | :--- | :--- |
-| **P1-010 Packing & Discrepancies Suite** | 16 | 16 | **PASS** | 37.721 s |
-| **P1-010 Packer Workstation Playwright UI** | 6 | 6 | **PASS** (`PLAYWRIGHT VERIFIED`) | 1.8 m |
-| **P1-009 Direct Pack & Automatic Sealing Suite** | 15 | 15 | **PASS** | 60.372 s |
-| **P1-008 TU Identity & Issueability Suite** | 22 | 22 | **PASS** | 25.395 s |
-| **P1-007 Discrepancies & Recovery Suite** | 20 | 20 | **PASS** | 83.481 s |
-| **P1-006 Picking Execution Suite** | 12 | 12 | **PASS** | 71.353 s |
+* **Working Directory:** `/home/ubuntu/git/Devaxonic-scanner`
+* **Frozen Scanner Head:** `f4a404600efb1120cb2f1c5b86383ad148cd1e1a`
+* **Exact Command Line:**
+  ```bash
+  NODE_TLS_REJECT_UNAUTHORIZED=0 npx playwright test e2e/p1-009-real-scanner-direct-pack.spec.ts
+  ```
+* **Exact Output Received:**
+
+```text
+Running 4 tests using 1 worker
+
+  ✓  1 Journey 1: Happy path direct pack: declare at first TU creation, pick, close TU -> automatic sealing to PACKING_SEALED, PackUnit role, and line PACKED (18.0s)
+  ✓  2 Journey 2: Multi-zone pick: Zone A direct pack, continue to Zone B without direct pack re-prompt, complete pick, declaration persists (16.9s)
+  ✓  3 Journey 3: TU overflow/switch in direct pack: declare on TU 1, switch TU for task, new TU inherits directPackDeclared without re-prompt (14.9s)
+  ✓  4 Journey 4: Non-direct-pack: standard picking, TU remains READY_TO_PACK on close, UI does not claim auto-sealing, and line remains PICKED (10.9s)
+
+  4 passed (1.1m)
+```
 
 ---
 
-## 9. Architecture & Rule Traceability Matrix
+## 9. Full WMS Outbound Backend Umbrella Suite (19 Suites / 276 Tests Passed)
+
+* **Working Directory:** `/home/ubuntu/git/Devaxonic-mercato/apps/mercato`
+* **Target Head:** `d072ce47b`
+* **Exact Command Line:**
+  ```bash
+  NODE_TLS_REJECT_UNAUTHORIZED=0 yarn test src/modules/wms_outbound
+  ```
+* **Exact Output Received:**
+
+```text
+Test Suites: 19 passed, 19 total
+Tests:       276 passed, 276 total
+Snapshots:   0 total
+Time:        231.857 s
+Ran all test suites matching src/modules/wms_outbound.
+```
+
+---
+
+## 10. Full Regression Matrix Summary
+
+| Test Suite / Area | Working Dir | Tests Executed | Passed | Status | Execution Time |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **P1-010 Packing & Discrepancies Suite** | `Devaxonic-mercato/apps/mercato` | 16 | 16 | **PASS** | 37.721 s |
+| **P1-010 Packer Workstation Playwright UI** | `Devaxonic-mercato/apps/mercato` | 6 | 6 | **PASS** (`PLAYWRIGHT VERIFIED`) | 1.8 m |
+| **P1-009 Direct Pack & Automatic Sealing Suite** | `Devaxonic-mercato/apps/mercato` | 15 | 15 | **PASS** | 60.372 s |
+| **P1-008 TU Identity & Issueability Suite** | `Devaxonic-mercato/apps/mercato` | 22 | 22 | **PASS** | 25.395 s |
+| **P1-007 Discrepancies & Recovery Suite** | `Devaxonic-mercato/apps/mercato` | 20 | 20 | **PASS** | 83.481 s |
+| **P1-006 Picking Execution Suite** | `Devaxonic-mercato/apps/mercato` | 12 | 12 | **PASS** | 71.353 s |
+| **Scanner Direct Pack Playwright Suite** | `Devaxonic-scanner` | 4 | 4 | **PASS** | 1.1 m |
+| **WMS Outbound Backend Umbrella Suite** | `Devaxonic-mercato/apps/mercato` | 276 (19 suites) | 276 | **PASS** | 231.857 s |
+
+---
+
+## 11. Architecture & Rule Traceability Matrix
 
 | Requirement / Rule | Description | Implementation Surface | Verified Evidence |
 | :--- | :--- | :--- | :--- |
@@ -209,9 +258,10 @@ The operator tests consolidation in rendered UI: attempting to consolidate into 
 
 ---
 
-## 10. Final Stop Boundary & Scope Integrity
+## 12. Final Stop Boundary & Scope Integrity
 
 * **Authorized Scope:** Item 13/37 (`P1-010` Packing, Repack, Consolidation & Discrepancies) is fully completed and verified.
 * **Non-Goals Preserved:** Full Shipment lifecycle, carrier integration/label generation (P1-011), and staging/loading (P1-012) remain deferred.
+* **Shared Primitives:** Zero shared Inbound/warehouse schema primitives were altered.
 * **Scanner Repository:** Remains frozen at commit `f4a404600efb1120cb2f1c5b86383ad148cd1e1a`.
 * **Execution Status:** **STOP — P1-010 COMPLETE**.

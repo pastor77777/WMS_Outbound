@@ -4,7 +4,7 @@
 **Campaign:** WMS Outbound v1  
 **Architecture:** implementation-ready; no unresolved product/architecture blocker recorded  
 **Current phase:** product implementation  
-**Implementation progress:** **15/37 items FINAL PASS**
+**Implementation progress:** **16/37 items FINAL PASS**
 
 ## Architect baseline
 
@@ -43,6 +43,7 @@ The plan is delivery decomposition only. Architect Source/Canon remains business
 13. `P1-010` — FINAL PASS / Owner Accepted — Mercato `19dbf77d9dbf5a36b36adc88a9dbb6debdd15643` / Scanner frozen reference `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `b5bb6429717402e0fb6969f7437ddaf673a8a174`
 14. `P1-011` — FINAL PASS / Owner Accepted — Mercato `20887f2d74928cf69f447fdd6af20a612f38387c` / Scanner frozen reference `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `90cc30fc2db15c40d80ef69cb03ffb1e107b51dc`.
 15. `P1-012` — FINAL PASS / Owner Accepted — Mercato `5019a20be14549ff8cbbf25af5bc61c56888e9e1` / Scanner frozen reference `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `b28f59e7ff41ac6d0a3be4b841410650bc5acd8b`.
+16. `P1-013` — FINAL PASS / Owner Accepted — Mercato `5e6b70aa81afd28fe3217e4aad216e8a6482a769` / Scanner frozen reference `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `826b9c477fa86a44a93606265868730e4570ff90`.
 
 ## P1-012 accepted boundary
 
@@ -65,28 +66,57 @@ Accepted proof in `05_EVIDENCE/P1-012_EVIDENCE.md`:
 - P1-012 Mercato Playwright **5/5**;
 - automated UI evidence remains `PLAYWRIGHT VERIFIED`, not Human Verified.
 
+## P1-013 accepted boundary
+
+Preserve these accepted behaviors:
+
+- External-carrier label generation starts only after `Shipment CARRIER_SELECTED`; successful local generation advances `CARRIER_SELECTED → LABEL_GENERATED`.
+- `OWN_TRANSPORT` skips label generation.
+- Label payload/tracking data is generated from WMS-owned persisted Shipment/Packing-TU/Carrier/address data; v1 has no external Carrier Label API, carrier acceptance step or electronic provider-rejection lifecycle.
+- Generation/retry is idempotent: repeated generation returns the same durable local label without duplicate label rows or duplicate `ShipmentLabelGenerated` transition facts.
+- Local print/reprint updates local print evidence only; it does not call an external carrier API and does not regress/advance the Shipment business state.
+- The P1-012 EXTERNAL-TU missing-`maxVolume` approval gate remains intact; label generation cannot bypass required real Supervisor approval.
+- Before the future `CarrierManifest.CLOSED` boundary, a real server-authoritative Warehouse Supervisor may correct the Carrier on a `LABEL_GENERATED` Shipment; correction preserves `LABEL_GENERATED` and does not automatically regenerate or reprint the existing label.
+- Full `CarrierManifest` persistence/lifecycle and the exact post-`CLOSED` correction guard remain owned by P1-015.
+- P1-013 does not implement ERP posting, manifest lifecycle, final settlement, Scanner changes, or external carrier-provider behavior.
+
+Accepted proof in `05_EVIDENCE/P1-013_EVIDENCE.md`:
+
+- final Mercato closeout head `5e6b70aa81afd28fe3217e4aad216e8a6482a769`, exactly three commits after accepted P1-012 base `5019a20be14549ff8cbbf25af5bc61c56888e9e1`;
+- P1-013 genuine PostgreSQL suite **15/15**, including exact A↔B backend PID lock proof (`pidA=2042578`, `pidB=2042579`, `blockedPid=pidB`, `pg_blocking_pids(pidB)` contains `pidA`, `waitEventType='Lock'`) and fresh one-label/one-event replay proof;
+- P1-012 regression **14/14**;
+- P1-011 regression **18/18**;
+- state transition invariant suite **77/77**;
+- P1-013 Mercato Playwright **4/4** against served product revision `7f8185c3eccaf1b04fd46027616b0286d4c87fd1`; later P1-013 commits changed only test code, not served product runtime files;
+- final Mercato/WMS worktrees recorded clean;
+- automated UI evidence remains `PLAYWRIGHT VERIFIED`, not Human Verified.
+
 ## Current position
 
-Completed: **15/37**.
+Completed: **16/37**.
 
 Next implementation item:
 
-**P1-013 — WMS label generation and pre-manifest loading carrier correction — item 16/37.**
+**P1-014 — ERP Shipment POST, error state and safe retry — item 17/37.**
 
 Fresh Task Catalog grounding:
 
-- objective: generate/print label from WMS-owned data and support architect-permitted carrier correction before manifest close without introducing carrier Label API;
-- Architect source/reference: P1 R33–R34, P1 R35–R36, P1 exception — label error / carrier rejection boundary;
-- requirements: `FR-P1-17`, `FR-P1-18`, `FR-P5-11`;
-- dependencies: `P1-012` — satisfied;
-- target components: Shipment label service, Mercato print UI;
-- acceptance: `TC-001`, `TC-007`, `TC-066`.
+- objective: implement `POSTING_PENDING` / `POSTED` / `POSTING_ERROR` around Shipment POST to ERP, with durable attempt evidence, correlation/idempotency and safe manual retry;
+- Architect source/reference: P1 R35–R38 and KROK 11A, plus exactly-once downstream-effect boundary traced through `CON-05`;
+- requirements: `FR-P1-18`, `FR-P1-19`, `INT-04`, `INT-05`, `CON-05`;
+- dependencies: `P1-011`, `P1-013`, `FND-002` — satisfied;
+- target components: Shipment posting service, `wms_orchestration` outbox/retry, ERP adapter, Mercato Supervisor error/retry surface;
+- acceptance: `TC-001`, `TC-007`, `TC-008`.
 
 Current execution guide:
 
-`06_AGENT_GUIDES/P1-013_EXECUTION.md`
+`06_AGENT_GUIDES/P1-014_EXECUTION.md`
 
-Do not absorb ERP posting (`P1-014`), CarrierManifest lifecycle (`P1-015`) or final settlement (`P1-016`). Do not introduce an external carrier label API/provider acceptance/rejection lifecycle.
+P1-014 Mercato branch must start from exact accepted P1-013 SHA:
+
+`5e6b70aa81afd28fe3217e4aad216e8a6482a769`
+
+Do not absorb `P1-015` CarrierManifest lifecycle, `P1-016` final settlement, Crossdock GR gating, Scanner work, or Return Receipt behavior. Do not invent an ERP endpoint/credential or claim real external ERP verification unless such an approved integration actually exists and is exercised.
 
 ## Authority and architecture-context rule
 

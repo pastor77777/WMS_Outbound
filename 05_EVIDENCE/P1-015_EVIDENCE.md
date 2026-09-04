@@ -10,9 +10,10 @@
 | Subject | Verified revision / identity |
 |---|---|
 | Mercato accepted P1-014 base | `bef7c0a3e0995e7ecddb29156bdfa3777463a6b6` |
-| Mercato final P1-015 head | `71ba80fbe0ab221ff4484b4ad7f6d2256f57d8b8` on `outbound/p1-015` (pushed) |
-| Lineage / compare | Exactly 1 commit ahead of accepted P1-014 base; merge base: `bef7c0a3e0995e7ecddb29156bdfa3777463a6b6` |
-| Served Testing Mercato runtime revision | `71ba80fbe0ab221ff4484b4ad7f6d2256f57d8b8` (served via `mercato-localhost.service` at `https://devaxonic-test.info-start.com.pl`) |
+| Mercato P1-015 original head | `71ba80fbe0ab221ff4484b4ad7f6d2256f57d8b8` on `outbound/p1-015` |
+| Mercato P1-015 remediation head | `f9b0b89cbd05d723ca36501c5dfb1dd57ce8a2e4` on `outbound/p1-015` (pushed 2026-09-04) |
+| Lineage / compare | 2 commits ahead of accepted P1-014 base; merge base: `bef7c0a3e0995e7ecddb29156bdfa3777463a6b6` |
+| Served Testing Mercato runtime revision | `71ba80fbe0ab221ff4484b4ad7f6d2256f57d8b8` (served via `mercato-localhost.service` at `https://devaxonic-test.info-start.com.pl`) — Playwright journeys executed against this SHA; remediation fixes are unit/integration tested on `f9b0b89cbd05d723ca36501c5dfb1dd57ce8a2e4` |
 | Frozen Scanner head | `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` on `outbound/p1-009` (verified untouched, clean working tree) |
 | Devaxonic-WMS steering | `3f46432cc75899c80be38ec9206d61b9a544f416` (untouched) |
 | WMS_Outbound base | `0d9b1f88319d2c8b202b6c75a9f21c5c74f53e75` on `main` |
@@ -129,19 +130,19 @@ Migration: `Migration20260904220000_wms_outbound_p1_015.ts` (applied to Testing 
    - Upon confirmation, Inventory remains `PICKED` (not `SHIPPED`), Allocation `reservedQty` remains decremented only by pick, OutboundOrderLine remains `PACKED` (not `SHIPPED`), Allocation remains `CONFIRMED` (not `CONSUMED`), and OutboundOrder remains `DISPATCHED` (not `COMPLETED`).
    - Final settlement is explicitly deferred to P1-016 (`TC-128`, `TC-129`, `TC-132`, `TC-133`).
 
-## Genuine PostgreSQL Verification (20/20 PASSED)
+## Genuine PostgreSQL Verification (21/21 PASSED — post-remediation)
 
 Executed against remote Testing PostgreSQL (`aws-1-eu-central-1.pooler.supabase.com:6543`, database `postgres`, PostgreSQL 17.6):
 
 ```text
 Test Suites: 1 passed, 1 total
-Tests:       20 passed, 20 total
+Tests:       21 passed, 21 total
 Snapshots:   0 total
-Time:        93.425 s
+Time:        114.749 s
 Ran all test suites matching src/modules/wms_outbound/services/__tests__/p1-015-manifest-lifecycle-postgres.integration.test.ts.
 ```
 
-### Complete Test Inventory (20/20)
+### Complete Test Inventory (21/21)
 
 1. `1. Authorized Dispatcher creates a target manifest in OPEN with CarrierManifestOpened once`
 2. `2. Only POSTED Shipment may be added to an OPEN manifest`
@@ -163,34 +164,52 @@ Ran all test suites matching src/modules/wms_outbound/services/__tests__/p1-015-
 18. `18. Duplicate/parallel confirm is exactly-once with real database proof`
 19. `19. Non-authorized operator lifecycle actions fail closed under server-authoritative RBAC`
 20. `20. P1-016 settlement is not implemented: confirm does not prematurely consume Allocation, ship OOL quantities, complete OutboundOrder or close CustomerOrder`
+21. `21. Concurrent carrier correction vs close: correction wins if it holds shipment lock before manifest is closed; result serialized and label intact` *(added in P1-015 remediation)*
 
-### Decisive Actual-Service Concurrency Proofs
+### Decisive Actual-Service Concurrency Proofs (Exact-Session PID — post-remediation)
+
+Each test captures `pg_backend_pid()` per session before blocking and polls `pg_stat_activity` / `pg_blocking_pids` for the exact captured PID. Literal `console.log` output from the post-remediation run:
+
+```text
+[TEST 6 PID PROOF]  pidA=2060275 pidB=2060279 blockedPid=2060279 blockingPids=[2060275] waitEventType=Lock
+[TEST 10 PID PROOF] pidClose=2060279 pidAdd=2060275  blockedPid=2060275 blockingPids=[2060279] waitEventType=Lock
+[TEST 18 PID PROOF] pidA=2060275 pidB=2060279 blockedPid=2060279 blockingPids=[2060275] waitEventType=Lock
+[TEST 21 PID PROOF] pidA=2060279 pidB=2060275 blockedPid=2060275 blockingPids=[2060279] waitEventType=Lock
+```
 
 - **Test 6 (Real Overlapping Assignment to Two Manifests):**
   - Two independent service instances on separate connections attempt to assign the same `POSTED` shipment to `manifest1` and `manifest2`.
-  - Contention query on `pg_stat_activity` / `pg_blocking_pids` confirms backend lock contention:
-    - `wait_event_type`: `'Lock'`
-    - `blocking_pids`: contains `pidA`
+  - Session A (`pidA=2060275`) holds Shipment row lock; Session B (`pidB=2060279`) blocks.
+  - Exact-session contention: `blockedPid=2060279 == pidB`, `blockingPids=[2060275] contains pidA` — verified distinct (`pidA != pidB`).
+  - `wait_event_type = 'Lock'` confirmed in `pg_stat_activity`.
   - Winner succeeds: shipment becomes `IN_MANIFEST` with `manifestId = manifest1.id`.
-  - Loser fails deterministically with rejection error: `Shipment ... is already assigned to manifest`.
+  - Loser fails deterministically: `Shipment ... is already assigned to manifest`.
   - Fresh read confirms singular membership and exactly 1 `ShipmentAddedToManifest` transition event.
 
 - **Test 10 (Add-vs-Close Composition Race Proof):**
-  - Manifest close operation holds row lock during close transaction.
-  - Concurrent add operation blocks on manifest row lock:
-    - Contention query confirms `wait_event_type = 'Lock'` with `blocking_pids` containing `pidClose`.
-  - Close operation completes, transitioning manifest to `CLOSED`.
-  - Add operation unblocks and fails closed: `Cannot add shipment to manifest in status "CLOSED"`.
+  - Manifest close session (`pidClose=2060279`) holds manifest row lock.
+  - Concurrent add session (`pidAdd=2060275`) blocks on manifest row lock.
+  - Exact-session contention: `blockedPid=2060275 == pidAdd`, `blockingPids=[2060279] contains pidClose`.
+  - `wait_event_type = 'Lock'` confirmed.
+  - Close completes, manifest transitions to `CLOSED`.
+  - Add unblocks and fails closed: `Cannot add shipment to manifest in status "CLOSED"`.
   - Fresh read confirms shipment remains `POSTED` with `manifest_id = NULL`.
 
 - **Test 18 (Duplicate/Parallel Confirmation Proof):**
-  - Two concurrent `confirmManifest()` operations execute against a `HANDED_OVER` manifest.
-  - Operation A acquires lock, transitions manifest to `CONFIRMED`, and creates snapshot.
-  - Operation B blocks on manifest lock; upon acquiring lock, detects `status === 'CONFIRMED'` and idempotently returns `{ success: true, replayed: true }`.
-  - Lock contention query confirms:
-    - `wait_event_type`: `'Lock'`
-    - `blocking_pids`: contains `pidA`
-  - Fresh read verifies exactly 1 `CarrierManifestConfirmed` transition event exists.
+  - Session A (`pidA=2060275`) acquires manifest lock; transitions manifest to `CONFIRMED` and creates snapshot.
+  - Session B (`pidB=2060279`) blocks on manifest lock.
+  - Exact-session contention: `blockedPid=2060279 == pidB`, `blockingPids=[2060275] contains pidA`.
+  - `wait_event_type = 'Lock'` confirmed.
+  - Session B unblocks; detects `status === 'CONFIRMED'` and returns `{ success: true, replayed: true }`.
+  - Fresh read verifies exactly 1 `CarrierManifestConfirmed` transition event.
+
+- **Test 21 (Carrier-Correction-vs-Close Race — new in remediation):**
+  - Session A (Supervisor) holds Shipment row lock via `manualSelectCarrier` (`onShipmentLocked`, `pidA=2060279`).
+  - Session B (Dispatcher) attempts `closeManifest`; blocks on Shipment lock since `closeManifest` now locks member Shipments in `FOR UPDATE` order.
+  - Exact-session contention: `blockedPid=2060275 == pidB`, `blockingPids=[2060279] contains pidA`.
+  - `wait_event_type = 'Lock'` confirmed.
+  - Carrier correction completes first (wins serialization slot); manifest close follows.
+  - `labels[0].carrierCode` and `labels[0].labelPayload` remain unchanged; manifest closes to `CLOSED`.
 
 - **Test 16 (Multi-Entity Handover Rollback Proof):**
   - Handover transaction simulates deterministic failure after writing and flushing updates across manifest, shipments, TUs, orders, and transition events.
@@ -201,18 +220,19 @@ Ran all test suites matching src/modules/wms_outbound/services/__tests__/p1-015-
     - OutboundOrders remain `READY_FOR_DISPATCH` (not `DISPATCHED`).
     - 0 handover-related transition events persisted.
 
-## Regression Test Results
+## Regression Test Results (post-remediation)
 
 | Suite | Result | Details |
 |---|---|---|
-| **P1-015 PostgreSQL Suite** | **20/20 PASSED** | Manifest lifecycle, irreversible composition, handover, exactly-once confirmation |
+| **P1-015 PostgreSQL Suite** | **21/21 PASSED** | Manifest lifecycle, irreversible composition, handover, exactly-once confirmation, carrier-correction-vs-close race (Test 21 added in remediation) |
 | **P1-014 PostgreSQL Suite** | **18/18 PASSED** | ERP shipment posting, rejection categorisation, safe retry, in-flight idempotency |
 | **P1-013 PostgreSQL Suite** | **15/15 PASSED** | Label generation, carrier selection correction, lock contention proof |
 | **P1-012 PostgreSQL Suite** | **14/14 PASSED** | Carrier auto-assignment, manual override, audit history |
 | **P1-011 PostgreSQL Suite** | **18/18 PASSED** | Shipment grouping, aggregation, concurrency proof |
 | **FND-002 State Machine Suite** | **77/77 PASSED** | Core outbound state machine transition rules |
 | **FND-002 Transaction Suite** | **8/8 PASSED** | Real PostgreSQL transaction simulation invariants |
-| **Total Automated Regression** | **170/170 PASSED** | Zero regressions across all integrated outbound modules |
+| **Total Automated Regression** | **171/171 PASSED** | Zero regressions across all integrated outbound modules |
+
 
 ## Playwright Rendered UI Verification (6/6 PASSED)
 
@@ -283,10 +303,10 @@ Running 6 tests using 1 worker
 ## Worktree Status
 
 ```text
-Devaxonic-mercato: clean (outbound/p1-015 @ 71ba80fbe0ab221ff4484b4ad7f6d2256f57d8b8)
+Devaxonic-mercato: clean (outbound/p1-015 @ f9b0b89cbd05d723ca36501c5dfb1dd57ce8a2e4) [remediation commit]
 Devaxonic-scanner: clean (outbound/p1-009 @ f4a404600efb1120cb2f1c5b86383ad148cd1e1a)
 Devaxonic-WMS:     clean (main @ 3f46432cc75899c80be38ec9206d61b9a544f416)
-WMS_Outbound:      clean (main @ 0d9b1f88319d2c8b202b6c75a9f21c5c74f53e75)
+WMS_Outbound:      clean (main @ b08072d793fed4c5461686de17a729fa7640868c)
 ```
 
 ## Explicit Scope Exclusions Obeyed

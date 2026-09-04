@@ -22,21 +22,19 @@ Before changing Outbound behavior, an English-speaking agent normally reads:
 
 For Scanner work additionally read `06_AGENT_GUIDES/SCANNER_ROUTING.md`.
 
-### Executor/runtime bootstrap
+### Executor/runtime routing
 
-For implementation, test, runtime or evidence work on the canonical WMS engineering VPS, also read `/home/ubuntu/git/Devaxonic-WMS/AGENTS.md`, `.ai/TESTING.md` and `.ai/OPERATIONS.md` before declaring environment/runtime unavailable.
+All implementation/test/runtime/evidence sessions start from the canonical Devaxonic-WMS execution contract.
 
-Canonical VPS Testing facts shared by Codex and Antigravity:
+Read:
 
-- repos live under `/home/ubuntu/git/`;
-- approved Testing DB env source is `/etc/mercato-localhost.env`;
-- source that env in the **same shell invocation** as every DB-backed Jest/migration/Playwright command;
-- never print `DATABASE_URL` or other secret-bearing env values;
-- Testing Mercato is `mercato-localhost.service` on `http://localhost:3009`;
-- Testing Scanner is `scanner-testing.service` on `http://localhost:8081`;
-- inspect the canonical local Devaxonic-WMS credential instructions before asking the owner for UI credentials.
+- `/home/ubuntu/git/Devaxonic-WMS/AGENTS.md`
+- `/home/ubuntu/git/Devaxonic-WMS/.ai/TESTING.md`
+- `/home/ubuntu/git/Devaxonic-WMS/.ai/OPERATIONS.md`
 
-A fresh executor session on the same VPS is not a fresh machine. Do not rediscover these locations from scratch or claim they are missing until the canonical paths/services have actually been checked.
+Those files are the single steering source for executor/runtime/Testing/credential mechanics. Do not duplicate those operational facts into WMS_Outbound steering.
+
+A fresh executor session must consume current Devaxonic-WMS state/handover plus this repository's current `STATE.md`/handover before declaring environment/runtime unavailable.
 
 ### Language routing
 
@@ -118,3 +116,9 @@ A task is done only when:
 Documentation/canon/traceability/evidence index updates belong here. Mercato and Scanner product code belongs in their repositories. Database migrations belong with the owning code module and must follow the implementation plan.
 
 Do not start implementation merely because this repository contains a ready plan; `STATE.md` must authorize the implementation phase.
+
+## 10. Steering boundary
+
+Do not create or modify durable steering/control files without explicit owner acceptance for that steering change.
+
+Detailed executor instructions belong in bounded files under `06_AGENT_GUIDES/`; owner-facing launch prompts should remain microscopic according to `06_AGENT_GUIDES/GIT_PROMPT_WORKFLOW.md`.

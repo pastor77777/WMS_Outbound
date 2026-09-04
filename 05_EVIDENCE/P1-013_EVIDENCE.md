@@ -1,6 +1,7 @@
-# P1-013 Evidence — Execution & Verification Candidate
+# P1-013 Evidence — Remediation & Verification Closeout
 
 **Task:** P1-013 — WMS label generation and pre-manifest loading carrier correction (Step 11, P1 R33–R36, FR-P1-17, FR-P1-18, FR-P5-11, TC-001, TC-007, TC-066)  
+**Remediation guide:** `06_AGENT_GUIDES/P1-013_REMEDIATION.md`  
 **Execution guide:** `06_AGENT_GUIDES/P1-013_EXECUTION.md`  
 **Evidence date:** 2026-09-04  
 **Evidence class:** REAL PostgreSQL integration / REAL PostgreSQL concurrency / PLAYWRIGHT VERIFIED  
@@ -9,91 +10,105 @@
 
 | Subject | Verified revision / identity |
 |---|---|
-| Mercato P1-013 head | `7f8185c3eccaf1b04fd46027616b0286d4c87fd1` on `outbound/p1-013` (pushed) |
+| Mercato final remediation head | `ebc556edd2366a4bb45351924ae2f22a1cafb093` on `outbound/p1-013` (pushed) |
+| Pre-remediation P1-013 head | `7f8185c3eccaf1b04fd46027616b0286d4c87fd1` on `outbound/p1-013` |
 | Accepted P1-012 base | `5019a20be14549ff8cbbf25af5bc61c56888e9e1` |
-| Lineage / compare | Exactly 1 commit ahead of accepted P1-012 base (`5019a20be -> 7f8185c3e`); merge base: `5019a20be14549ff8cbbf25af5bc61c56888e9e1` |
+| Lineage / compare | Exactly 2 commits ahead of accepted P1-012 base (`5019a20be -> 7f8185c3e -> ebc556edd`); merge base: `5019a20be14549ff8cbbf25af5bc61c56888e9e1` |
 | Frozen Scanner head | `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` (verified untouched, clean working tree) |
 | Testing database | `postgres` on `aws-1-eu-central-1.pooler.supabase.com:6543`; PostgreSQL 17.6 |
 | Testing Mercato runtime | `mercato-localhost.service` active; `https://devaxonic-test.info-start.com.pl` returned HTTP 200 |
 
 All database-backed commands sourced `/etc/mercato-localhost.env` in their executing shell. No credential values are recorded here.
 
-## Architecture & Implementation Scope
+## Remediation Scope & Review Blockers Resolved
 
-### 1. WMS-Owned Label Model & Local Generation (P1 R34, FR-P1-17, FR-P5-11)
-- Implemented `WmsOutboundShipmentLabel` entity mapped to `wms_outbound_shipment_labels` table with unique constraint on `(organization_id, tenant_id, shipment_id)`.
-- Applied migration `Migration20260904190000_wms_outbound_p1_013.ts` to Testing PostgreSQL.
-- Implemented `ShipmentLabelService` (`generateLabel`, `printLabel`, `getLabel`):
-  - Strict gate on `status === 'CARRIER_SELECTED'`.
-  - Rejection on `OWN_TRANSPORT` / customer pickup (`400 Bad Request` — no shipping label required).
-  - WMS-owned data assembly: derives sender address, delivery address, carrier code, total weight, total volume, TU packaging breakdown strictly from persisted local records.
-  - Generates stable local tracking reference `TRK-<SHIPMENT_NUMBER>-WMS`.
-  - Advances shipment status atomically to `LABEL_GENERATED` (`ShipmentLabelGenerated` domain event).
-  - Idempotent replay: repeated generation requests on `LABEL_GENERATED` return the existing label payload safely without duplicating state transitions or artifacts.
+### B1 — Genuine PostgreSQL Concurrency Proof
+- **Root cause:** Initial P1-013 evidence claimed concurrency safety based on a schema-level unique constraint test without proving live transactional row lock contention in PostgreSQL.
+- **Remediation:** Added test `15. Genuine PostgreSQL Concurrency: overlapping label generation calls serialize on Shipment row lock with pg_blocking_pids proof` in `apps/mercato/src/modules/wms_outbound/services/__tests__/p1-013-label-generation-postgres.integration.test.ts`.
+- **Decisive proof:**
+  - Operation A opens transaction on `emA`, invokes `ShipmentLabelService.generateLabel` which locks the `WmsOutboundShipment` row with `LockMode.PESSIMISTIC_WRITE` (`SELECT ... FOR UPDATE`), generates the label row and updates status to `LABEL_GENERATED`, but holds the transaction open before commit.
+  - Operation B independently calls `generateLabel` on `emB` against the same shipment and is blocked waiting for PostgreSQL tuple lock.
+  - An independent `observer` client polls `pg_stat_activity` and captures PostgreSQL-side row lock contention:
+    ```text
+    [P1-013 label-generation row lock contention] {
+      blockedPid: 2041711,
+      blockingPids: [ 2041713 ],
+      waitEventType: 'Lock'
+    }
+    ```
+  - Operation A is released and commits.
+  - Operation B unblocks, reads the committed `LABEL_GENERATED` shipment, hits the idempotent replay branch, and returns the existing label without creating a duplicate record or event.
+  - Independent read proves exactly 1 `wms_outbound_shipment_labels` record exists, exactly 1 `ShipmentLabelGenerated` event exists, and print count is 0.
 
-### 2. Local Print Action (P1 R34, FR-P1-18)
-- Local print increments `print_count` and updates `last_printed_at` on the local label record.
-- Operates purely on local WMS state without calling external carrier APIs or modifying the shipment state machine.
+### B2 — Evidence File-Stat Mismatch Resolved
+- Regenerated exact file and change statistics directly from Git compare `5019a20be14549ff8cbbf25af5bc61c56888e9e1..ebc556edd2366a4bb45351924ae2f22a1cafb093`.
 
-### 3. Pre-Manifest Loading Carrier Correction (Step 11, P1 R35, P1 R33, TC-007)
-- Extended `CarrierSelectionService.manualSelectCarrier` to permit carrier reassignment when `status === 'LABEL_GENERATED'` for Supervisor role before manifest close.
-- Enforced server-authoritative Supervisor RBAC (`wms_outbound.manage_orders` / `isSupervisorApproval`).
-- Non-supervisors attempting carrier correction receive `403 Forbidden`.
-- Status remains `LABEL_GENERATED` (via explicit self-transition `{ from: 'LABEL_GENERATED', to: 'LABEL_GENERATED', domainEvent: 'ShipmentCarrierOverridden' }`).
-- Existing label is preserved without automatic regeneration or reprint (per P1 R35).
+### B3 — Literal Final Test Inventory
+- Rewrote the test inventory to match the literal final-head suite output and exact test names/counts (15/15 passed).
 
-### 4. Explicit Hard Boundaries & Invariants
-- **No External Carrier API / No Carrier Rejection (FR-P5-11):** Label generation is 100% internal WMS assembly. No external label broker or carrier acceptance/rejection endpoints exist.
-- **Manifest Boundary (P1-015):** The pre-manifest carrier correction is enforced within the current persisted shipment state. Full `CarrierManifest.CLOSED` boundary is cleanly deferred to P1-015 without introducing parallel or fake manifest state.
-- **ERP Boundary (P1-014):** No ERP posting or `POSTING_PENDING` / `POSTED` logic touched.
-- **Settlement Boundary (P1-016):** No order/inventory settlement logic touched.
-- **Scanner Boundary:** Untouched and frozen.
-
-## Files Modified in Implementation
+## Exact Git Compare Statistics
 
 ```text
- apps/mercato/src/modules/wms_outbound/__integration__/P1-013-label-generation-ui.spec.ts             | 470 ++++++++++++++++++++
- apps/mercato/src/modules/wms_outbound/api/shipments/[id]/generate-label/route.ts                    |  54 +++
- apps/mercato/src/modules/wms_outbound/api/shipments/[id]/print-label/route.ts                       |  45 ++
- apps/mercato/src/modules/wms_outbound/backend/shipments/[id]/page.tsx                               | 170 +++++++-
- apps/mercato/src/modules/wms_outbound/data/entities.ts                                              |  38 ++
- apps/mercato/src/modules/wms_outbound/data/transitions.ts                                           |   7 +
- apps/mercato/src/modules/wms_outbound/di.ts                                                         |   7 +
- apps/mercato/src/modules/wms_outbound/migrations/Migration20260904190000_wms_outbound_p1_013.ts     |  33 ++
- apps/mercato/src/modules/wms_outbound/services/__tests__/p1-011-postgres.integration.test.ts        |   5 +-
- apps/mercato/src/modules/wms_outbound/services/__tests__/p1-013-label-generation-postgres.integration.test.ts | 480 ++++++++++++++++++++
- apps/mercato/src/modules/wms_outbound/services/carrier-selection-service.ts                         |  35 +-
- apps/mercato/src/modules/wms_outbound/services/shipment-label-service.ts                            | 205 +++++++++
- apps/mercato/src/modules/wms_outbound/services/shipment-service.ts                                  |  23 +-
- 13 files changed, 1902 insertions(+), 11 deletions(-)
+ apps/mercato/src/modules/wms_outbound/__integration__/P1-013-label-generation-ui.spec.ts | 466 +++++++++++++++++++
+ apps/mercato/src/modules/wms_outbound/api/shipments/[id]/generate-label/route.ts     |  35 ++
+ apps/mercato/src/modules/wms_outbound/api/shipments/[id]/print-label/route.ts        |  29 ++
+ apps/mercato/src/modules/wms_outbound/backend/shipments/[id]/page.tsx       | 171 ++++++-
+ apps/mercato/src/modules/wms_outbound/data/entities.ts                      |  58 +++
+ apps/mercato/src/modules/wms_outbound/data/transitions.ts                   |   1 +
+ apps/mercato/src/modules/wms_outbound/di.ts                                 |   7 +
+ apps/mercato/src/modules/wms_outbound/migrations/Migration20260904190000_wms_outbound_p1_013.ts  |  46 ++
+ apps/mercato/src/modules/wms_outbound/services/__tests__/p1-011-postgres.integration.test.ts     |   5 +-
+ apps/mercato/src/modules/wms_outbound/services/__tests__/p1-013-label-generation-postgres.integration.test.ts | 877 ++++++++++++++++++++++++++++++++++++
+ apps/mercato/src/modules/wms_outbound/services/carrier-selection-service.ts |  21 +-
+ apps/mercato/src/modules/wms_outbound/services/shipment-label-service.ts    | 296 ++++++++++++
+ apps/mercato/src/modules/wms_outbound/services/shipment-service.ts          |   8 +
+ 13 files changed, 2009 insertions(+), 11 deletions(-)
 ```
 
-## Genuine PostgreSQL Verification (14/14 PASSED)
+## Schema & Migration Impact
+
+- Migration: `Migration20260904190000_wms_outbound_p1_013.ts`
+- Table: `wms_outbound_shipment_labels`
+- Columns: `id` (uuid, PK), `organization_id` (uuid), `tenant_id` (uuid), `warehouse_id` (uuid), `shipment_id` (uuid), `carrier_code` (text), `label_payload` (jsonb), `status` (text), `print_count` (int), `last_printed_at` (timestamptz, nullable), `generated_by` (text, nullable), `created_at` (timestamptz), `updated_at` (timestamptz)
+- Unique Index: `(organization_id, tenant_id, shipment_id)`
+- FK Constraint: `fk_wms_outbound_shipment_labels_shipment_id` -> `wms_outbound_shipments(id)` ON DELETE CASCADE
+
+## Genuine PostgreSQL Verification (15/15 PASSED)
 
 Executed against remote Testing PostgreSQL (`aws-1-eu-central-1.pooler.supabase.com:6543`, database `postgres`, PostgreSQL 17.6):
 
 ```text
-PASS src/modules/wms_outbound/services/__tests__/p1-013-label-generation-postgres.integration.test.ts (29.2s)
-  P1-013 Genuine PostgreSQL WMS Label Generation & Pre-Manifest Carrier Correction Suite
-    ✓ 1. CARRIER_SELECTED is the gate for label generation; advances to LABEL_GENERATED with WMS-owned payload (P1 R34, FR-P1-17) (942 ms)
-    ✓ 2. Shipments in non-CARRIER_SELECTED status (e.g. CARRIER_PENDING) reject label generation (485 ms)
-    ✓ 3. OWN_TRANSPORT skips/rejects label generation as designed (P1 R34, Step 11) (462 ms)
-    ✓ 4. Generated label contains only WMS-owned persisted data (weight, volume, address, tracking reference) (487 ms)
-    ✓ 5. Repeated generation is idempotent and does not duplicate state transitions or artifacts (504 ms)
-    ✓ 6. Local print and reprint increments print count and updates timestamp without external API or state transition (FR-P1-18) (518 ms)
-    ✓ 7. EXTERNAL missing-maxVolume path blocks label generation until Supervisor approves carrier (P1 R51, TC-066) (915 ms)
-    ✓ 8. Supervisor can correct carrier when status is LABEL_GENERATED before manifest close (P1 R35) (964 ms)
-    ✓ 9. Carrier correction does not automatically regenerate or reprint existing label (P1 R35) (928 ms)
-    ✓ 10. Non-Supervisor carrier correction on LABEL_GENERATED fails closed with 403 Forbidden (483 ms)
-    ✓ 11. Concurrency safety: overlapping label generation calls resolve idempotently and do not corrupt label records (1328 ms)
-    ✓ 12. Transaction rollback: failure during label persistence rolls back status and leaves no partial label record (924 ms)
-    ✓ 13. Regression: P1-012 carrier selection rules and Supervisor manual approval paths remain green (DEC-J11, DEC-J12, DEC-J13) (918 ms)
-    ✓ 14. Regression: P1-011 shipment readiness, grouping and partial gates remain green (FR-P1-26) (886 ms)
+  console.log
+    [P1-013 label-generation row lock contention] {
+      blockedPid: 2041711,
+      blockingPids: [ 2041713 ],
+      waitEventType: 'Lock'
+    }
+
+      at Object.<anonymous> (src/modules/wms_outbound/services/__tests__/p1-013-label-generation-postgres.integration.test.ts:839:15)
+
+PASS src/modules/wms_outbound/services/__tests__/p1-013-label-generation-postgres.integration.test.ts (24.7s)
+  P1-013 Genuine PostgreSQL Label Generation & Carrier Correction Suite
+    ✓ 1. Start gate: non-selected or pending shipment cannot generate label (P1 R34)
+    ✓ 2. Gate: CARRIER_PENDING shipment cannot generate label (P1 R34)
+    ✓ 3. OWN_TRANSPORT skips/rejects label generation per Architect specification (P1 step 10/11, P1 R34)
+    ✓ 4. Generated label is based strictly on WMS-owned persisted Shipment/Packing TU/Carrier/address data (P1 R34)
+    ✓ 5. Successful generation persists authoritative label evidence and transitions to LABEL_GENERATED (P1 step 11, R34)
+    ✓ 6. Repeated generation / retry is non-regressive and idempotent (P1 R34)
+    ✓ 7. Local print / reprint does not call external API and does not regress status (P1 R34)
+    ✓ 8. EXTERNAL missing-maxVolume path cannot generate until Supervisor approval completed (P1 R51, FR-P5-10, TC-066)
+    ✓ 9. Real Supervisor carrier correction is allowed at pre-close boundary (P1 R35, FR-P1-18)
+    ✓ 10. Carrier correction does not automatically regenerate or reprint existing label (P1 R35, FR-P5-11)
+    ✓ 11. Unauthorized non-supervisor carrier correction is rejected (P1 R33, R35)
+    ✓ 12. Architecture invariant: no provider rejection or invented label error state (FR-P5-11)
+    ✓ 13. Real rollback test: failure after write/flush in transaction rolls back completely with fresh independent read proof
+    ✓ 14. PostgreSQL Unique constraint prevents duplicate label records per shipment
+    ✓ 15. Genuine PostgreSQL Concurrency: overlapping label generation calls serialize on Shipment row lock with pg_blocking_pids proof
 
 Test Suites: 1 passed, 1 total
-Tests:       14 passed, 14 total
+Tests:       15 passed, 15 total
 Snapshots:   0 total
-Time:        29.2 s
+Time:        24.711 s
 ```
 
 ## Regression Verification
@@ -101,31 +116,43 @@ Time:        29.2 s
 ### P1-012 Carrier Selection PostgreSQL Suite (14/14 PASSED)
 
 ```text
-PASS src/modules/wms_outbound/services/__tests__/p1-012-carrier-selection-postgres.integration.test.ts (26.8s)
+PASS src/modules/wms_outbound/services/__tests__/p1-012-carrier-selection-postgres.integration.test.ts (32.6s)
 Test Suites: 1 passed, 1 total
 Tests:       14 passed, 14 total
 Snapshots:   0 total
-Time:        26.8 s
+Time:        32.636 s
+Ran all test suites matching src/modules/wms_outbound/services/__tests__/p1-012-carrier-selection-postgres.integration.test.ts.
 ```
 
 ### P1-011 Shipment Grouping PostgreSQL Suite (18/18 PASSED)
 
 ```text
-PASS src/modules/wms_outbound/services/__tests__/p1-011-postgres.integration.test.ts (71.2s)
+  console.log
+    [P1-011 distinct-TU grouping-key lock contention] {
+      blockedPid: 2041713,
+      blockingPids: [ 2041714 ],
+      waitEventType: 'Lock'
+    }
+
+      at Object.<anonymous> (src/modules/wms_outbound/services/__tests__/p1-011-postgres.integration.test.ts:590:15)
+
+PASS src/modules/wms_outbound/services/__tests__/p1-011-postgres.integration.test.ts (71.9s)
 Test Suites: 1 passed, 1 total
 Tests:       18 passed, 18 total
 Snapshots:   0 total
-Time:        71.2 s
+Time:        71.902 s
+Ran all test suites matching src/modules/wms_outbound/services/__tests__/p1-011-postgres.integration.test.ts.
 ```
 
 ### State Transitions Invariant Suite (77/77 PASSED)
 
 ```text
-PASS src/modules/wms_outbound/services/__tests__/fnd-002-state-transitions.test.ts (1.3s)
+PASS src/modules/wms_outbound/services/__tests__/fnd-002-state-transitions.test.ts (2.1s)
 Test Suites: 1 passed, 1 total
 Tests:       77 passed, 77 total
 Snapshots:   0 total
-Time:        1.3 s
+Time:        2.127 s
+Ran all test suites matching src/modules/wms_outbound/services/__tests__/fnd-002-state-transitions.test.ts.
 ```
 
 ## Fresh Final-Head Rendered UI Evidence (Playwright)
@@ -135,10 +162,10 @@ Executed using Playwright against canonical testing URL `https://devaxonic-test.
 ```text
 Running 4 tests using 1 worker
 
-  ✓  1 Journey 1 (PLAYWRIGHT VERIFIED): Normal label generation and print from CARRIER_SELECTED (P1 R34) (60.0s)
-  ✓  2 Journey 2 (PLAYWRIGHT VERIFIED): Pending approval gate blocks label generation until Supervisor approval (P1 R51, TC-066) (14.8s)
-  ✓  3 Journey 3 (PLAYWRIGHT VERIFIED): Supervisor carrier correction after label generation before manifest close (P1 R35) (14.4s)
-  ✓  4 Journey 4 (PLAYWRIGHT VERIFIED): Architecture boundary: no provider rejection or external API mode (FR-P5-11) (12.5s)
+  ✓  1 Journey 1 (PLAYWRIGHT VERIFIED): Normal label generation and print from CARRIER_SELECTED (P1 R34) (1.0m)
+  ✓  2 Journey 2 (PLAYWRIGHT VERIFIED): Pending approval gate blocks label generation until Supervisor approval (P1 R51, TC-066) (14.7s)
+  ✓  3 Journey 3 (PLAYWRIGHT VERIFIED): Supervisor carrier correction after label generation before manifest close (P1 R35) (14.2s)
+  ✓  4 Journey 4 (PLAYWRIGHT VERIFIED): Architecture boundary: no provider rejection or external API mode (FR-P5-11) (12.6s)
 
   4 passed (1.9m)
 ```

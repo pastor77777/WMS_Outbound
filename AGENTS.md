@@ -22,6 +22,22 @@ Before changing Outbound behavior, an English-speaking agent normally reads:
 
 For Scanner work additionally read `06_AGENT_GUIDES/SCANNER_ROUTING.md`.
 
+### Executor/runtime bootstrap
+
+For implementation, test, runtime or evidence work on the canonical WMS engineering VPS, also read `/home/ubuntu/git/Devaxonic-WMS/AGENTS.md`, `.ai/TESTING.md` and `.ai/OPERATIONS.md` before declaring environment/runtime unavailable.
+
+Canonical VPS Testing facts shared by Codex and Antigravity:
+
+- repos live under `/home/ubuntu/git/`;
+- approved Testing DB env source is `/etc/mercato-localhost.env`;
+- source that env in the **same shell invocation** as every DB-backed Jest/migration/Playwright command;
+- never print `DATABASE_URL` or other secret-bearing env values;
+- Testing Mercato is `mercato-localhost.service` on `http://localhost:3009`;
+- Testing Scanner is `scanner-testing.service` on `http://localhost:8081`;
+- inspect the canonical local Devaxonic-WMS credential instructions before asking the owner for UI credentials.
+
+A fresh executor session on the same VPS is not a fresh machine. Do not rediscover these locations from scratch or claim they are missing until the canonical paths/services have actually been checked.
+
 ### Language routing
 
 - The immutable Polish Architect snapshot under `01_ARCHITECT_SOURCE/2026-08-31/` is ultimate provenance. Its hashes are recorded in `01_ARCHITECT_SOURCE/MANIFEST.md`.

@@ -4,7 +4,7 @@
 **Campaign:** WMS Outbound v1  
 **Architecture:** implementation-ready; no unresolved product/architecture blocker recorded  
 **Current phase:** product implementation  
-**Implementation progress:** **14/37 items FINAL PASS**
+**Implementation progress:** **15/37 items FINAL PASS**
 
 ## Architect baseline
 
@@ -40,37 +40,53 @@ The plan is delivery decomposition only. Architect Source/Canon remains business
 10. `P1-006` — FINAL PASS / Human Verified — Mercato `353a5001cb8f1941971f960e509a8af643e41e5a` / Scanner `7596b7802e7ed55a59dd6dc1f21912ea6331e796` / evidence `43cc7d0e7dd20a48fc00b40150b30275d0c2aa12`
 11. `P1-007` — FINAL PASS / Owner Accepted — Mercato `134db31381b4db726cd550abe6ecd4079ac21d8c` / Scanner `b23325aae1c4f83b79d01b3650dbead3486a1041` / evidence `10be7a6e2c10a05d1fe5ce6dc5aacdd93dc400a8`
 12. `P1-009` — FINAL PASS / Owner Accepted — Mercato `5d780dabeb605bc657bb521bd2b2fdcc2e516f77` / Scanner `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `6c78a97ece567d90d3cb7d0580bb38669c9f9722`
-13. `P1-010` — FINAL PASS / Owner Accepted — Mercato `19dbf77d9dbf5a36b36adc88a9dbb6debdd15643` / Scanner frozen `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `b5bb6429717402e0fb6969f7437ddaf673a8a174`
-14. `P1-011` — FINAL PASS / Owner Accepted based on reviewed PLAYWRIGHT VERIFIED + real PostgreSQL evidence — Mercato `20887f2d74928cf69f447fdd6af20a612f38387c` / Scanner frozen `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `90cc30fc2db15c40d80ef69cb03ffb1e107b51dc`.
+13. `P1-010` — FINAL PASS / Owner Accepted — Mercato `19dbf77d9dbf5a36b36adc88a9dbb6debdd15643` / Scanner frozen reference `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `b5bb6429717402e0fb6969f7437ddaf673a8a174`
+14. `P1-011` — FINAL PASS / Owner Accepted — Mercato `20887f2d74928cf69f447fdd6af20a612f38387c` / Scanner frozen reference `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `90cc30fc2db15c40d80ef69cb03ffb1e107b51dc`.
+15. `P1-012` — FINAL PASS / Owner Accepted — Mercato `5019a20be14549ff8cbbf25af5bc61c56888e9e1` / Scanner frozen reference `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `b28f59e7ff41ac6d0a3be4b841410650bc5acd8b`.
 
-## P1-011 accepted boundary
+## P1-012 accepted boundary
 
-- Stable Shipment grouping from packed TUs enforces the Architect grouping identity, exact SLA matching, fail-closed contributor compatibility and at-most-one active Shipment membership per TU.
-- `allowPartialShipment=false` protects complete CustomerOrder release: incomplete required quantity/TUs block early attachment/release, including expired-SLA cases.
-- Eligible packed TUs attach through `PACKING_SEALED -> IN_SHIPMENT`; Shipment readiness and late-TU behavior preserve R27–R29 without regressing a closed Shipment.
-- Real distinct-TU grouping-key contention is serialized by PostgreSQL; accepted evidence contains a real `Lock` wait.
-- Real rollback proof crosses write/flush and confirms no partial membership after failure.
-- Canonical Shipment UI is `/backend/shipments` and `/backend/shipments/<shipmentId>`; detail uses manifest-provided `params.id`.
-- Final proof: P1-011 PostgreSQL 18/18, P1-010 16/16, P1-009 15/15, P1-003 14/14, full Outbound umbrella 20 suites / 294 tests, P1-011 Playwright 3/3 and P1-010 Playwright 6/6.
-- Automated UI evidence remains labelled `PLAYWRIGHT VERIFIED`, not Human Verified.
+Preserve these accepted behaviors:
+
+- Carrier Selection starts only from Shipment `READY_FOR_DISPATCH` and uses delivery Region, largest current Packing-TU weight and largest `TUSetup.maxVolume` of the attached TU types.
+- Deterministic winner order is narrowest matching volume range, then narrowest matching weight range, then unique `Carrier.priority`; unresolved ambiguity fails closed.
+- No match yields `CARRIER_PENDING`; general manual selection and any override require real server-authoritative Warehouse Supervisor authority.
+- EXTERNAL TU without positive `maxVolume` never receives fabricated volume: Dispatcher may record a carrier choice but Shipment remains `CARRIER_PENDING` until real Supervisor approval.
+- Client-supplied role/approval fields cannot elevate authority; audit identity/role is derived server-side from authenticated RBAC context.
+- Supervisor override reason is optional.
+- P1-012 does not implement label generation, external carrier API, manifest, ERP posting or settlement.
+
+Accepted proof in `05_EVIDENCE/P1-012_EVIDENCE.md`:
+
+- final Mercato head `5019a20be14549ff8cbbf25af5bc61c56888e9e1`, exactly two commits after accepted P1-011 base `20887f2d74928cf69f447fdd6af20a612f38387c`;
+- P1-012 genuine PostgreSQL suite **14/14**;
+- P1-011 PostgreSQL regression **18/18**;
+- state transition invariant suite **77/77**;
+- P1-012 Mercato Playwright **5/5**;
+- automated UI evidence remains `PLAYWRIGHT VERIFIED`, not Human Verified.
 
 ## Current position
 
-Completed: **14/37**.
+Completed: **15/37**.
 
 Next implementation item:
 
-**P1-012 — Carrier, Region and CarrierSetup selection — item 15/37.**
+**P1-013 — WMS label generation and pre-manifest loading carrier correction — item 16/37.**
 
 Fresh Task Catalog grounding:
 
-- objective: implement delivery Region and CarrierSetup applicability with weight/volume ranges, unique priority tie-break and Supervisor manual fallback/override;
-- Architect source/reference: P1 R31–R32, P1 R33–R34, P1 R51–R52, P1 exception — no Carrier Selection result;
-- requirements: `FR-P1-16`, `FR-P1-17`, `FR-P1-26`, `FR-P5-10`;
-- dependencies: `P1-011`, `P1-008` — satisfied;
-- target components: Carrier master adapter, Region, CarrierSetup, Carrier selection service, Mercato Supervisor UI.
+- objective: generate/print label from WMS-owned data and support architect-permitted carrier correction before manifest close without introducing carrier Label API;
+- Architect source/reference: P1 R33–R34, P1 R35–R36, P1 exception — label error / carrier rejection boundary;
+- requirements: `FR-P1-17`, `FR-P1-18`, `FR-P5-11`;
+- dependencies: `P1-012` — satisfied;
+- target components: Shipment label service, Mercato print UI;
+- acceptance: `TC-001`, `TC-007`, `TC-066`.
 
-Do not absorb label generation, ERP posting, manifest or dispatch work into P1-012 unless the exact current Architect/Task Catalog places it there. Re-ground exact P1-012 acceptance scenarios and source before execution.
+Current execution guide:
+
+`06_AGENT_GUIDES/P1-013_EXECUTION.md`
+
+Do not absorb ERP posting (`P1-014`), CarrierManifest lifecycle (`P1-015`) or final settlement (`P1-016`). Do not introduce an external carrier label API/provider acceptance/rejection lifecycle.
 
 ## Authority and architecture-context rule
 
@@ -97,12 +113,8 @@ Current operational mirror in Devaxonic-WMS:
 
 ## Operating workflow
 
-The currently persisted workflow remains:
+The persisted workflow remains:
 
 `06_AGENT_GUIDES/GIT_PROMPT_WORKFLOW.md`
 
-Do not change steering/control files without explicit owner acceptance. Detailed executor instructions should live in Git; owner-facing launch prompts should remain microscopic; supervisor independently verifies refs/diffs/evidence and should not request long executor logs or secrets from the owner.
-
-## Blockers
-
-No current product/architecture blocker is recorded for starting `P1-012` after fresh grounding.
+Detailed executor instructions live in Git; owner-facing launch prompts stay microscopic; supervisor independently verifies refs/diffs/evidence. Testing uses designated Testing credentials/configuration; do not rotate Testing credentials unless the owner explicitly changes that rule.

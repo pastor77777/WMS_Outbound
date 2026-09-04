@@ -10,10 +10,10 @@
 | Subject | Verified revision / identity |
 |---|---|
 | Mercato accepted P1-014 base | `bef7c0a3e0995e7ecddb29156bdfa3777463a6b6` |
-| Mercato P1-015 original head | `71ba80fbe0ab221ff4484b4ad7f6d2256f57d8b8` on `outbound/p1-015` |
-| Mercato P1-015 remediation head | `f9b0b89cbd05d723ca36501c5dfb1dd57ce8a2e4` on `outbound/p1-015` (pushed 2026-09-04) |
+| Mercato P1-015 original head | `71ba80fbe0ab221ff4484b4ad7f6d2256f57d8b8` on `outbound/p1-015` (superseded by remediation) |
+| Mercato P1-015 final remediation head | `f9b0b89cbd05d723ca36501c5dfb1dd57ce8a2e4` on `outbound/p1-015` |
 | Lineage / compare | 2 commits ahead of accepted P1-014 base; merge base: `bef7c0a3e0995e7ecddb29156bdfa3777463a6b6` |
-| Served Testing Mercato runtime revision | `71ba80fbe0ab221ff4484b4ad7f6d2256f57d8b8` (served via `mercato-localhost.service` at `https://devaxonic-test.info-start.com.pl`) — Playwright journeys executed against this SHA; remediation fixes are unit/integration tested on `f9b0b89cbd05d723ca36501c5dfb1dd57ce8a2e4` |
+| Served Testing Mercato runtime revision | `f9b0b89cbd05d723ca36501c5dfb1dd57ce8a2e4` — canonical `/home/ubuntu/git/Devaxonic-mercato` worktree was clean at that HEAD, production build completed, then `mercato-localhost.service` restarted at `2026-09-04 23:49:14 UTC`; both `http://localhost:3009/login` and `https://devaxonic-test.info-start.com.pl/login` returned HTTP 200 before the fresh run |
 | Frozen Scanner head | `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` on `outbound/p1-009` (verified untouched, clean working tree) |
 | Devaxonic-WMS steering | `3f46432cc75899c80be38ec9206d61b9a544f416` (untouched) |
 | WMS_Outbound base | `0d9b1f88319d2c8b202b6c75a9f21c5c74f53e75` on `main` |
@@ -24,30 +24,30 @@ All database-backed commands sourced `/etc/mercato-localhost.env` in their execu
 
 ## Exact Git Compare Statistics
 
-Git compare: `bef7c0a3e0995e7ecddb29156bdfa3777463a6b6..71ba80fbe0ab221ff4484b4ad7f6d2256f57d8b8`
+Git compare: `bef7c0a3e0995e7ecddb29156bdfa3777463a6b6..f9b0b89cbd05d723ca36501c5dfb1dd57ce8a2e4`
 
 ```text
- apps/mercato/src/modules/wms_outbound/__integration__/P1-015-manifest-dispatch-ui.spec.ts |  732 +++++++++++++++++++++++++
- apps/mercato/src/modules/wms_outbound/api/manifests/[id]/add-shipment/route.ts            |   41 ++
- apps/mercato/src/modules/wms_outbound/api/manifests/[id]/close/route.ts                   |   40 ++
- apps/mercato/src/modules/wms_outbound/api/manifests/[id]/confirm/route.ts                 |   40 ++
- apps/mercato/src/modules/wms_outbound/api/manifests/[id]/handover/route.ts                |   40 ++
- apps/mercato/src/modules/wms_outbound/api/manifests/[id]/route.ts                         |   28 +
- apps/mercato/src/modules/wms_outbound/api/manifests/route.ts                              |   72 +++
- apps/mercato/src/modules/wms_outbound/api/shipments/[id]/add-to-manifest/route.ts         |   45 ++
- apps/mercato/src/modules/wms_outbound/backend/manifests/[id]/page.tsx                     |  441 +++++++++++++++
- apps/mercato/src/modules/wms_outbound/backend/manifests/page.tsx                         |  263 +++++++++
- apps/mercato/src/modules/wms_outbound/backend/shipments/[id]/page.tsx                    |   45 +-
- apps/mercato/src/modules/wms_outbound/data/entities.ts                                   |   70 +++
- apps/mercato/src/modules/wms_outbound/data/transitions.ts                                |   18 +
- apps/mercato/src/modules/wms_outbound/data/validators.ts                                 |    8 +
+ .../P1-015-manifest-dispatch-ui.spec.ts            |  732 ++++++++
+ .../api/manifests/[id]/add-shipment/route.ts       |   41 +
+ .../wms_outbound/api/manifests/[id]/close/route.ts |   40 +
+ .../api/manifests/[id]/confirm/route.ts            |   40 +
+ .../api/manifests/[id]/handover/route.ts           |   40 +
+ .../wms_outbound/api/manifests/[id]/route.ts       |   28 +
+ .../modules/wms_outbound/api/manifests/route.ts    |   72 +
+ .../api/shipments/[id]/add-to-manifest/route.ts    |   45 +
+ .../wms_outbound/backend/manifests/[id]/page.tsx   |  441 +++++
+ .../wms_outbound/backend/manifests/page.tsx        |  263 +++
+ .../wms_outbound/backend/shipments/[id]/page.tsx   |   45 +-
+ .../src/modules/wms_outbound/data/entities.ts      |   70 +
+ .../src/modules/wms_outbound/data/transitions.ts   |   18 +
+ .../src/modules/wms_outbound/data/validators.ts    |    8 +
  apps/mercato/src/modules/wms_outbound/di.ts                                               |    7 +
- apps/mercato/src/modules/wms_outbound/migrations/Migration20260904220000_wms_outbound_p1_015.ts |   64 +++
- apps/mercato/src/modules/wms_outbound/services/__tests__/p1-015-manifest-lifecycle-postgres.integration.test.ts | 1546 +++++++++++++++++++++++++++++++++++++++++++++++++++
- apps/mercato/src/modules/wms_outbound/services/carrier-selection-service.ts               |   40 +-
- apps/mercato/src/modules/wms_outbound/services/manifest-service.ts                       |  640 +++++++++++++++++++++
- apps/mercato/src/modules/wms_outbound/services/state-transition-service.ts                |   12 +
- 20 files changed, 4183 insertions(+), 9 deletions(-)
+ .../Migration20260904220000_wms_outbound_p1_015.ts |   64 +
+ ...manifest-lifecycle-postgres.integration.test.ts | 1818 ++++++++++++++++++++
+ .../services/carrier-selection-service.ts          |   62 +-
+ .../wms_outbound/services/manifest-service.ts      |  669 +++++++
+ .../services/state-transition-service.ts           |   12 +
+ 20 files changed, 4504 insertions(+), 11 deletions(-)
 ```
 
 ## Schema & Migration Facts (Literal Committed DDL)
@@ -236,19 +236,22 @@ Each test captures `pg_backend_pid()` per session before blocking and polls `pg_
 
 ## Playwright Rendered UI Verification (6/6 PASSED)
 
-Executed against `https://devaxonic-test.info-start.com.pl` (served via `mercato-localhost.service` on commit `71ba80fbe0ab221ff4484b4ad7f6d2256f57d8b8`):
+Freshly executed against `https://devaxonic-test.info-start.com.pl` after the exact final `f9b0b89cbd05d723ca36501c5dfb1dd57ce8a2e4` worktree build and `mercato-localhost.service` restart. Command (with `/etc/mercato-localhost.env` sourced in the same shell):
 
 ```text
-Running 6 tests using 1 worker
+PLAYWRIGHT_TEST_BASE_URL=https://devaxonic-test.info-start.com.pl yarn playwright test --config .ai/qa/tests/playwright.config.ts apps/mercato/src/modules/wms_outbound/__integration__/P1-015-manifest-dispatch-ui.spec.ts
+```
 
-  ✓  1 Journey A (PLAYWRIGHT VERIFIED): Authorized Dispatcher opens new manifest and adds POSTED shipment (P1 R39, FR-P1-20, TC-001) (23.6s)
-  ✓  2 Journey B (PLAYWRIGHT VERIFIED): Uniqueness and invalid membership boundary fails closed (P1 R39, FR-P1-20) (13.3s)
-  ✓  3 Journey C (PLAYWRIGHT VERIFIED): Close freezes composition & carrier correction is blocked post-close without label reprint (P1 R35, P1 R40, FR-P1-20) (20.3s)
-  ✓  4 Journey D (PLAYWRIGHT VERIFIED): Physical handover transitions manifest to HANDED_OVER, shipments to HANDED_TO_CARRIER, TUs to DISPATCHED (P1 step 13, R41) (13.8s)
-  ✓  5 Journey E (PLAYWRIGHT VERIFIED): Final warehouse confirmation establishes exactly-once boundary without P1-016 downstream settlement (P1 step 13, R70, P1-016 boundary) (15.4s)
-  ✓  6 Journey F (PLAYWRIGHT VERIFIED): Non-authorized operator lifecycle actions fail closed under server-authoritative RBAC (13.5s)
+Final JSON reporter result:
 
-  6 passed (1.8m)
+```text
+startTime: 2026-09-04T23:49:52.937Z
+duration: 242034.537ms
+expected: 6
+skipped: 0
+unexpected: 0
+flaky: 0
+errors: []
 ```
 
 ### Rendered Journey Details (6/6)
@@ -306,7 +309,7 @@ Running 6 tests using 1 worker
 Devaxonic-mercato: clean (outbound/p1-015 @ f9b0b89cbd05d723ca36501c5dfb1dd57ce8a2e4) [remediation commit]
 Devaxonic-scanner: clean (outbound/p1-009 @ f4a404600efb1120cb2f1c5b86383ad148cd1e1a)
 Devaxonic-WMS:     clean (main @ 3f46432cc75899c80be38ec9206d61b9a544f416)
-WMS_Outbound:      clean (main @ b08072d793fed4c5461686de17a729fa7640868c)
+WMS_Outbound:      clean at the evidence commit pushed by this closeout
 ```
 
 ## Explicit Scope Exclusions Obeyed

@@ -1,174 +1,162 @@
-# WMS Outbound — Git Prompt / Antigravity Supervisor Workflow
+# WMS Outbound — Git Prompt / Executor Supervisor Workflow
 
 **Status:** current operating protocol  
-**Effective:** 2026-09-03  
+**Effective:** 2026-09-04  
 **Applies to:** WMS Outbound delegated implementation, remediation, evidence and acceptance work
 
 ## Purpose
 
-This file records the working method agreed with the owner so a fresh supervisor chat does not need to rediscover it.
+Detailed executor instructions live in Git. The owner should only need to send a microscopic launch message and later return `done` or the executor's short final report.
 
-The owner must not be asked to copy/paste long Antigravity logs or evidence into chat. Prompt content, acceptance constraints and remediation instructions are persisted in Git first; Antigravity reads them locally; after the owner says `done`, the supervisor independently retrieves and verifies current Git refs/evidence.
+Do not burden the owner with large prompts, terminal logs, test output, screenshots, SHAs or secrets that the supervisor can verify independently.
 
 ## Authority before execution
 
-For every Outbound shot:
+For every shot:
 
-1. Load current installed `wms-outbound` skill for Outbound routing/authority.
-2. Load current installed `architecture-context` only for accepted Inbound/shared-foundation compatibility context. It must not redefine Outbound business rules.
-3. Load current `fetch_me_prompt` + `operational-mode` before delegated execution.
-4. For DB/concurrency/integration/UI work, also refresh current `REAL_EVIDENCE_CONTRACT.md`, `.ai/TESTING.md`, `.ai/OPERATIONS.md`.
-5. Ground exact current task in `TASK_CATALOG.md`, Architect Source/faithful translation, requirements and acceptance scenarios.
-6. Current source wins if stricter than an older guide or handover.
+1. read current `WMS_Outbound/STATE.md` and current handover;
+2. ground the exact item in `TASK_CATALOG.md`, Architect/canon, requirements and acceptance scenarios;
+3. follow the canonical Devaxonic-WMS execution contract in `Devaxonic-WMS/AGENTS.md`, `.ai/TESTING.md` and `.ai/OPERATIONS.md`;
+4. independently verify current implementation/evidence refs before writing the guide.
+
+Current source wins over an older guide or old chat history.
 
 ## Canonical rhythm
 
 **SHOT -> RECEIVE -> VERIFY EVIDENCE -> NEXT SHOT**
 
-### 1. Supervisor writes the shot to Git first
+### 1. Put the detailed shot in Git
 
-The supervisor creates or updates a bounded file in `WMS_Outbound/06_AGENT_GUIDES/` before asking the owner to launch Antigravity.
+Before launch, create or update a bounded task guide under:
 
-Preferred naming:
+`WMS_Outbound/06_AGENT_GUIDES/`
 
-- initial execution: `<TASK>_EXECUTION.md`;
-- bounded remediation: `<TASK>_REMEDIATION.md` or a clearly numbered closeout/override file;
-- final evidence-only gate: explicit `FINAL_ACCEPTANCE` / `CLOSEOUT` file.
+The guide carries all material detail the executor needs locally:
 
-The guide must contain enough context that Antigravity can execute from the local checkout without receiving a giant chat prompt.
-
-It must specify:
-
-- exact authoritative task/rules/acceptance mapping;
-- exact known current bases/heads where relevant;
-- exact scope and hard exclusions;
-- real evidence requirements;
-- whether product changes are allowed or evidence-only;
+- task/source/acceptance scope;
+- known current bases/heads where relevant;
+- exact allowed files/behavior and hard exclusions;
+- decisive real evidence requirements;
+- whether product/test/evidence changes are allowed;
 - STOP condition;
-- two-strikes status where applicable.
+- two-strikes/override status where applicable.
 
-### 2. Owner receives only a short launch prompt
+Do not rely on chat-session memory for correctness.
 
-After the guide is pushed, the owner gets a compact prompt similar to:
+Preferred naming remains task-specific, e.g. `<TASK>_EXECUTION.md`, `<TASK>_REMEDIATION.md`, `<TASK>_CLOSEOUT.md`.
+
+### 2. Owner-facing launch prompt is microscopic
+
+If the guide exists in Git, **do not paste the ticket into chat again**.
+
+Normal launch prompt should be 2–4 lines, for example:
 
 ```text
-Continue <TASK> in the SAME Antigravity session.
-
-FIRST sync the existing local `WMS_Outbound` checkout with remote `main`, preserving unrelated local work.
-
-Then read and execute ONLY:
+Sync WMS_Outbound/main and execute ONLY:
 `06_AGENT_GUIDES/<GUIDE>.md`
 
-Push the required implementation/evidence, then STOP.
+Push required implementation/evidence, then STOP.
 ```
 
-Do not paste the full ticket into chat if it is already in Git.
+Add `continue in the same session` only when session continuity is intentionally useful. Do not make it a hidden requirement.
 
-### 3. Same Antigravity session only
+### 3. Executor-neutral operation
 
-- Continue the existing valuable interactive Antigravity session.
-- Never restart/replace it or silently launch a second session.
-- Preferred wrapper is `/home/ubuntu/.local/bin/agy-pl`; never bare `agy`.
-- Preserve unrelated local work while synchronizing `WMS_Outbound` main.
+The owner selects the executor/venue.
 
-### 4. Owner replies only `done`
+Codex, Antigravity and Claude may execute the same Git guide when authorized and operating under the canonical Devaxonic-WMS contract.
 
-The normal return message from the owner is simply `done` / `już`.
+- Do not silently switch executor/model/venue to escape a blocker.
+- A fresh executor session is valid when owner-selected; it must bootstrap from Git/state, not old chat memory.
+- A same-session continuation is also valid when useful.
+- Executor choice must not change business truth, evidence rules or repository paths.
 
-Do **not** ask the owner to paste:
+Antigravity-specific launch mechanics belong in `Devaxonic-WMS/.ai/OPERATIONS.md`, not in this workflow.
 
-- Antigravity terminal logs;
+### 4. Receive
+
+Normal owner return is simply `done` or the executor's short final report.
+
+Do not ask the owner to paste:
+
+- terminal logs;
 - test output;
-- commit SHAs;
-- evidence documents;
+- branch lists;
 - screenshots;
-- branch lists.
+- long evidence documents;
+- secrets.
 
-### 5. Supervisor independently fetches current state
-
-After `done`, the supervisor must independently inspect connected current sources, normally GitHub and current repo documents.
-
-At minimum verify as relevant:
-
-- exact branch HEADs and 40-char SHAs;
-- parent/lineage from accepted bases;
-- compare/diff scope;
-- no unrelated product changes;
-- exact production/service/test implementation for decisive claims;
-- evidence file consistency with current refs;
-- migration implementation and real migrator path when migration proof is claimed;
-- targeted regression commands/counts;
-- Playwright provenance and evidence label;
-- Scanner/Mercato heads and shared compatibility gates;
-- WMS steering/evidence commit.
+### 5. Supervisor independently verifies
 
 Executor prose is never acceptance by itself.
 
-If a remote branch/report is unexpectedly missing immediately after Antigravity work, consider IPS/sync delay before concluding absence.
+Verify as relevant:
 
-### 6. Acceptance language
+- exact branch HEADs / 40-char SHAs;
+- lineage from accepted bases;
+- compare/diff scope;
+- no unrelated changes;
+- actual decisive product/test implementation;
+- migration path if claimed;
+- literal targeted test/evidence outputs in durable evidence;
+- real PostgreSQL/concurrency/rollback provenance;
+- Playwright runtime/revision and truthful evidence label;
+- unaffected frozen repo heads;
+- WMS evidence/state/handover commit scope.
 
-- Automated browser proof is `PLAYWRIGHT VERIFIED`, never automatically `HUMAN VERIFIED`.
-- Real DB proof is classified according to what genuinely executed.
-- A final owner acceptance can close an item based on reviewed automated evidence when the owner explicitly accepts that basis; the underlying evidence label remains truthful (`PLAYWRIGHT VERIFIED`).
-- Never self-declare `FINAL PASS` before supervisor verification and required owner acceptance boundary.
+### 6. Acceptance
+
+- Automated browser proof is `PLAYWRIGHT VERIFIED`.
+- Never relabel automation as `HUMAN VERIFIED`.
+- Supervisor verifies evidence first.
+- `FINAL PASS / Owner Accepted` occurs only after explicit owner acceptance at the required boundary.
+- After owner acceptance, update durable STATE/handover as appropriate.
 
 ### 7. Two-strikes / STOP
 
 For the same material path:
 
-- attempt 1 may receive one corrective retry;
-- after a materially identical second failure: STOP;
-- do not invent a third workaround, alternate fake proof, executor switch or scope expansion without explicit owner override (`dalej` / equivalent);
-- each explicit owner override permits one narrow additional shot only.
+- one initial attempt;
+- one genuine corrective attempt;
+- after materially identical second failure: STOP unless the owner explicitly authorizes a narrow additional shot.
 
-When STOP is active, report the exact remaining blocker and current refs. Do not auto-generate the next remediation.
+Each explicit override permits only the authorized narrow extra shot.
 
-## Real evidence rules that must survive fresh chats
+After STOP, report the exact blocker/current refs. Do not automatically invent another remediation, switch executor or broaden scope.
 
-- Real PostgreSQL means real MikroORM/PostgreSQL against the approved Testing DB; no fake/in-memory EntityManager, JavaScript `Map`, simulated SQL/PG errors or fake locks.
-- Real concurrency requires independent overlapping DB operations/transactions and decisive PostgreSQL-side evidence tied to actual participants/PIDs.
-- Real rollback requires a real write/flush inside a transaction, deterministic failure before commit, and a fresh independent read proving no partial commit.
-- A migration lifecycle claim uses the project-approved real migration path/MikroORM `Migrator` when available. Do not replace it with hand-written DDL, shadow tables, `getQueries() -> em.execute()` replay or broad data deletion.
-- Playwright must perform the decisive intended-actor action through the real rendered UI; API/DB may establish deterministic preconditions or verify persistence but cannot replace the user action.
-- Inbound is CLOSED / REFERENCE. Run only targeted shared compatibility regressions when shared Inventory/TU/warehouse/lock/orchestration primitives are impacted.
+## Real evidence invariants
 
-## Architecture-context boundary
+The detailed evidence contract lives in Devaxonic-WMS `.ai/TESTING.md` and `WMS_Outbound/05_EVIDENCE/EVIDENCE_STANDARD.md`.
 
-`wms-outbound` defines where current Outbound business authority is read from. `architecture-context` contributes accepted shared/Inbound architecture compatibility knowledge only.
+Do not weaken these basics:
 
-Examples of what this prevents:
-
-- treating future P4 PutBackTask/RF lifecycle as an intrinsic P1-007 implementation requirement when the P1-007 execution boundary only requires a durable physical-return handoff;
-- changing Outbound R-rules to fit old Inbound behavior;
-- accepting shared primitive regressions merely because Outbound tests pass.
+- persistence/lock/concurrency/rollback claims use genuine approved Testing PostgreSQL mechanisms;
+- concurrency uses independent overlapping operations plus PostgreSQL-side evidence;
+- rollback crosses a real write/flush/failure-before-commit and fresh independent read;
+- Playwright performs the decisive intended-actor action through the rendered UI;
+- fixture APIs/DB may prepare state but cannot substitute the accepted user action.
 
 ## Repo roles
 
-- `pastor77777/WMS_Outbound` — authoritative Outbound Architect/canon/traceability/task/evidence/guide/state/handover repository.
+- `pastor77777/WMS_Outbound` — Architect/canon/traceability/task/evidence/guide/state/handover.
+- `pastor77777/Devaxonic-WMS` — canonical session entrypoint and operational/testing steering.
 - `pastor77777/Devaxonic-mercato` — Mercato/backend implementation and tests.
-- `pastor77777/Devaxonic-scanner` — Scanner implementation and Playwright tests.
-- `pastor77777/Devaxonic-WMS` — operational steering/testing/operations mirror and fresh-session handover.
+- `pastor77777/Devaxonic-scanner` — Scanner implementation and tests.
 
-## Fresh-chat startup rule
+## Steering boundary
 
-A fresh supervisor should first read:
+Durable steering/control changes require explicit owner acceptance before application.
 
-1. `WMS_Outbound/08_HANDOVER/HANDOVER_CURRENT_2026-09-03.md` (or later current handover);
-2. `WMS_Outbound/STATE.md`;
-3. this file;
-4. `Devaxonic-WMS/.ai/HANDOVER_OUTBOUND_CURRENT_2026-09-03.md` (or later);
-5. `Devaxonic-WMS/.ai/STATE.md`, `.ai/PLAN.md`, `.ai/TESTING.md`, `.ai/OPERATIONS.md`;
-6. exact next task Architect/requirements/acceptance sources.
+Task guides are execution artifacts under the authorized task scope; changes to this workflow, `AGENTS.md`, `.ai/TESTING.md`, `.ai/OPERATIONS.md`, persistent memory routing or equivalent control files require owner acceptance.
 
-Then independently verify current Git refs before creating the next guide.
+## Fresh-session rule
 
-## Owner-facing communication style
+A fresh supervisor/executor must read current state/handover and this workflow from Git. Do not hard-code mutable progress, next-task SHAs or checkpoint data into generic startup/operations files.
 
-Keep owner-facing messages short and operational:
+## Owner-facing communication
 
-- what was verified;
-- PASS / exact blocker;
-- one short Antigravity launch prompt if another shot is authorized.
+Keep it operational:
 
-Do not burden the owner with executor logs that the supervisor can fetch independently.
+- verified PASS or exact blocker;
+- one microscopic launch prompt when another shot is authorized;
+- otherwise STOP.

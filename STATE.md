@@ -4,7 +4,7 @@
 **Campaign:** WMS Outbound v1  
 **Architecture:** implementation-ready; no unresolved product/architecture blocker recorded  
 **Current phase:** product implementation  
-**Implementation progress:** **16/37 items FINAL PASS**
+**Implementation progress:** **17/37 items FINAL PASS**
 
 ## Architect baseline
 
@@ -40,83 +40,73 @@ The plan is delivery decomposition only. Architect Source/Canon remains business
 10. `P1-006` — FINAL PASS / Human Verified — Mercato `353a5001cb8f1941971f960e509a8af643e41e5a` / Scanner `7596b7802e7ed55a59dd6dc1f21912ea6331e796` / evidence `43cc7d0e7dd20a48fc00b40150b30275d0c2aa12`
 11. `P1-007` — FINAL PASS / Owner Accepted — Mercato `134db31381b4db726cd550abe6ecd4079ac21d8c` / Scanner `b23325aae1c4f83b79d01b3650dbead3486a1041` / evidence `10be7a6e2c10a05d1fe5ce6dc5aacdd93dc400a8`
 12. `P1-009` — FINAL PASS / Owner Accepted — Mercato `5d780dabeb605bc657bb521bd2b2fdcc2e516f77` / Scanner `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `6c78a97ece567d90d3cb7d0580bb38669c9f9722`
-13. `P1-010` — FINAL PASS / Owner Accepted — Mercato `19dbf77d9dbf5a36b36adc88a9dbb6debdd15643` / Scanner frozen reference `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `b5bb6429717402e0fb6969f7437ddaf673a8a174`
-14. `P1-011` — FINAL PASS / Owner Accepted — Mercato `20887f2d74928cf69f447fdd6af20a612f38387c` / Scanner frozen reference `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `90cc30fc2db15c40d80ef69cb03ffb1e107b51dc`.
-15. `P1-012` — FINAL PASS / Owner Accepted — Mercato `5019a20be14549ff8cbbf25af5bc61c56888e9e1` / Scanner frozen reference `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `b28f59e7ff41ac6d0a3be4b841410650bc5acd8b`.
-16. `P1-013` — FINAL PASS / Owner Accepted — Mercato `5e6b70aa81afd28fe3217e4aad216e8a6482a769` / Scanner frozen reference `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `826b9c477fa86a44a93606265868730e4570ff90`.
+13. `P1-010` — FINAL PASS / Owner Accepted — Mercato `19dbf77d9dbf5a36b36adc88a9dbb6debdd15643` / Scanner frozen `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `b5bb6429717402e0fb6969f7437ddaf673a8a174`
+14. `P1-011` — FINAL PASS / Owner Accepted — Mercato `20887f2d74928cf69f447fdd6af20a612f38387c` / Scanner frozen `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `90cc30fc2db15c40d80ef69cb03ffb1e107b51dc`
+15. `P1-012` — FINAL PASS / Owner Accepted — Mercato `5019a20be14549ff8cbbf25af5bc61c56888e9e1` / Scanner frozen `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `b28f59e7ff41ac6d0a3be4b841410650bc5acd8b`
+16. `P1-013` — FINAL PASS / Owner Accepted — Mercato `5e6b70aa81afd28fe3217e4aad216e8a6482a769` / Scanner frozen `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `826b9c477fa86a44a93606265868730e4570ff90`
+17. `P1-014` — FINAL PASS / Owner Accepted — Mercato `bef7c0a3e0995e7ecddb29156bdfa3777463a6b6` / Scanner frozen `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `b97f1640621b5b01571efec313b7fa0325c1aedf`
 
-## P1-012 accepted boundary
-
-Preserve these accepted behaviors:
-
-- Carrier Selection starts only from Shipment `READY_FOR_DISPATCH` and uses delivery Region, largest current Packing-TU weight and largest `TUSetup.maxVolume` of the attached TU types.
-- Deterministic winner order is narrowest matching volume range, then narrowest matching weight range, then unique `Carrier.priority`; unresolved ambiguity fails closed.
-- No match yields `CARRIER_PENDING`; general manual selection and any override require real server-authoritative Warehouse Supervisor authority.
-- EXTERNAL TU without positive `maxVolume` never receives fabricated volume: Dispatcher may record a carrier choice but Shipment remains `CARRIER_PENDING` until real Supervisor approval.
-- Client-supplied role/approval fields cannot elevate authority; audit identity/role is derived server-side from authenticated RBAC context.
-- Supervisor override reason is optional.
-- P1-012 does not implement label generation, external carrier API, manifest, ERP posting or settlement.
-
-Accepted proof in `05_EVIDENCE/P1-012_EVIDENCE.md`:
-
-- final Mercato head `5019a20be14549ff8cbbf25af5bc61c56888e9e1`, exactly two commits after accepted P1-011 base `20887f2d74928cf69f447fdd6af20a612f38387c`;
-- P1-012 genuine PostgreSQL suite **14/14**;
-- P1-011 PostgreSQL regression **18/18**;
-- state transition invariant suite **77/77**;
-- P1-012 Mercato Playwright **5/5**;
-- automated UI evidence remains `PLAYWRIGHT VERIFIED`, not Human Verified.
-
-## P1-013 accepted boundary
+## P1-014 accepted boundary
 
 Preserve these accepted behaviors:
 
-- External-carrier label generation starts only after `Shipment CARRIER_SELECTED`; successful local generation advances `CARRIER_SELECTED → LABEL_GENERATED`.
-- `OWN_TRANSPORT` skips label generation.
-- Label payload/tracking data is generated from WMS-owned persisted Shipment/Packing-TU/Carrier/address data; v1 has no external Carrier Label API, carrier acceptance step or electronic provider-rejection lifecycle.
-- Generation/retry is idempotent: repeated generation returns the same durable local label without duplicate label rows or duplicate `ShipmentLabelGenerated` transition facts.
-- Local print/reprint updates local print evidence only; it does not call an external carrier API and does not regress/advance the Shipment business state.
-- The P1-012 EXTERNAL-TU missing-`maxVolume` approval gate remains intact; label generation cannot bypass required real Supervisor approval.
-- Before the future `CarrierManifest.CLOSED` boundary, a real server-authoritative Warehouse Supervisor may correct the Carrier on a `LABEL_GENERATED` Shipment; correction preserves `LABEL_GENERATED` and does not automatically regenerate or reprint the existing label.
-- Full `CarrierManifest` persistence/lifecycle and the exact post-`CLOSED` correction guard remain owned by P1-015.
-- P1-013 does not implement ERP posting, manifest lifecycle, final settlement, Scanner changes, or external carrier-provider behavior.
+- initial ERP posting is allowed only from Shipment `LABEL_GENERATED` or `OWN_TRANSPORT` and durably enters `POSTING_PENDING`;
+- the approved implementation uses an explicit deterministic Testing ERP adapter/contract seam; it does **not** claim a real external ERP endpoint;
+- explicit adapter acceptance advances `POSTING_PENDING → POSTED` and explicit structured business rejection advances `POSTING_PENDING → POSTING_ERROR`;
+- timeout/no-response is a technical incident and leaves the Shipment in `POSTING_PENDING`; it is not reclassified as business `POSTING_ERROR`;
+- real server-authoritative Warehouse Supervisor authority is required for `POSTING_ERROR → POSTING_PENDING` retry and `POSTING_ERROR → CANCELLED` give-up; non-Supervisor actions fail closed;
+- direct cancellation from `POSTING_PENDING` or `POSTED` is forbidden;
+- repeated/concurrent initial posting is idempotent: a duplicate arriving while the original call is in Phase 2 returns an explicit in-flight replay and does not create a second posting row, attempt, transition or ERP adapter invocation;
+- post-settlement duplicate calls return a safe replay without state regression;
+- P1-014 does not implement `POSTED → IN_MANIFEST`, CarrierManifest lifecycle, final inventory/order settlement, Scanner changes, Return Receipt or Prod/Demo behavior.
 
-Accepted proof in `05_EVIDENCE/P1-013_EVIDENCE.md`:
+Accepted proof in `05_EVIDENCE/P1-014_EVIDENCE.md`:
 
-- final Mercato closeout head `5e6b70aa81afd28fe3217e4aad216e8a6482a769`, exactly three commits after accepted P1-012 base `5019a20be14549ff8cbbf25af5bc61c56888e9e1`;
-- P1-013 genuine PostgreSQL suite **15/15**, including exact A↔B backend PID lock proof (`pidA=2042578`, `pidB=2042579`, `blockedPid=pidB`, `pg_blocking_pids(pidB)` contains `pidA`, `waitEventType='Lock'`) and fresh one-label/one-event replay proof;
-- P1-012 regression **14/14**;
-- P1-011 regression **18/18**;
-- state transition invariant suite **77/77**;
-- P1-013 Mercato Playwright **4/4** against served product revision `7f8185c3eccaf1b04fd46027616b0286d4c87fd1`; later P1-013 commits changed only test code, not served product runtime files;
-- final Mercato/WMS worktrees recorded clean;
-- automated UI evidence remains `PLAYWRIGHT VERIFIED`, not Human Verified.
+- final Mercato head `bef7c0a3e0995e7ecddb29156bdfa3777463a6b6`, exactly two commits after accepted P1-013 base `5e6b70aa81afd28fe3217e4aad216e8a6482a769`;
+- P1-014 PostgreSQL **18/18**, including two real `postShipment()` service calls, exact PostgreSQL lock contention, one posting row, one attempt, one `ShipmentPostingRequested`, one `ShipmentPosted` and exactly one Testing adapter call;
+- P1-013 regression **15/15**, P1-012 **14/14**, P1-011 **18/18**, FND-002 state transitions **77/77**, FND-002 transaction simulation **8/8**;
+- P1-014 Playwright **5/5** against served runtime `bef7c0a3e0995e7ecddb29156bdfa3777463a6b6`, including non-Supervisor fail-closed, no manifest action and timeout/non-business boundary;
+- final worktrees recorded clean and Scanner remained frozen.
 
 ## Current position
 
-Completed: **16/37**.
+Completed: **17/37**.
 
 Next implementation item:
 
-**P1-014 — ERP Shipment POST, error state and safe retry — item 17/37.**
+**P1-015 — CarrierManifest lifecycle and dispatch boundaries — item 18/37.**
 
 Fresh Task Catalog grounding:
 
-- objective: implement `POSTING_PENDING` / `POSTED` / `POSTING_ERROR` around Shipment POST to ERP, with durable attempt evidence, correlation/idempotency and safe manual retry;
-- Architect source/reference: P1 R35–R38 and KROK 11A, plus exactly-once downstream-effect boundary traced through `CON-05`;
-- requirements: `FR-P1-18`, `FR-P1-19`, `INT-04`, `INT-05`, `CON-05`;
-- dependencies: `P1-011`, `P1-013`, `FND-002` — satisfied;
-- target components: Shipment posting service, `wms_orchestration` outbox/retry, ERP adapter, Mercato Supervisor error/retry surface;
-- acceptance: `TC-001`, `TC-007`, `TC-008`.
+- objective: implement one-manifest assignment and `CarrierManifest OPEN → CLOSED → HANDED_OVER → CONFIRMED`, with irreversible `CLOSED` composition boundary and final warehouse-confirmation event;
+- Architect source: P1 KROK 12–13, R39–R40 and manifest-related state/event rules;
+- requirements traced by the task: `FR-P1-20`, `FR-P1-44`, `FR-P1-46`, `CON-04`, `CON-05`;
+- dependency: `P1-014` — satisfied;
+- target components: `CarrierManifest`, Shipment membership and Mercato dispatch/Supervisor UI;
+- acceptance mapping: `TC-001`, `TC-008`, `TC-128`, `TC-129`, `TC-132`, `TC-133`;
+- task DoD: `CLOSED` is irreversible and distinct from physical handover; duplicate confirmation has one business effect.
 
-Current execution guide:
+Authoritative P1 behavior for this boundary:
 
-`06_AGENT_GUIDES/P1-014_EXECUTION.md`
+- only `Shipment POSTED` may be added to an `OPEN` manifest; add advances Shipment `POSTED → IN_MANIFEST`;
+- one Shipment may belong to exactly one manifest;
+- `OPEN → CLOSED` is irreversible and freezes composition; after `CLOSED` no add/remove/reopen, Shipment cancellation or Carrier correction may be permitted;
+- `CLOSED → HANDED_OVER` represents physical carrier/self-transport handover and advances included Shipments `IN_MANIFEST → HANDED_TO_CARRIER`;
+- `HANDED_OVER → CONFIRMED` is the final warehouse confirmation and must be idempotent/exactly-once;
+- P1-015 must create a durable, deterministic confirmation boundary/event suitable for downstream settlement without performing the final `Inventory`/`Allocation`/`OutboundOrderLine`/`CustomerOrder` settlement owned by `P1-016`;
+- do not use legacy `carrier_shipments` as the target CarrierManifest truth merely because it exists;
+- no external carrier API is required;
+- Scanner remains frozen unless current product inspection proves the authorized manifest handover action is already scanner-owned; do not move it to Scanner by invention.
 
-P1-014 Mercato branch must start from exact accepted P1-013 SHA:
+Current executor guide:
 
-`5e6b70aa81afd28fe3217e4aad216e8a6482a769`
+`06_AGENT_GUIDES/P1-015_EXECUTION.md`
 
-Do not absorb `P1-015` CarrierManifest lifecycle, `P1-016` final settlement, Crossdock GR gating, Scanner work, or Return Receipt behavior. Do not invent an ERP endpoint/credential or claim real external ERP verification unless such an approved integration actually exists and is exercised.
+P1-015 Mercato branch must start from exact accepted P1-014 SHA:
+
+`bef7c0a3e0995e7ecddb29156bdfa3777463a6b6`
+
+Do not absorb `P1-016` final settlement/cancellation work, Crossdock GR gating, Return Receipt, external carrier APIs, unrelated Scanner work or Prod/Demo changes.
 
 ## Authority and architecture-context rule
 

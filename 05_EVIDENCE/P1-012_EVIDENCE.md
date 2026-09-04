@@ -1,121 +1,168 @@
-# P1-012 Evidence — Final Closeout
+# P1-012 Evidence — Remediation & Verification Closeout
 
 **Task:** P1-012 — Carrier, Region and CarrierSetup selection (Step 10, P1 R31–R34, DEC-J11, DEC-J12, DEC-J13, FR-P1-16, FR-P5-10)  
+**Remediation guide:** `06_AGENT_GUIDES/P1-012_REMEDIATION.md`  
 **Evidence date:** 2026-09-04  
 **Evidence class:** REAL PostgreSQL integration / REAL PostgreSQL concurrency / PLAYWRIGHT VERIFIED  
 
-## Final revisions and runtime
+## Final Revisions and Runtime
 
 | Subject | Verified revision / identity |
 |---|---|
-| Mercato final head | `7273fde8d4ba9ca0a6a237f3792cb1f2fe45963f` on `outbound/p1-012` |
+| Mercato final remediation head | `5019a20be14549ff8cbbf25af5bc61c56888e9e1` on `outbound/p1-012` (pushed) |
+| Pre-remediation P1-012 head | `7273fde8d47686812d099f99a6cdcfa323045826` on `outbound/p1-012` |
 | Accepted P1-011 base | `20887f2d74928cf69f447fdd6af20a612f38387c` |
-| Frozen Scanner head | `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` (verified untouched) |
+| Lineage / compare | Exactly 2 commits ahead of accepted P1-011 base (`20887f2d7 -> 7273fde8d -> 5019a20be`); merge base: `20887f2d74928cf69f447fdd6af20a612f38387c` |
+| Frozen Scanner head | `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` (verified untouched, clean working tree) |
 | Testing database | `postgres` on `aws-1-eu-central-1.pooler.supabase.com:6543`; PostgreSQL 17.6 |
 | Testing Mercato runtime | `mercato-localhost.service` active; `https://devaxonic-test.info-start.com.pl` returned HTTP 200 |
 
 All database-backed commands sourced `/etc/mercato-localhost.env` in their executing shell. No credential values are recorded here.
 
-## Core Rules & Invariants Enforced
+## Remediation Scope & Review Blockers Resolved
 
-1. **Start Gate (P1 R31, step 10):**
-   - Carrier selection evaluates only when Shipment is in `READY_FOR_DISPATCH` (or `CARRIER_PENDING` / re-evaluation of `CARRIER_SELECTED`).
-   - Any attempt to run selection on `CREATED` or terminal statuses fails closed.
-2. **Deterministic Multi-Tier Tie-Break (DEC-J12, P1 R32):**
-   - Governing weight: largest current weight among attached Packing TUs (`R63`).
-   - Governing volume: largest `TUSetup.maxVolume` among attached TU types (`R30`).
-   - Tie-break ordering among all applicable `CarrierSetup` entries in the resolved delivery Region:
-     1. Volume width ASC (`maxVolume - minVolume`) — most specific volume range wins.
-     2. Weight width ASC (`maxWeight - minWeight`) — most specific weight range wins.
-     3. Carrier priority integer ASC — lower integer = higher precedence.
-   - Strictly deterministic; no non-deterministic fallback or arbitrary tie-breaks.
-3. **EXTERNAL TU Missing maxVolume Boundary (P1 R51, R68, FR-P5-10):**
-   - If any attached TU is `EXTERNAL` and its setup has no declared positive `maxVolume`, automatic selection immediately halts.
-   - Status transitions to `CARRIER_PENDING` with reason `EXTERNAL_TU_MISSING_MAX_VOLUME_MANUAL_SELECTION_REQUIRED`.
-   - Volumes are never fabricated or guessed. Manual selection and explicit Supervisor approval are required.
-4. **No-Match Fail-Closed Behavior (DEC-J11):**
-   - When no `CarrierSetup` covers the governing weight/volume in the resolved Region, status transitions to `CARRIER_PENDING`.
-   - Supervisor must manually select an active Carrier.
-5. **Supervisor Manual Override & Reason Discipline (P1 R33):**
-   - Supervisor may override automatic selection or manually assign a carrier.
-   - Override reason is purely optional per Architect specification; manual override succeeds with empty reason.
-   - Transition `CARRIER_SELECTED -> CARRIER_SELECTED` (`ShipmentCarrierOverridden`) audited in state transition events.
-6. **Hard Exclusions Maintained:**
-   - NO carrier label generation (Step 11).
-   - NO external carrier API integrations or calls.
-   - NO manifest closing / ERP dispatching.
+### B1 — Server-Authoritative Supervisor / Dispatcher Authority & Anti-Spoofing
+
+- **Root cause:** Initial implementation accepted `actorRole` and `isSupervisorApproval` from the client request body, allowing potential client-side role spoofing.
+- **Architectural correction:**
+  - Request body schema in `apps/mercato/src/modules/wms_outbound/api/shipments/[id]/manual-carrier/route.ts` stripped of `actorRole` and `isSupervisorApproval`.
+  - Caller identity resolved strictly from authenticated session context (`auth.userId || auth.sub`).
+  - Authority resolution delegates to PostgreSQL role/feature mapping:
+    - `checkSupervisorAuthority(txEm, scope, actorId)` verifies feature `wms_outbound.manage_orders` in tenant/organization scope.
+    - `checkDispatcherAuthority(txEm, scope, actorId)` verifies feature `wms_outbound.edit` in tenant/organization scope.
+  - Fail-closed enforcement:
+    - Non-supervisors attempting manual selection from general no-match `CARRIER_PENDING` receive `403 Forbidden`.
+    - Non-supervisors attempting to override `CARRIER_SELECTED` receive `403 Forbidden`.
+    - On EXTERNAL TU missing `maxVolume`:
+      - Dispatchers can submit carrier selection, which persists carrier and keeps status `CARRIER_PENDING` with audit `actorRole: 'Dispatcher'`.
+      - Only a verified Warehouse Supervisor can approve and advance to `CARRIER_SELECTED` with `manualApprovedBy: supervisorId` and audit `actorRole: 'Warehouse Supervisor'`.
+      - Non-supervisors attempting approval fail with `403 Forbidden`.
+  - Audit logging records real server-determined role and authenticated caller identity.
+
+### B2 — Exact Mercato Commit SHA in Evidence
+
+- Pre-remediation P1-012 head: `7273fde8d47686812d099f99a6cdcfa323045826`.
+- Final remediation head pushed to `origin/outbound/p1-012`: `5019a20be14549ff8cbbf25af5bc61c56888e9e1`.
+- The previously miscopied commit SHA has been removed and replaced with the verified Git SHA.
+
+### B3 — Credential Hygiene in Test Suite
+
+- Removed hardcoded test password `'Devax7adm#'` from `apps/mercato/src/modules/wms_outbound/__integration__/P1-012-carrier-selection-ui.spec.ts`.
+- Replaced with `process.env.TEST_SUPERVISOR_PASSWORD || ...` with fail-closed validation if not set.
+- Diff verification confirms 0 literal passwords or credentials in the P1-012 changeset.
+
+## Files Modified in Remediation
+
+```text
+ apps/mercato/src/modules/wms_outbound/__integration__/P1-012-carrier-selection-ui.spec.ts            |  12 +-
+ apps/mercato/src/modules/wms_outbound/api/shipments/[id]/manual-carrier/route.ts                     |  17 +-
+ apps/mercato/src/modules/wms_outbound/backend/shipments/[id]/page.tsx                               |  10 +-
+ apps/mercato/src/modules/wms_outbound/services/__tests__/p1-012-carrier-selection-postgres.integration.test.ts | 275 ++++++++++++++++++++-
+ apps/mercato/src/modules/wms_outbound/services/carrier-selection-service.ts                          | 125 ++++++++--
+ apps/mercato/src/modules/wms_outbound/services/packing-service.ts                                   |  34 +++
+ 6 files changed, 426 insertions(+), 47 deletions(-)
+```
 
 ## Decisive Real PostgreSQL Evidence
 
-Executed against remote PostgreSQL (`aws-1-eu-central-1.pooler.supabase.com:6543`) with genuine database transactions, pessimistic row locking (`SELECT ... FOR UPDATE`), and unique database constraints:
+Executed against remote PostgreSQL pooler (`aws-1-eu-central-1.pooler.supabase.com:6543`) with genuine database transactions, pessimistic row locking (`SELECT ... FOR UPDATE`), and unique database constraints:
 
 ```text
-PASS src/modules/wms_outbound/services/__tests__/p1-012-carrier-selection-postgres.integration.test.ts (20.288 s)
-  P1-012 Real PostgreSQL Carrier, Region & CarrierSetup Selection Service
-    ✓ 1. Start gate: Carrier Selection rejects Shipments not in READY_FOR_DISPATCH (P1 R31, Step 10) (1421 ms)
-    ✓ 2. Single matching CarrierSetup: automatically matches within weight & volume range and transitions to CARRIER_SELECTED (P1 R31, R32) (1356 ms)
-    ✓ 3. Volume tie-break: multiple setups with different volume widths -> narrowest volume range wins (P1 R32, DEC-J12) (1402 ms)
-    ✓ 4. Weight tie-break: equal volume specificity -> narrowest matching weight range wins (P1 R32, DEC-J12) (1482 ms)
-    ✓ 5. Priority tie-break: equal volume and weight widths -> Carrier with lower priority integer wins (P1 R32, DEC-J12) (1411 ms)
-    ✓ 6. Determinism: identical evaluations in any order yield identical winning Carrier and CarrierSetup (DEC-J12) (1389 ms)
-    ✓ 7. Fail-closed on no matching CarrierSetup: status transitions to CARRIER_PENDING (DEC-J11, P1 R33) (1415 ms)
-    ✓ 8. Supervisor manual selection from CARRIER_PENDING: assigns carrier and advances to CARRIER_SELECTED (P1 R33, DEC-J11) (1399 ms)
-    ✓ 9. Supervisor manual override from CARRIER_SELECTED: reason is optional and override succeeds without reason (P1 R33) (1420 ms)
-    ✓ 10. EXTERNAL TU missing maxVolume: halts automatic selection, sets CARRIER_PENDING, requires supervisor approval (P1 R51, R68, FR-P5-10) (1452 ms)
-    ✓ 11. Configuration validation: unique priority constraint rejects duplicate carrier priority within same tenant/org (1312 ms)
-    ✓ 12. Concurrent/replay safety: overlapping selection/override attempts do not corrupt persisted selection or duplicate irreversible state effects (1410 ms)
-    ✓ 13. Real rollback test: failure after write/flush in transaction rolls back completely with fresh independent read proof (1388 ms)
-    ✓ 14. Non-regression: P1-011 shipment readiness closure and ATP reservations remain fully intact (1503 ms)
-
 Test Suites: 1 passed, 1 total
 Tests:       14 passed, 14 total
 Snapshots:   0 total
-Time:        20.288 s
+Time:        33.821 s
+Ran all test suites matching src/modules/wms_outbound/services/__tests__/p1-012-carrier-selection-postgres.integration.test.ts.
 ```
+
+### Test Suite Breakdown:
+
+1. `Start gate: not-ready Shipment cannot run/commit Carrier Selection (P1 Step 10)` — PASS
+2. `Single match: Region + governing weight + governing volume selects sole applicable Carrier and persists CARRIER_SELECTED (P1 R31, DEC-J11)` — PASS
+3. `Volume tie-break: multiple candidates -> narrowest matching volume range wins (P1 R32, DEC-J12)` — PASS
+4. `Weight tie-break: equal volume specificity -> narrowest matching weight range wins (P1 R32, DEC-J12)` — PASS
+5. `Priority tie-break: equal range specificity -> unique Carrier priority wins (P1 R32, DEC-J12)` — PASS
+6. `Determinism: repeated evaluation with unchanged persisted inputs/config yields same Carrier and no duplicate transition effects (P1 R31)` — PASS
+7. `No match: persists CARRIER_PENDING with useful reason and manual path (P1 R31, R51, FR-P5-10)` — PASS
+8. `Manual selection after no-match: server-authoritative supervisor enforcement and anti-spoofing (P1 R33, DEC-J11, DEC-J13, FR-P1-17)` — PASS:
+   - Proves authenticated non-Supervisor with `wms_outbound.edit` is rejected (403 Forbidden).
+   - Proves body-spoofed `actorRole: 'Warehouse Supervisor'` and `isSupervisorApproval: true` are ignored/rejected.
+   - Proves verified Warehouse Supervisor successfully advances status to `CARRIER_SELECTED`.
+   - Proves audit trail records authentic `actorRole: 'Warehouse Supervisor'`.
+9. `Override: Supervisor authority enforcement, anti-spoofing, and optional reason (P1 R33, DEC-J13)` — PASS:
+   - Proves non-Supervisor cannot override existing selection even with spoofed body flags (403 Forbidden).
+   - Proves verified Warehouse Supervisor can override with or without reason.
+   - Proves transition event `ShipmentCarrierOverridden` is properly recorded.
+10. `EXTERNAL missing maxVolume: Dispatcher choice remains CARRIER_PENDING, anti-spoofing, and Supervisor approval (P1 R51, R68, FR-P5-10, TC-066)` — PASS:
+    - Proves Dispatcher choice sets carrier while preserving `CARRIER_PENDING`.
+    - Proves non-Supervisor cannot approve missing-volume shipment (403 Forbidden).
+    - Proves verified Supervisor approval transitions shipment to `CARRIER_SELECTED` with `manualApprovedBy`.
+11. `Configuration validation: duplicate priority in carrier dictionary is rejected by PostgreSQL unique constraint (DEC-J11, DEC-J12)` — PASS
+12. `Concurrent/replay safety: overlapping selection/override attempts do not corrupt persisted selection or duplicate irreversible state effects` — PASS
+13. `Real rollback test: failure after write/flush in transaction rolls back completely with fresh independent read proof` — PASS
+14. `P1-011 and ATP regression: Shipment grouping, readiness and ATP reservation primitives remain intact (FR-P1-26)` — PASS
 
 ## Regression Verification
 
 ### P1-011 PostgreSQL Regression Suite
+
 ```text
-PASS src/modules/wms_outbound/services/__tests__/p1-011-postgres.integration.test.ts (72.608 s)
   [P1-011 distinct-TU grouping-key lock contention] {
-    blockedPid: 2020818,
-    blockingPids: [ 2020842 ],
+    blockedPid: 2024132,
+    blockingPids: [ 2024133 ],
     waitEventType: 'Lock'
   }
+
 Test Suites: 1 passed, 1 total
 Tests:       18 passed, 18 total
 Snapshots:   0 total
-Time:        72.608 s
+Time:        70.5 s, estimated 72 s
+Ran all test suites matching src/modules/wms_outbound/services/__tests__/p1-011-postgres.integration.test.ts.
 ```
 
 ### State Transitions Invariant Suite
+
 ```text
-PASS src/modules/wms_outbound/services/__tests__/fnd-002-state-transitions.test.ts (2.032 s)
 Test Suites: 1 passed, 1 total
 Tests:       77 passed, 77 total
 Snapshots:   0 total
-Time:        2.032 s
+Time:        1.272 s, estimated 2 s
+Ran all test suites matching src/modules/wms_outbound/services/__tests__/fnd-002-state-transitions.test.ts.
 ```
 
 ## Fresh Final-Head Rendered UI Evidence (Playwright)
 
-Executed using Playwright against canonical testing URL `https://devaxonic-test.info-start.com.pl` through real Chromium browser automation:
+Executed using Playwright against canonical testing URL `https://devaxonic-test.info-start.com.pl` through real Chromium browser automation from the served remediation revision:
 
 ```text
 Running 5 tests using 1 worker
 
-  ✓  1 Journey 1 (PLAYWRIGHT VERIFIED): Automatic selection happy path (P1 R31, R32, DEC-J11, DEC-J12) (9.2s)
-  ✓  2 Journey 2 (PLAYWRIGHT VERIFIED): Deterministic tie-break display & winner (DEC-J12, P1 R32) (7.9s)
-  ✓  3 Journey 3 (PLAYWRIGHT VERIFIED): Manual selection fallback when no CarrierSetup matches (P1 R33, DEC-J11) (8.4s)
-  ✓  4 Journey 4 (PLAYWRIGHT VERIFIED): Supervisor manual override without mandatory reason (P1 R33) (7.7s)
-  ✓  5 Journey 5 (PLAYWRIGHT VERIFIED): Missing maxVolume warning and supervisor approval flow (P1 R51, R68, FR-P5-10) (8.9s)
+  ✓  1 Journey 1 (PLAYWRIGHT VERIFIED): Automatic selection happy path (P1 R31, R32, DEC-J11, DEC-J12) (11.7s)
+  ✓  2 Journey 2 (PLAYWRIGHT VERIFIED): Deterministic tie-break display & winner (DEC-J12, P1 R32) (8.1s)
+  ✓  3 Journey 3 (PLAYWRIGHT VERIFIED): Manual selection fallback when no CarrierSetup matches (P1 R33, DEC-J11) (8.8s)
+  ✓  4 Journey 4 (PLAYWRIGHT VERIFIED): Supervisor manual override without mandatory reason (P1 R33) (8.1s)
+  ✓  5 Journey 5 (PLAYWRIGHT VERIFIED): Missing maxVolume warning and supervisor approval flow (P1 R51, R68, FR-P5-10) (8.8s)
 
-  5 passed (50.9s)
+  5 passed (48.0s)
 ```
+
+*(Note: Playwright automated test output; not claimed as HUMAN VERIFIED per project standards).*
 
 ## Scanner Status Confirmation
 
 - Path: `/home/ubuntu/git/Devaxonic-scanner`
 - Verified HEAD: `f4a404600efb1120cb2f1c5b86383ad148cd1e1a`
 - Working tree: Clean (0 modifications, completely frozen).
+
+## Clean Git Status and Explicit Exclusions
+
+- `Devaxonic-mercato`: `outbound/p1-012` is clean and pushed to `origin/outbound/p1-012` (`5019a20be14549ff8cbbf25af5bc61c56888e9e1`). Not merged to `main`.
+- `Devaxonic-scanner`: clean and frozen at `f4a404600efb1120cb2f1c5b86383ad148cd1e1a`.
+- Hard exclusions maintained:
+  - NO label generation / printing.
+  - NO external carrier API calls.
+  - NO manifest work.
+  - NO ERP dispatching.
+  - NO Scanner changes.
+  - NO `STATE.md`, roadmap, or task catalog updates.
+  - NO claim of FINAL PASS.

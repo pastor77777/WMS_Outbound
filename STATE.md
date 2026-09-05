@@ -4,7 +4,7 @@
 **Campaign:** WMS Outbound v1  
 **Architecture:** implementation-ready; no unresolved product/architecture blocker recorded  
 **Current phase:** product implementation  
-**Implementation progress:** **18/37 items FINAL PASS**
+**Implementation progress:** **19/37 items FINAL PASS**
 
 ## Architect baseline
 
@@ -16,15 +16,9 @@ Active process set:
 - P4 `PHYSICAL_PUTBACK` v1.2
 - state model v1.19
 
-Requirements: 109 IDs = 98 FR + 6 INT + 5 CON.
+Requirements: **109 IDs = 98 FR + 6 INT + 5 CON**.
 
-`PickWave` is out of scope v1. No separate Process 5 exists; cross-cutting exceptions live in P1/P2 and are exposed as `FR-P5-*`.
-
-## Implementation plan
-
-The complete implementation plan remains in `07_IMPLEMENTATION_PLAN/`: 37 tasks with 109/109 requirements mapped.
-
-The plan is delivery decomposition only. Architect Source/Canon remains business authority.
+`PickWave` is out of scope v1. No separate Process 5 exists.
 
 ## Accepted implementation checkpoints
 
@@ -46,92 +40,70 @@ The plan is delivery decomposition only. Architect Source/Canon remains business
 16. `P1-013` — FINAL PASS / Owner Accepted — Mercato `5e6b70aa81afd28fe3217e4aad216e8a6482a769` / Scanner frozen `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `826b9c477fa86a44a93606265868730e4570ff90`
 17. `P1-014` — FINAL PASS / Owner Accepted — Mercato `bef7c0a3e0995e7ecddb29156bdfa3777463a6b6` / Scanner frozen `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `b97f1640621b5b01571efec313b7fa0325c1aedf`
 18. `P1-015` — FINAL PASS / Owner Accepted — Mercato `f9b0b89cbd05d723ca36501c5dfb1dd57ce8a2e4` / Scanner frozen `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `f201bd0beb2411b4f87f28ca6562a4fc11e6a249`
+19. `P1-016` — FINAL PASS / Owner Accepted — Mercato `dd5ff1493740ffc99e11ce40e0b5ffc6b646f574` / Scanner frozen `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `50c5664fda12caf5c2f7bcdb0e9e86c3495a01c2`
 
-## P1-015 accepted boundary
+## P1-016 accepted boundary
 
 Preserve these accepted behaviors:
 
-- only `Shipment POSTED` may enter an `OPEN` `CarrierManifest`; successful assignment advances `POSTED → IN_MANIFEST` and one Shipment belongs to exactly one manifest;
-- `CarrierManifest OPEN → CLOSED` is irreversible and freezes composition; no post-close add/remove/reopen, Shipment cancellation or Carrier correction;
-- close serializes against member Shipment mutations with real PostgreSQL row locks;
-- `CLOSED → HANDED_OVER` is physical handover and advances included Shipments `IN_MANIFEST → HANDED_TO_CARRIER`, TUs `IN_SHIPMENT → DISPATCHED`, and contributing OutboundOrders `READY_FOR_DISPATCH → DISPATCHED`;
-- `HANDED_OVER → CONFIRMED` is a distinct final warehouse-confirmation boundary with exactly one `CarrierManifestConfirmed` fact and deterministic membership snapshot under duplicate/parallel calls;
-- P1-015 does not perform final `Inventory`/`Allocation`/`OutboundOrderLine`/`OutboundOrder`/`CustomerOrder` settlement; that boundary is P1-016;
-- no external carrier API and no Scanner changes were introduced.
+- final settlement attaches to confirmed manifest coverage and settles each business quantity exactly once;
+- partial multi-manifest settlement advances exact shipped/reserved arithmetic without terminalizing line/allocation early;
+- full coverage allows `OutboundOrderLine → SHIPPED`, `Allocation → CONSUMED`, and `OutboundOrder → COMPLETED` only when all relevant Shipment/manifest coverage is confirmed;
+- CustomerOrderLine/CustomerOrder aggregation follows Architect F1 without premature terminalization;
+- cancellation is blocked at the established Shipment/manifest boundaries and whole-order cancellation is atomic when any line blocks;
+- same-manifest and different-manifest concurrent settlement are serialized with real PostgreSQL locking and no duplicate/lost update;
+- Scanner remained frozen.
 
-Accepted proof in `05_EVIDENCE/P1-015_EVIDENCE.md`:
+Accepted proof in `05_EVIDENCE/P1-016_EVIDENCE.md`:
 
-- final Mercato head `f9b0b89cbd05d723ca36501c5dfb1dd57ce8a2e4`, exactly two commits above accepted P1-014 base `bef7c0a3e0995e7ecddb29156bdfa3777463a6b6`;
-- P1-015 PostgreSQL **21/21**, including exact-session lock proof for assignment, add-vs-close, duplicate confirm and carrier-correction-vs-close;
-- post-remediation regression aggregate **171/171**;
-- fresh P1-015 Playwright **6/6** against canonical Testing served from exact final runtime `f9b0b89cbd05d723ca36501c5dfb1dd57ce8a2e4`;
-- durable final evidence `f201bd0beb2411b4f87f28ca6562a4fc11e6a249`; Scanner remained frozen.
+- P1-016 PostgreSQL **25/25** including real Race A/B lock evidence and rollback proof;
+- mandatory final-SHA regressions **9 suites / 187/187**;
+- dedicated P1-016 rendered Playwright A–F **6/6** on canonical Testing runtime from exact final SHA `dd5ff1493740ffc99e11ce40e0b5ffc6b646f574`;
+- durable evidence `50c5664fda12caf5c2f7bcdb0e9e86c3495a01c2`.
 
 ## Current position
 
-Completed and accepted: **18/37**.
+Completed and accepted: **19/37**.
 
-Active implementation item — **execution in flight, not yet verified or accepted**:
+Next authorized implementation item:
 
-**P1-016 — Final line/order/inventory settlement and cancellation boundaries — item 19/37.**
+**P2-001 — Inbound crossdock boundary and demand/source eligibility — item 20/37.**
 
-Owner reported on 2026-09-05 that an owner-selected Codex executor is executing `06_AGENT_GUIDES/P1-016_EXECUTION.md`. Do not infer completion from this fact. Steering/acceptance advances only after the executor finishes, supervisor independently verifies refs/diff/evidence, and the Owner explicitly accepts the result.
+Task grounding:
 
-Fresh Task Catalog grounding:
+- objective: consume only eligible Inbound `TU` `ELEMENTARY` at `IN_CROSS_DOCK` and calculate `sourceEligibleQty`, `demandEligibleQty`, `crossDockEligibleQty` without double coverage;
+- requirements: `FR-P2-01`, `FR-P2-03`, `FR-P2-23`, `FR-P2-24`, `FR-P2-25`, `INT-01`, `CON-03`;
+- dependencies: `FND-001`, `FND-003`, `P1-002`, `P1-003` — satisfied;
+- source: P2 R1–R2, R5–R6, R41–R43, KROK 1, R29–R30;
+- target: Inbound crossdock adapter, CustomerOrderLine demand eligibility, source Inbound TU eligibility;
+- acceptance: `TC-020`, `TC-029`, `TC-036`, `TC-092`, `TC-102`, `TC-103`, `TC-119`, `TC-134`.
 
-- objective: settle `Inventory`/`Allocation`/`OutboundOrderLine` quantities per confirmed contributing manifest, terminalize lines and orders only after all contributing Shipment/manifest coverage is confirmed, continuously aggregate CustomerOrderLine/CustomerOrder, and enforce cancellation boundaries;
-- Architect source: P1 R37–R38, R41–R42, R49–R50, F1, R70–R72, general cancellation; P3/P4 entry routing;
-- requirements: `FR-P1-19`, `FR-P1-21`, `FR-P1-25`, `FR-P1-27`, `FR-P1-44`, `FR-P1-45`, `FR-P1-46`, `FR-P5-09`, `INT-06`, `CON-05`;
-- dependencies: `P1-015`, `P1-004`, `P1-001` — satisfied;
-- target: Inventory ledger, Allocation, OutboundOrder/Line, CustomerOrder/Line, cancellation correlation/orchestration;
-- acceptance: `TC-001`, `TC-003`, `TC-008`, `TC-009`, `TC-065`, `TC-128`, `TC-129`, `TC-130`, `TC-131`, `TC-132`, `TC-133`.
+Key P2-001 boundaries:
 
-Authoritative P1-016 boundaries:
-
-- each `CONFIRMED` manifest settles only the quantities physically represented by its Outbound TUs: `Inventory PICKED → SHIPPED`, `Allocation.reservedQty` decreases by exactly that quantity, and line `shippedQty` advances exactly once;
-- partial multi-manifest issue leaves `OutboundOrderLine PACKED` and `Allocation CONFIRMED`; only full contributing-TU confirmation allows `OutboundOrderLine → SHIPPED` and `Allocation → CONSUMED` with `reservedQty = 0`;
-- `OutboundOrder DISPATCHED → COMPLETED` only when every Shipment containing any TU of that order is on a `CONFIRMED` manifest; confirmation order is irrelevant;
-- CustomerOrderLine and CustomerOrder aggregation follows Architect F1; no premature `SHIPPED`/`CLOSED`;
-- duplicate/parallel settlement must have one business effect; cross-manifest concurrent settlement of one line/allocation must not lose or double arithmetic;
-- cancellation remains impossible from Shipment `POSTING_PENDING` onward and after `CarrierManifest.CLOSED`; Return Receipt remains outside scope;
-- incoming cancellation/correction correlation chooses P3 vs P4 from formal `pickedQty`; P1-016 establishes the boundary/routing but must not implement future P3/P4 physical recovery workflows;
-- Scanner remains frozen; no P2 Crossdock implementation, Return Receipt, external carrier APIs or Prod/Demo changes.
+- Outbound accepts only Inbound `TU` type `ELEMENTARY` already at `IN_CROSS_DOCK`; `AGGREGATE` is never processed by Outbound crossdock;
+- Inbound qualification is non-binding; demand is re-evaluated at the `IN_CROSS_DOCK` boundary;
+- `sourceEligibleQty = ASN declared qty - active plannedQty - completed confirmedQty - completed damagedQty` for that source TU/SKU;
+- `demandEligibleQty = CustomerOrderLine.Quantity - ATPReservation - sum(requiredQty of all non-CANCELLED OutboundOrderLines across channels)`;
+- `crossDockEligibleQty = min(sourceEligibleQty, demandEligibleQty)`;
+- concurrent matching must assign each unit at most once in warehouse priority order;
+- zero eligible demand creates no crossdock work and leaves the full declared quantity residual for Inbound settlement;
+- P2-001 must not implement P2-002 CrossDockPickTask/OutboundOrder planning, Scanner crossdock flow, GR gate, P3/P4, Return Receipt or Prod/Demo changes.
 
 Current executor guide:
 
-`06_AGENT_GUIDES/P1-016_EXECUTION.md`
+`06_AGENT_GUIDES/P2-001_EXECUTION.md`
 
-P1-016 Mercato branch must start from exact accepted P1-015 SHA:
+P2-001 Mercato branch starts from accepted P1-016 head:
 
-`f9b0b89cbd05d723ca36501c5dfb1dd57ce8a2e4`
+`dd5ff1493740ffc99e11ce40e0b5ffc6b646f574`
 
-## Authority and architecture-context rule
+## Authority and workflow
 
-For Outbound business behavior, authority order is:
+For Outbound behavior: Architect Source/Canon → traceability/task docs → current code/DB as implementation evidence → implementation plan as delivery decomposition.
 
-1. `01_ARCHITECT_SOURCE` / faithful Architect translations and `02_CANON`;
-2. traceability and exact current task docs;
-3. current Mercato/Scanner/DB/runtime as implementation evidence;
-4. `07_IMPLEMENTATION_PLAN` as delivery decomposition only.
+Inbound remains **CLOSED / REFERENCE**. P2-001 may consume the accepted Inbound boundary and run regression protection, but must not reinterpret or modify accepted Inbound qualification semantics.
 
-Inbound remains **CLOSED / REFERENCE** except targeted regression when an authorized Outbound diff touches shared primitives.
+Current authoritative handover: `08_HANDOVER/HANDOVER_CURRENT_2026-09-05.md`.
+Current Devaxonic mirror: `.ai/HANDOVER_OUTBOUND_CURRENT_2026-09-05.md`.
 
-## Current-state documents
-
-`04_CURRENT_STATE/*` remains the pre-implementation audit baseline captured before ETAP 2 writes.
-
-Current authoritative handover:
-
-`08_HANDOVER/HANDOVER_CURRENT_2026-09-05.md`
-
-Current operational mirror in Devaxonic-WMS:
-
-`.ai/HANDOVER_OUTBOUND_CURRENT_2026-09-05.md`
-
-## Operating workflow
-
-The persisted workflow remains:
-
-`06_AGENT_GUIDES/GIT_PROMPT_WORKFLOW.md`
-
-Detailed executor instructions live in Git; owner-facing launch prompts stay microscopic and stand alone without appended questions/suggestions. The Owner controls executor launch/resume/session organization. Supervisor independently verifies refs/diffs/evidence. Testing uses designated Testing credentials/configuration; do not rotate Testing credentials unless the owner explicitly changes that rule.
+Detailed executor instructions live in Git; owner-facing prompts stay microscopic. The Owner controls executor/session mechanics. Testing credentials are designated Testing data; do not rotate or redesign credential handling as part of WMS feature work.

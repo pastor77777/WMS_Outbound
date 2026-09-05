@@ -19,7 +19,7 @@ For every shot:
 3. follow the canonical Devaxonic-WMS execution contract in `Devaxonic-WMS/AGENTS.md`, `.ai/TESTING.md` and `.ai/OPERATIONS.md`;
 4. independently verify current implementation/evidence refs before writing the guide.
 
-Current source wins over an older guide or old chat history.
+Current canonical Git steering wins over older guides, historical tickets, stale handovers, old chat instructions or older executor-skill wording if they conflict.
 
 ## Canonical rhythm
 
@@ -206,6 +206,8 @@ When the supervisor chat becomes long enough that continuity risk is material:
 3. update the current ChatGPT handover/memory record on Google Drive when owner-authorized;
 4. record the exact in-flight task and accepted baseline, but do not mark executor work complete before independent verification;
 5. give the owner one short fresh-chat kickoff prompt, with no appended questions or suggestions.
+
+After each Owner-accepted Task Catalog item, **refresh/rewrite the current handover to compact current truth**. Keep only the accepted baseline, current item/next item, exact refs needed for continuation, active invariants and any still-open real blocker. Do not append executor chatter, failed fixture attempts, superseded diagnostics, usage incidents or other troubleshooting history that has no future operational value.
 
 A fresh supervisor must prefer current Git state/handover over stale Drive memory if they conflict.
 

@@ -26,6 +26,27 @@ Frozen accepted bases remain:
 
 Read and obey `P2-003_EXECUTION.md`, `.ai/TESTING.md` and `.ai/OPERATIONS.md`. This guide only tightens the closeout/runtime sequence; it does not change business scope.
 
+## Independent supervisor findings — canonical DB is already P2-003 schema-forward
+
+Supervisor independently checked canonical Supabase Testing `yzonugcenguvmojwiihb` after the stopped run:
+
+- project status: `ACTIVE_HEALTHY`;
+- `mikro_orm_migrations_wms_outbound` records `Migration20260905150000_wms_crossdock_execution` executed at `2026-09-05 15:21:21+00`;
+- `wms_outbound_cross_dock_pick_tasks` has `confirmed_qty numeric` and `active_target_tu_id uuid`;
+- `wms_outbound_cross_dock_placements` exists with the expected P2-003 placement/correlation columns;
+- indexes include organization/tenant/idempotency unique protection and organization/tenant/task lookup;
+- after the reported suite, there were no residual placement rows and no recently updated fixture task rows from that run.
+
+Therefore the canonical Testing DB is already **schema-forward relative to the pushed P2-002 product branches**.
+
+Consequences:
+
+1. Do **not** reset/reconstruct the product repos back to P2-002 as a normal continuation strategy.
+2. Preserve and recover the reported local candidate commits first; their migration source must remain aligned with the already-applied canonical migration.
+3. Do not run a DOWN/downgrade or manually delete P2-003 schema to make Git and DB look aligned.
+4. Do not re-apply or invent DDL manually. Verify the local candidate contains the migration matching the applied migration name/semantics.
+5. If the local Mercato candidate/migration source is missing, STOP and report this as a source-vs-canonical-DB provenance blocker before any reconstruction.
+
 ## 1. Preserve and inspect the existing local candidate work first
 
 Before any reset, rebase, pull-with-reset, rebuild or new implementation edit:
@@ -39,7 +60,8 @@ Before any reset, rebase, pull-with-reset, rebuild or new implementation edit:
 3. Prove each candidate is a descendant of its frozen accepted base using merge-base/ancestor checks.
 4. Review the full candidate diffs from frozen base to local HEAD before changing anything.
 5. Verify no P2-004/P2-005/P2-006/P3/P4/Return Receipt/Demo/Prod leakage.
-6. Do **not** discard the local candidate commits merely because they are not yet pushed.
+6. In Mercato, verify the candidate contains `Migration20260905150000_wms_crossdock_execution` (or exact current source identity that produced the recorded migration) and that its DDL matches the already-applied canonical DB shape.
+7. Do **not** discard the local candidate commits merely because they are not yet pushed.
 
 If either reported local SHA is missing locally, STOP and report that exact discrepancy before reconstructing work.
 
@@ -187,6 +209,7 @@ It must include everything required by `P2-003_EXECUTION.md`, plus:
 
 - local-candidate-to-pushed-remote provenance;
 - explicit mapping showing how the dedicated suite covers all 18 substantive minimum behaviors even if the suite has fewer than 18 test cases;
+- canonical DB migration provenance for `Migration20260905150000_wms_crossdock_execution`;
 - Mercato systemd MainPID/port/runtime readiness proof;
 - build-manifest integrity and any clean-rebuild recovery performed;
 - explicit statement that no terminal-owned/ad-hoc Mercato server was used for decisive Playwright evidence.
@@ -210,6 +233,7 @@ Report only:
 - dedicated P2-003 result/count + confirmation all 18 substantive behaviors are mapped;
 - P2-002 `22/22` regression result;
 - any other relevant regressions actually rerun;
+- canonical DB migration/source match;
 - Mercato runtime readiness (`active`, MainPID/port owner, `/login` HTTP 200, build identity);
 - Playwright Journey A result;
 - Playwright Journey B result;

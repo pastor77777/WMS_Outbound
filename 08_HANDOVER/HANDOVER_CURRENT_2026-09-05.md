@@ -20,7 +20,7 @@ Accepted proof:
 - prior integrated regression aggregate **171/171**;
 - exact-session PostgreSQL lock proof for assignment, add-vs-close, duplicate confirm and carrier-correction-vs-close;
 - fresh rendered Playwright **6/6** against canonical Testing served from exact final runtime `f9b0b89cbd05d723ca36501c5dfb1dd57ce8a2e4`;
-- closeout changed evidence only; Scanner and Devaxonic steering stayed frozen during verification.
+- closeout changed evidence only; Scanner stayed frozen.
 
 ## P1-015 accepted boundary
 
@@ -34,9 +34,15 @@ Preserve:
 - P1-015 deliberately does not perform final Inventory/Allocation/line/order/customer settlement;
 - no external carrier API and no Scanner change.
 
-## Next item
+## Active item — execution in flight
 
-Next catalog item: **P1-016 — Final line/order/inventory settlement and cancellation boundaries — item 19/37**.
+Current catalog item: **P1-016 — Final line/order/inventory settlement and cancellation boundaries — item 19/37**.
+
+Owner reported on 2026-09-05 that an owner-selected **Codex executor is currently executing** `06_AGENT_GUIDES/P1-016_EXECUTION.md`.
+
+This records execution status only. **P1-016 remains unverified and unaccepted until the executor finishes and the supervisor independently verifies current refs/diff/evidence.** Do not advance STATE or acceptance from this in-flight fact.
+
+The owner controls executor selection, launch, resume, session organization and sequencing. Do not issue executor-startup/session-management instructions unless explicitly requested, and do not redirect an in-flight executor.
 
 Task grounding:
 
@@ -91,6 +97,18 @@ Authority order:
 4. `07_IMPLEMENTATION_PLAN` as delivery decomposition only.
 
 Real PostgreSQL is mandatory for persistence/concurrency/rollback/exactly-once claims. Rendered application actions are mandatory for UI claims. Executor prose is never acceptance.
+
+## Owner-facing supervisor protocol
+
+Canonical rules are in `06_AGENT_GUIDES/GIT_PROMPT_WORKFLOW.md`.
+
+Preserve these explicit owner preferences:
+
+- detailed work belongs in Git guides; owner-facing executor prompts stay microscopic;
+- the owner decides executor/session mechanics;
+- do not append questions, suggestions, menus or explanatory tails below a launch prompt unless explicitly requested;
+- do not ask for long logs/screenshots/SHAs/secrets that can be independently verified;
+- if an owner-side diagnostic is unavoidable, give one precise action/command at a time and request only minimal non-secret status.
 
 ## Steering boundary
 

@@ -1,7 +1,7 @@
 # WMS Outbound — Git Prompt / Executor Supervisor Workflow
 
 **Status:** current operating protocol  
-**Effective:** 2026-09-04  
+**Effective:** 2026-09-05  
 **Applies to:** WMS Outbound delegated implementation, remediation, evidence and acceptance work
 
 ## Purpose
@@ -58,20 +58,24 @@ Sync WMS_Outbound/main and execute ONLY:
 Push required implementation/evidence, then STOP.
 ```
 
-Add `continue in the same session` only when session continuity is intentionally useful. Do not make it a hidden requirement.
+Add `continue in the same session` only when session continuity is intentionally useful and the owner asked for that wording. Do not make it a hidden requirement.
+
+**The launch prompt is the final owner-facing content for that shot.** Do not append questions, suggested follow-ups, menus, extra options, automation suggestions, explanations or executor-startup instructions below it unless the owner explicitly asks for them.
 
 ### 3. Executor-neutral operation
 
-The owner selects the executor/venue.
+The owner selects the executor/venue **and controls how executors are started, resumed, organized and switched**.
 
 Codex, Antigravity and Claude may execute the same Git guide when authorized and operating under the canonical Devaxonic-WMS contract.
 
+- Do not tell the owner how to launch, restart, resume, organize or sequence executors unless the owner explicitly asks for those mechanics.
 - Do not silently switch executor/model/venue to escape a blocker.
 - A fresh executor session is valid when owner-selected; it must bootstrap from Git/state, not old chat memory.
-- A same-session continuation is also valid when useful.
+- A same-session continuation is also valid when owner-selected.
 - Executor choice must not change business truth, evidence rules or repository paths.
+- If the owner says an executor is currently working, do not interfere with that run or redirect it. Supervisor-side verification, steering preparation and handover maintenance may continue independently.
 
-Antigravity-specific launch mechanics belong in `Devaxonic-WMS/.ai/OPERATIONS.md`, not in this workflow.
+Executor-specific launch mechanics belong in `Devaxonic-WMS/.ai/OPERATIONS.md`, not in owner-facing supervisor messages unless explicitly requested.
 
 ### 4. Receive
 
@@ -85,6 +89,8 @@ Do not ask the owner to paste:
 - screenshots;
 - long evidence documents;
 - secrets.
+
+If troubleshooting genuinely requires an owner-side check, give **one precise action/command at a time** and request only the minimal non-secret status needed. Do not flood the owner with alternative command trees.
 
 ### 5. Supervisor independently verifies
 
@@ -149,6 +155,20 @@ Durable steering/control changes require explicit owner acceptance before applic
 
 Task guides are execution artifacts under the authorized task scope; changes to this workflow, `AGENTS.md`, `.ai/TESTING.md`, `.ai/OPERATIONS.md`, persistent memory routing or equivalent control files require owner acceptance.
 
+An explicit owner request to persist/update the working rules in steering or memory files counts as acceptance for the specifically requested rule maintenance; do not broaden it into unrelated policy changes.
+
+## Long-chat continuity / memory handoff
+
+When the supervisor chat becomes long enough that continuity risk is material:
+
+1. keep mutable project truth in current Git STATE/handover;
+2. persist only durable working rules in canonical steering files, not task-specific chat lore;
+3. update the current ChatGPT handover/memory record on Google Drive when owner-authorized;
+4. record the exact in-flight task and accepted baseline, but do not mark executor work complete before independent verification;
+5. give the owner one short fresh-chat kickoff prompt, with no appended questions or suggestions.
+
+A fresh supervisor must prefer current Git state/handover over stale Drive memory if they conflict.
+
 ## Fresh-session rule
 
 A fresh supervisor/executor must read current state/handover and this workflow from Git. Do not hard-code mutable progress, next-task SHAs or checkpoint data into generic startup/operations files.
@@ -160,3 +180,5 @@ Keep it operational:
 - verified PASS or exact blocker;
 - one microscopic launch prompt when another shot is authorized;
 - otherwise STOP.
+
+Do not add post-prompt engagement questions, optional next steps or explanatory tails when the owner asked only for the prompt.

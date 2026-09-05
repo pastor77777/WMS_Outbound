@@ -2,30 +2,57 @@
 
 ## Tested revisions and environment
 
-- Mercato final pushed SHA: `0e75119a75c0032aa8806d27e467b949e37b510b` (`outbound/p2-004`, verified in sync with `origin/outbound/p2-004`, descends from frozen accepted base `db0ef671b58ab13c2c0685205fbadcae1e1cf628`).
-- Scanner final pushed SHA: `8f975f4545f0761f91df3a681a9ee13df0c5e193` (`outbound/p2-004`, verified in sync with `origin/outbound/p2-004`, descends from frozen accepted base `2ae72fb00db882fecae659b842e91efed17f949f`).
+- Mercato final pushed SHA: `9859be5c7dee4fe802d4d00478459a19982eddfe` (`outbound/p2-004`, verified in sync with `origin/outbound/p2-004`, descends from frozen accepted base `db0ef671b58ab13c2c0685205fbadcae1e1cf628`).
+- Scanner final pushed SHA: `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa` (`outbound/p2-004`, verified in sync with `origin/outbound/p2-004`, descends from frozen accepted base `2ae72fb00db882fecae659b842e91efed17f949f`).
 - Product worktrees: clean (`git status --short` empty on both repositories).
 - Migration/schema provenance:
   - `Migration20260905180000_wms_crossdock_exceptions.ts`:
     - Columns added to `wms_outbound_cross_dock_pick_tasks`: `damaged_qty`, `shortage_qty`, `exception_reason`, `supervisor_decision`.
     - Table created: `wms_outbound_cross_dock_finalizations` (with idempotency and source TU indices).
     - Applied via `yarn db:migrate` to canonical Testing PostgreSQL (`DevAxonic_Platform`, Supabase pooler `aws-1-eu-central-1.pooler.supabase.com:6543`). No manual schema changes or rollbacks performed.
-- Mercato canonical runtime: `mercato-localhost.service` active/running; MainPID `3398096`; Next child process PID `3398165` listening on port `3009`; `http://localhost:3009/login` returned HTTP `200`; non-empty `.mercato/next/routes-manifest.json` (4.7 KB) and `.mercato/next/required-server-files.json` (9.5 KB) verified.
-- Scanner canonical runtime: `scanner-testing.service` active/running; MainPID `3398652`; listening on port `8081` with fresh web export built from current Scanner working copy; `http://localhost:8081` returned HTTP `200`.
+- Supervisor role and state authorization architecture (P2-004 corrective):
+  - Packer / Scanner execution role boundary:
+    - Removed `WAIT` / `CANCEL` / `ALLOW_PARTIAL` decision buttons from Packer `CrossdockTaskScreen` in Scanner.
+    - Scanner displays informational waiting banner (`testID="crossdock-escalation-waiting"`): "Shortage confirmed. Warehouse Supervisor decision required (allowPartialShipment=false). Waiting for Supervisor action in Mercato."
+    - Removed `case 'supervisor_decision'` from ordinary Packer crossdock execute route (`/api/wms_outbound/cross-dock/execute`, which carries only `wms_outbound.view`).
+  - Dedicated Warehouse Supervisor server surface:
+    - Endpoint: `/api/wms_outbound/supervisor/cross-dock-decision` (POST).
+    - Authorization metadata: `requireAuth: true`, `requireFeatures: ['wms_outbound.manage_orders']`.
+    - Authenticated canonical identity: resolves `supervisorId` from `auth.sub || auth.userId` and validates warehouse access.
+    - Low-privilege / Packer direct HTTP attempts without `wms_outbound.manage_orders` are rejected with HTTP 403 and create zero side effects.
+  - Legal decision state enforcement:
+    - `resolveSupervisorDecision` strictly requires `task.status === 'SHORT_PICKED'` with `exceptionReason === 'SHORTAGE_ESCALATED'`.
+    - Invocations outside this state (e.g. `ASSIGNED`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`) are rejected with error and create zero side effects.
+    - First accepted decision is immutable and replay-safe (replaying identical decision returns `replayed: true` without fact duplication).
+  - Exception-state guards:
+    - `reportUnexpectedSku` is strictly guarded against non-executable or finalized tasks (`task.status !== 'ASSIGNED' && task.status !== 'IN_PROGRESS'`), preventing late discrepancy facts.
+    - `complete` is strictly guarded against non-executable states (`task.status !== 'IN_PROGRESS'`).
+  - Rendered Supervisor surface in Mercato:
+    - Extended `/api/wms_outbound/supervisor/shortages` to query and return `crossDockCases` (`status: 'SHORT_PICKED'`, `exceptionReason: 'SHORTAGE_ESCALATED'`).
+    - Extended `apps/mercato/src/modules/wms_outbound/backend/shortages/page.tsx` with Section 3: "3. Crossdock Shortage Escalations" and modal actions (`Wait (PutBack)`, `Cancel line`, `Allow partial`).
+- Mercato canonical runtime: `mercato-localhost.service` active/running; MainPID `3418492`; child process PID `3418554`; listening on port `3009`; `https://devaxonic-test.info-start.com.pl/login` returned HTTP `200`; non-empty `.mercato/next/routes-manifest.json` (4.7 KB) and `.mercato/next/required-server-files.json` (9.6 KB) verified.
+- Scanner canonical runtime: `scanner-testing.service` active/running; MainPID `3421125`; listening on port `8081` with fresh web export built from exact final Scanner SHA `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa`; `https://scanner.info-start.com.pl/` returned HTTP `200`.
 - Zero route mocks / network interception: all Playwright journeys executed against the canonical running services with real HTTP calls via live Cloudflare endpoints; direct PostgreSQL client access used only for deterministic setup, teardown, and persisted-state reconciliation.
 
 ## Gate verification results
 
-- Dedicated P2-004 PostgreSQL suite: `p2-004-crossdock-recovery-postgres.integration.test.ts`: **12/12 PASSED** (47.6s) on canonical Testing PostgreSQL.
-- P2-003 PostgreSQL regression: `p2-003-crossdock-execution-postgres.integration.test.ts`: **8/8 PASSED** (27.5s).
-- P2-002 PostgreSQL regression: `p2-002-crossdock-planning-postgres.integration.test.ts`: **22/22 PASSED** (50.1s).
+- Dedicated P2-004 PostgreSQL suite: `p2-004-crossdock-recovery-postgres.integration.test.ts`: **16/16 PASSED** (62.2s) on canonical Testing PostgreSQL (including non-SHORT_PICKED decision rejection, post-final unexpected SKU rejection, decision immutability replay, and supervisor route RBAC metadata).
+- P2-003 PostgreSQL regression: `p2-003-crossdock-execution-postgres.integration.test.ts`: **8/8 PASSED** (27.8s).
+- P2-002 PostgreSQL regression: `p2-002-crossdock-planning-postgres.integration.test.ts`: **22/22 PASSED** (50.2s).
 - P2-001 PostgreSQL regression: `p2-001-crossdock-eligibility-postgres.integration.test.ts`: **10/10 PASSED** (21.1s).
-- P1-008 PostgreSQL regression: `p1-008-postgres.integration.test.ts`: **22/22 PASSED** (24.7s).
-- Mercato typecheck: `yarn typecheck` in Devaxonic-mercato: **19/19 packages PASSED** (38.2s).
-- Dedicated P2-004 Scanner real Playwright suite: `e2e/p2-004-real-crossdock-recovery.spec.ts`: **4/4 PASSED** (16.5s).
-- P2-003 Scanner real Playwright regression: `e2e/p2-003-real-crossdock-execution.spec.ts`: **2/2 PASSED** (9.7s).
-- P2-002 Scanner real Playwright regression: `e2e/p2-002-crossdock-assignment.spec.ts`: **1/1 PASSED** (8.4s).
-- P1-008 Scanner real Playwright regression: `e2e/p1-008-real-tu-identity.spec.ts`: **1/1 PASSED** (4.1s).
+- Mercato full build/generate contract:
+  - `yarn generate`: **PASSED** (24.8s), generated all registries and registered `/wms_outbound/supervisor/cross-dock-decision`.
+  - `yarn build:packages`: **19/19 packages PASSED** (26.8s).
+  - `yarn typecheck`: **19/19 packages PASSED** (2m45s).
+  - `yarn build:app`: **PASSED** (3m4s), compiled Next.js production build cleanly.
+- Dedicated P2-004 Scanner real Playwright suite: `e2e/p2-004-real-crossdock-recovery.spec.ts`: **4/4 PASSED** (27.1s):
+  - Journey A: Shortage, DAMAGED, and unexpected SKU auto-packing (TC-024, TC-025, TC-026, TC-081) - PASSED.
+  - Journey B: Role-separated shortage escalation (Packer waiting banner -> 403 unauthorized direct attempt -> Rendered Mercato Supervisor `/backend/shortages` decision -> DB reconciliation) - PASSED.
+  - Journey C: Empty source TU before picking (TC-021, FR-P2-11, R19, R20) - PASSED.
+  - Journey D: In-progress cancellation guard & completion (FR-P5-15, R9, R37) - PASSED.
+- P2-003 Scanner real Playwright regression: `e2e/p2-003-real-crossdock-execution.spec.ts`: **2/2 PASSED**.
+- P2-002 Scanner real Playwright regression: `e2e/p2-002-crossdock-assignment.spec.ts`: **1/1 PASSED**.
+- P1-008 Scanner real Playwright regression: `e2e/p1-008-real-tu-identity.spec.ts`: **1/1 PASSED**.
 
 ## Explicit substantive behavior mapping
 

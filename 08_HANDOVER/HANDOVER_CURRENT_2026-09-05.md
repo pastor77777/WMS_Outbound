@@ -8,120 +8,106 @@
 
 Plan: **37 items**, **109/109 Architect requirements mapped**.
 
-Current progress: **23/37 FINAL PASS**.
+Current progress: **24/37 FINAL PASS**.
 
 Latest accepted checkpoint:
 
-`P2-004` — Mercato `9859be5c7dee4fe802d4d00478459a19982eddfe` / Scanner `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa` / evidence `9fb9abd33c1ff8318b6339efc9b69cce3a3161ac` — **FINAL PASS / Owner Accepted**.
+`P2-005` — Mercato `069f02d4c5c9b345b688b838eb685be02206afbd` / Scanner frozen `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa` / evidence `0c7cf142e1723ff80e86cfd0f00d4b12c1e4b777` / supervisor correction `cf399679360d8b7fc071f9f958709c3bb99b7c59` — **FINAL PASS / Owner Accepted**.
 
-P2-004 was independently supervisor-verified, corrected for Warehouse Supervisor role/state authorization, re-verified, and then explicitly accepted by Owner.
+P2-005 was independently supervisor-verified and explicitly accepted by Owner.
 
-## Accepted P2-004 proof
+## Accepted P2-005 proof
 
-- remote Mercato `outbound/p2-004` exactly `9859be5c7dee4fe802d4d00478459a19982eddfe`;
-- remote Scanner `outbound/p2-004` exactly `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa`;
-- both final product heads descend linearly from accepted P2-003 bases, two commits ahead / zero behind;
-- dedicated P2-004 canonical PostgreSQL suite **16/16 PASSED**;
-- P2-003 PostgreSQL **8/8 PASSED**;
-- P2-002 PostgreSQL **22/22 PASSED**;
-- P2-001 PostgreSQL **10/10 PASSED**;
-- Mercato full generate/build-packages/typecheck/build-app contract PASSED;
-- real P2-004 Playwright **4/4 PASSED** with zero route mocks/interception;
-- P2-003 Scanner real regression **2/2 PASSED**;
-- P2-002 Scanner assignment regression **1/1 PASSED**;
-- P1-008 Scanner identity regression **1/1 PASSED**;
-- canonical Mercato runtime active/running on port 3009, HTTP 200, non-empty production manifests;
-- canonical Scanner runtime active/running on port 8081, HTTP 200;
-- final evidence records exact pushed product SHAs and does not self-declare Owner acceptance.
+- remote Mercato `outbound/p2-005` exactly `069f02d4c5c9b345b688b838eb685be02206afbd`;
+- Mercato final is one commit ahead / zero behind accepted P2-004 base `9859be5c7dee4fe802d4d00478459a19982eddfe`;
+- Scanner stayed frozen/clean at accepted P2-004 SHA `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa`;
+- dedicated P2-005 canonical PostgreSQL **19/19 PASSED** with all 18 required substantive behaviors mapped and quantity/finalization preservation proved;
+- P1-014 ERP posting regression **18/18 PASSED**;
+- P2-004 recovery regression **16/16 PASSED**;
+- P2-003 execution regression **8/8 PASSED**;
+- Mercato generate/build-packages/typecheck/build-app contract PASSED;
+- real Mercato P2-005 Playwright **3/3 PASSED**, zero route mocks/interception;
+- Journey A proved a two-source crossdock Shipment blocked before posting side effects until all required sources became `GR_ACCEPTED`;
+- Journey B proved GR re-evaluation while Shipment remained `POSTING_ERROR`, no automatic retry, and successful existing Warehouse Supervisor retry;
+- Journey C proved PUTAWAY settlement does not alter the CROSSDOCK GR gate;
+- canonical Mercato runtime active/running on 3009 with HTTP 200 and non-empty production manifests;
+- canonical Scanner runtime remained healthy on 8081;
+- evidence does not self-declare Owner acceptance.
 
-## Accepted P2-004 authorization correction
+Supervisor correction `cf399679360d8b7fc071f9f958709c3bb99b7c59` fixes a documentation-only typo: the successful posting row is `POSTED`; the posting-attempt outcome is `ACCEPTED`. No product/test/runtime SHA changed.
 
-The first P2-004 closeout was rejected at supervisor gate because the Packer could execute Architect-defined Warehouse Supervisor decisions.
+## Frozen P2-005 business boundary
 
-The accepted corrective now guarantees:
+Preserve exactly:
 
-- normal Packer `/api/wms_outbound/cross-dock/execute` has no `supervisor_decision` action;
-- Scanner Packer UI has no `WAIT`, `CANCEL`, or `ALLOW_PARTIAL` controls;
-- Packer sees an escalation/waiting state only;
-- dedicated Supervisor endpoint `/api/wms_outbound/supervisor/cross-dock-decision` requires `wms_outbound.manage_orders`;
-- Supervisor identity comes from authenticated actor, not client-supplied id;
-- Packer direct HTTP attempt is rejected with HTTP 403 and zero side effect;
-- Supervisor decision is legal only for `CrossDockPickTask SHORT_PICKED` + `exceptionReason = SHORTAGE_ESCALATED`;
-- first accepted decision is immutable/replay-safe;
-- late `unexpected SKU` after final task state is rejected with zero discrepancy side effect;
-- real role-separated Scanner Packer -> rendered Mercato Warehouse Supervisor flow is covered by Playwright.
+1. GR identity is `sourceInboundTU` + `GR_SETTLEMENT_SOURCE=CROSSDOCK`; no CrossDockPickTask id is required.
+2. Message/version is not a settlement-source discriminator.
+3. A valid CROSSDOCK result sets the same `grAcceptanceStatus` on all scoped CrossDockPickTasks of the source TU.
+4. Unknown source and non-CROSSDOCK/PUTAWAY results produce zero crossdock GR mutation.
+5. The gate is evaluated separately per Shipment from all distinct source Inbound TUs contributing confirmed crossdock quantity.
+6. `GR_REJECTED` leaves the gate blocked but does not itself create Shipment `POSTING_ERROR`; later `GR_ACCEPTED` re-evaluates normally.
+7. Residual/Putaway settlement does not participate in or regress the CROSSDOCK gate.
+8. Both initial ERP posting and P1-014 Supervisor retry are blocked before Phase-1 side effects if the gate is unsatisfied.
+9. A real ERP `POSTING_ERROR` remains under accepted P1-014 retry semantics; GR messages never auto-retry ERP posting.
+10. P1-only Shipment posting remains unchanged.
+11. Warehouse Supervisor can see contributing source GR statuses/blockers in normal Shipment UI.
+12. Inbound retains Goods Receipt retry ownership.
+13. P2-005 does not create or join automatic crossdock Shipment downstream; that begins only in P2-006.
 
-This role/state boundary is frozen for all later P2 work.
-
-## Accepted P2-004 functional boundary
-
-Preserve:
-
-- shortage with `allowPartialShipment=true` automatic partial packing/backorder behavior;
-- `DAMAGED` segregation to QC without contaminating OK target quantity;
-- `allowPartialShipment=false` shortage escalation to Warehouse Supervisor;
-- empty source TU cancellation / source `LOST` semantics;
-- general cancellation guard while task is `IN_PROGRESS`;
-- exact quantity conservation `confirmed + damaged + residual = declared`;
-- source finalization and physical-return handoff facts;
-- no orphan active target/task after recovery;
-- accepted P2-003 normal OK path remains unchanged and Allocation-free.
-
-P2-004 explicitly stops before P2-005 GR correlation/gating and P2-006 automatic Shipment/dispatch joining.
+Inherited P2-004 role boundary also remains frozen: ordinary Packer/Scanner cannot execute Warehouse Supervisor `WAIT` / `CANCEL` / `ALLOW_PARTIAL` decisions.
 
 ## Active item
 
-**P2-005 — Goods Receipt correlation gate and re-evaluation — item 24/37.**
+**P2-006 — Crossdock join into common Shipment/dispatch downstream — item 25/37.**
 
 Authoritative guide:
 
-`06_AGENT_GUIDES/P2-005_EXECUTION.md`
+`06_AGENT_GUIDES/P2-006_EXECUTION.md`
+
+Guide commit:
+
+`98fb8988eaa256cb79191bc3091c56e028abd903`
 
 Frozen accepted bases:
 
-- Mercato `9859be5c7dee4fe802d4d00478459a19982eddfe`;
+- Mercato `069f02d4c5c9b345b688b838eb685be02206afbd`;
 - Scanner `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa`;
-- P2-004 evidence `9fb9abd33c1ff8318b6339efc9b69cce3a3161ac`.
+- P2-005 evidence `0c7cf142e1723ff80e86cfd0f00d4b12c1e4b777`;
+- supervisor evidence correction `cf399679360d8b7fc071f9f958709c3bb99b7c59`.
 
-Task Catalog objective:
+## P2-006 Architect truth
 
-- correlate Goods Receipt results by source Inbound TU;
-- store crossdock GR acceptance status for every contributing source;
-- gate ERP Shipment posting until all of that Shipment's contributing crossdock sources have `GR_ACCEPTED`;
-- re-evaluate the gate on later GR messages.
+P2-006 must close P2 by joining crossdock into the already accepted P1 downstream lifecycle — **not by creating a second lifecycle**.
+
+1. Legitimate crossdock Packing TUs in `PACKING_SEALED` use the same persisted Shipment/TU/content/OutboundOrderLine relation as P1.
+2. There is no separate crossdock Shipment, carrier, label, ERP posting, CarrierManifest or settlement model.
+3. Common Shipment grouping key remains warehouse + customer + delivery address + priority + identical `slaDeadline`.
+4. P2 R43 priority/SLA inheritance and grouping restrictions remain authoritative.
+5. P1 R57/R58 is CustomerOrder-level and channel-neutral: STANDARD and CROSSDOCK packed coverage is summed together.
+6. For `allowPartialShipment=false`, an incomplete active line in either channel keeps ready Packing TUs outside every Shipment; `slaDeadline` cannot bypass this guard.
+7. Once complete and compatible, STANDARD + CROSSDOCK Packing TUs of that CustomerOrder may enter one complete Shipment (TC-125).
+8. `allowPartialShipment=true` follows ordinary common Shipment grouping/readiness; there is no crossdock-only wait rule.
+9. Common P1-012 Carrier Selection and P1-013 label lifecycle consume the combined Shipment normally.
+10. P2-005 GR gate remains before P1-014 ERP Phase 1 and only crossdock source TUs create GR requirements.
+11. After valid GR acceptance, the same P1-014 posting path proceeds; no crossdock posting service is allowed.
+12. POSTED crossdock/mixed Shipment uses the existing P1-015 CarrierManifest lifecycle and its irreversible/idempotent boundaries.
+13. P1-016 remains final settlement authority: STANDARD Allocation/Inventory effects settle exactly once; CROSSDOCK creates no fake Allocation and no standard Inventory decrement merely to fit P1, while its TU/line/order/customer states still advance through the common lifecycle.
+14. Multi-Shipment/final aggregate and replay behavior must remain accepted P1-016 behavior.
+15. Scanner has no second dispatch model and should stay frozen unless a concrete P2-006 defect proves otherwise.
 
 Requirements:
 
-`FR-P2-13`, `FR-P2-14`, `FR-P2-17`, `FR-P2-18`, `FR-P5-16`, `INT-02`, `INT-03`.
+`FR-P2-13`, `FR-P2-18`, `FR-P2-25`, `FR-P1-31`, `FR-P1-32`, `CON-04`, `CON-05`.
 
 Acceptance mapping:
 
-`TC-028`, `TC-030`, `TC-031`, `TC-038`, `TC-067`.
+`TC-028`, `TC-030`, `TC-031`, `TC-104`, `TC-105`, `TC-119`, `TC-122`, `TC-123`, `TC-124`, `TC-125`, `TC-126`.
 
-## P2-005 Architect truth
+## Mandatory deep reset before P2-006
 
-The executor must preserve these exact semantics:
+P2-006 is a **new Task Catalog item**.
 
-1. Correlation is only by `sourceInboundTU` + `GR_SETTLEMENT_SOURCE = CROSSDOCK`; no task id is required.
-2. Settlement/message version is not a discriminator between CROSSDOCK and PUTAWAY.
-3. A valid GR result updates the same `grAcceptanceStatus` on every CrossDockPickTask for that source TU, even if those tasks feed multiple Shipments.
-4. Unknown source TU or non-CROSSDOCK/PUTAWAY result changes zero crossdock GR status.
-5. Gate is computed separately per Shipment from all of its own distinct contributing source TUs.
-6. One accepted source never unlocks a Shipment that also depends on another pending/rejected source.
-7. Residual quantity and later Putaway settlement do not participate in or regress the crossdock GR gate.
-8. An initial P1-014 ERP post attempt while the gate is unsatisfied must stop before `POSTING_PENDING` and before posting/attempt/outbox/ERP-adapter side effects.
-9. `GR_REJECTED` itself does not set Shipment `POSTING_ERROR`; it only leaves the gate unsatisfied.
-10. Later `GR_ACCEPTED` after rejection re-evaluates normally and requires no manual data repair.
-11. A Shipment already `POSTING_ERROR` for a true ERP error also re-evaluates on GR messages, but P2-005 must not auto-retry ERP posting; accepted P1-014 Warehouse Supervisor retry remains authoritative.
-12. Warehouse Supervisor can inspect contributing source GR statuses; there is no manual GR override/escalation state.
-13. Inbound retains responsibility for retrying Goods Receipt messages.
-14. P2-005 does not implement P2-006 automatic Shipment formation/joining.
-
-## Mandatory deep reset before P2-005
-
-P2-005 is a **new Task Catalog item**, not a continuation of P2-004.
-
-Before any P2-005 implementation action, run:
+Before any P2-006 implementation action:
 
 ```bash
 cd /home/ubuntu/git/Devaxonic-WMS
@@ -129,75 +115,70 @@ git pull --ff-only
 bash scripts/reset-testing-runtime.sh --deep
 ```
 
-The reset is mandatory new-item Testing hygiene only. It must not:
+The reset is Testing/worktree hygiene only. It must not downgrade Supabase schema, remove accepted P2 migrations, reset products to older bases, or rewrite accepted history.
 
-- downgrade canonical Supabase schema;
-- remove accepted P2-003/P2-004 migrations;
-- reset Mercato/Scanner to old P2 bases;
-- rewrite accepted branch history.
+After reset, any changed product branch `outbound/p2-006` starts from the exact frozen accepted P2-005 head above.
 
-After reset, any changed product branch `outbound/p2-005` starts from the exact frozen P2-004 head above.
+## P2-006 test/evidence contract
 
-## P2-005 test/evidence contract
+Dedicated canonical PostgreSQL proof must explicitly map all **20 substantive behaviors** in `P2-006_EXECUTION.md`, including:
 
-Dedicated canonical PostgreSQL coverage must explicitly map all **18 substantive behaviors** listed in `P2-005_EXECUTION.md`, including:
-
-- pending/non-accepted initial state;
-- accepted/rejected correlation to all tasks of one source;
-- reject -> accepted normal re-evaluation;
-- duplicate/idempotent GR result;
-- unknown-source no-op;
-- PUTAWAY no-op;
-- version is not settlement-source discriminator;
-- per-Shipment multi-source gate;
-- one source feeding two Shipments;
-- residual/Putaway isolation;
-- P1-only Shipment non-regression;
-- blocked post has zero P1-014 side effects / ERP adapter calls;
-- POSTING_ERROR re-evaluation without auto-retry;
-- tenant/org isolation;
-- Supervisor read model.
+- common Shipment model / no crossdock fork;
+- exact grouping key and one-Shipment TU membership;
+- P2 R43 priority/SLA preservation;
+- both directions of mixed-channel `allowPartialShipment=false` blocking;
+- TC-122/123/124 equality/correction branches;
+- TC-125 one complete mixed STANDARD+CROSSDOCK Shipment;
+- slaDeadline cannot bypass the guard;
+- allowPartial true normal common grouping;
+- common P1 readiness/carrier/label behavior;
+- P2-005 gate in the combined Shipment;
+- common ERP posting;
+- common CarrierManifest lifecycle;
+- provenance-correct exactly-once final settlement with no fake crossdock Allocation/Inventory decrement;
+- multi-Shipment/replay idempotency.
 
 Mandatory regressions:
 
-- P1-014 ERP posting PostgreSQL accepted **18/18** behavior;
-- P2-004 PostgreSQL **16/16**;
-- P2-003 PostgreSQL **8/8**;
-- Mercato repository-native full generate/build/typecheck/build-app contract.
+- P2-005 GR gate **19/19**;
+- full accepted P1-011 Shipment grouping suite;
+- full P1-012 Carrier Selection suite;
+- full P1-013 label suite;
+- P1-014 ERP posting **18/18**;
+- full P1-015 CarrierManifest suite;
+- full P1-016 final settlement suite;
+- P2-002 planning **22/22** for P2 R43 inheritance;
+- P2-004 **16/16** and P2-003 **8/8** if execution/finalization/TU-state surfaces are touched; otherwise record why they remain retained rather than rerun;
+- broader/shared/Inbound regressions only for actually touched shared primitives.
 
-P2-002/P2-001 broader regressions only if their surfaces are touched. Shared/Inbound regressions only if shared primitives are actually modified.
+Real canonical Mercato Playwright uses zero route mocks and must prove:
 
-Real Playwright uses canonical runtime and zero route mocks. It must prove:
+- **Journey A:** real crossdock Packing TU -> common Shipment -> Carrier/label -> GR-blocked ERP -> GR_ACCEPTED -> ERP POSTED -> common CarrierManifest close/handover/confirm -> persisted final reconciliation;
+- **Journey B:** one `allowPartialShipment=false` CustomerOrder split STANDARD + CROSSDOCK; incomplete channel blocks all TUs, deadline cannot bypass, completion joins both TUs into one Shipment, then common downstream completes;
+- **Journey C:** a real grouping incompatibility or replay/second-Shipment negative boundary.
 
-- two-source Shipment blocked in rendered Mercato UI until all required crossdock GR statuses are accepted;
-- blocked rendered posting action produces zero posting side effects;
-- later valid GR_ACCEPTED unblocks the gate and normal P1-014 post can proceed;
-- POSTING_ERROR case re-evaluates gate but does not auto-retry; existing Supervisor retry remains required;
-- PUTAWAY result does not alter crossdock gate/status;
-- Supervisor sees exact source statuses/blockers.
+Scanner should remain frozen unless proven necessary.
 
-Scanner has no direct P2-005 decision. Keep Scanner frozen at accepted P2-004 SHA unless a concrete P2-005 defect proves a Scanner change is necessary.
+## Hard exclusions for P2-006
 
-## Hard exclusions for P2-005
-
-- no P2-006 automatic crossdock Shipment/dispatch joining;
-- no CarrierManifest implementation/change;
-- no unrelated carrier-selection redesign;
-- no ERP payload redesign beyond the required GR precondition;
-- no P3;
+- no second crossdock Shipment schema/lifecycle;
+- no second crossdock carrier/label/ERP/manifest/settlement model;
+- no external carrier provider API additions;
+- no P3 implementation;
 - no new P4 work;
 - no Return Receipt;
-- no Inbound GR retry ownership transfer;
+- no Inbound behavior/retry ownership changes;
 - no Demo/Prod;
-- no local PostgreSQL.
+- no local PostgreSQL;
+- no unrelated refactors.
 
 ## Executor/session transition
 
 Owner is using **Antigravity**.
 
-P2-005 should start in a **new Antigravity chat/session** because it is a new Task Catalog item.
+P2-006 must start in a **new Antigravity chat/session** because it is a new Task Catalog item.
 
-Launch prompt stays microscopic; detailed scope is only in `06_AGENT_GUIDES/P2-005_EXECUTION.md`.
+Launch prompt stays microscopic; detailed scope is only in `06_AGENT_GUIDES/P2-006_EXECUTION.md`.
 
 ## Supervisor protocol
 
@@ -207,4 +188,4 @@ Launch prompt stays microscopic; detailed scope is only in `06_AGENT_GUIDES/P2-0
 - detailed instructions live in Git, owner-facing prompts remain short;
 - two genuine attempts on one material technical path then STOP unless Owner authorizes a distinct path;
 - only supervisor verification followed by explicit Owner acceptance advances the catalog counter;
-- do not start P2-006 before P2-005 is supervisor-verified and Owner Accepted.
+- do not start P3-001 before P2-006 is supervisor-verified and Owner Accepted.

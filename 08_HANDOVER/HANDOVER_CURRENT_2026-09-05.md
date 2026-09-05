@@ -60,6 +60,8 @@ Acceptance mapping:
 
 `TC-020`, `TC-021`, `TC-022`, `TC-023`, `TC-027`, `TC-030`, `TC-032`, `TC-033`, `TC-034`, `TC-035`, `TC-037`, `TC-099`, `TC-101`.
 
+**Important staged-mapping rule:** these TC IDs are traceability mappings, not permission to close every future step of each full scenario inside P2-003. P2-003 proves only the slice supported by its own requirements/Architect refs. In particular: Shipment/dispatch portions of TC-020/021 remain P2-006/ACC; shortage/Supervisor TC-023 remains P2-004; residual/finalization exception portions of TC-027 remain P2-004; GR portions of TC-030 remain P2-005; cancellation/PutBack portions of TC-035 remain P2-004/P4. Later tasks/ACC close the full scenario.
+
 Authoritative behavior:
 
 - first real scan starts execution: task `ASSIGNED → IN_PROGRESS`, OOL `CREATED → PICKING`, first line start moves order `CREATED → PACKING_IN_PROGRESS`;
@@ -74,17 +76,20 @@ Authoritative behavior:
 ## Test/evidence lessons — mandatory from P2-003 through ACC-004
 
 1. Before every Playwright run, prove the exact intended Testing runtime/revision. Source SHA alone is not enough; route generation/build/service state must match.
-2. Scanner browser tests wait for real warehouse resolution/selection before module entry. `Choose mode` alone is not readiness.
-3. Assertions use the current tested SHA's UI contract (`testID`, accessibility, current copy), not historical accepted text.
-4. A historical regression spec is not automatically authoritative after later accepted UI evolution. On red, first compare the new diff, current product contract and fixture prerequisites.
-5. Concurrency proof targets the Architect-required business outcome using genuine overlapping PostgreSQL operations. Do not make incidental `pg_stat_activity`/`pg_blocking_pids` shapes into requirements unless Architect Source says so.
-6. Diagnose failures by layer: 404/5xx/API-null → runtime/route/API/persistence first; correct API + wrong UI → render defect.
-7. Fixtures explicitly set org/tenant/warehouse/role/zone/policy prerequisites and restore shared configuration. Never depend on ambient Testing defaults or cardinality.
-8. Local PostgreSQL is forbidden. Canonical DB is Supabase Testing project `yzonugcenguvmojwiihb` through the approved environment source.
-9. Shared/Inbound regression is required only for actually touched Inventory/TU/warehouse/task-lock/orchestration primitives; do not run broad historical suites by habit.
-10. Design the real rendered Playwright journey together with implementation, including real request evidence and persisted reconciliation; do not bolt it on at the end.
-11. X/ACC stages may retain prior proof only if the relevant surface/semantics and evidence class remain truthful; never relabel stale evidence.
-12. Two genuine attempts on one material technical path then STOP unless Owner authorizes a distinct narrow path.
+2. For Mercato route/product changes, use repository-native full build/generate and canonical `mercato-localhost.service` restart; probe new routes before browser assertions.
+3. For Scanner source changes, restart canonical `scanner-testing.service`; its `ExecStartPre` performs fresh `npx expo export --platform web`. Do not let Playwright `reuseExistingServer` silently reuse stale exported UI.
+4. Scanner browser tests wait for real warehouse resolution/selection before module entry. `Choose mode` alone is not readiness.
+5. Assertions use the current tested SHA's UI contract (`testID`, accessibility, current copy), not historical accepted text.
+6. A historical regression spec is not automatically authoritative after later accepted UI evolution. On red, first compare the new diff, current product contract and fixture prerequisites.
+7. Concurrency proof targets the Architect-required business outcome using genuine overlapping PostgreSQL operations. Do not make incidental `pg_stat_activity`/`pg_blocking_pids` shapes into requirements unless Architect Source says so.
+8. Diagnose failures by layer: 404/5xx/API-null → runtime/route/API/persistence first; correct API + wrong UI → render defect.
+9. Fixtures explicitly set org/tenant/warehouse/role/zone/policy prerequisites and restore shared configuration. Never depend on ambient Testing defaults or cardinality.
+10. Local PostgreSQL is forbidden. Canonical DB is Supabase Testing project `yzonugcenguvmojwiihb` through the approved environment source.
+11. Shared/Inbound regression is required only for actually touched Inventory/TU/warehouse/task-lock/orchestration primitives; do not run broad historical suites by habit.
+12. Design the real rendered Playwright journey together with implementation, including real request evidence and persisted reconciliation; do not bolt it on at the end.
+13. X/ACC stages may retain prior proof only if the relevant surface/semantics and evidence class remain truthful; never relabel stale evidence.
+14. Per-item Owner Accepted is not automatically `Human Verified`; only an actual human traversal may carry that label. ACC-004 remains the final human walkthrough gate.
+15. Two genuine attempts on one material technical path then STOP unless Owner authorizes a distinct narrow path.
 
 ## Remaining-plan hotspots
 

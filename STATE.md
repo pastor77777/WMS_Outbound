@@ -1,10 +1,10 @@
 # WMS Outbound — STATE
 
-**As of:** 2026-09-04  
+**As of:** 2026-09-05  
 **Campaign:** WMS Outbound v1  
 **Architecture:** implementation-ready; no unresolved product/architecture blocker recorded  
 **Current phase:** product implementation  
-**Implementation progress:** **17/37 items FINAL PASS**
+**Implementation progress:** **18/37 items FINAL PASS**
 
 ## Architect baseline
 
@@ -45,68 +45,63 @@ The plan is delivery decomposition only. Architect Source/Canon remains business
 15. `P1-012` — FINAL PASS / Owner Accepted — Mercato `5019a20be14549ff8cbbf25af5bc61c56888e9e1` / Scanner frozen `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `b28f59e7ff41ac6d0a3be4b841410650bc5acd8b`
 16. `P1-013` — FINAL PASS / Owner Accepted — Mercato `5e6b70aa81afd28fe3217e4aad216e8a6482a769` / Scanner frozen `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `826b9c477fa86a44a93606265868730e4570ff90`
 17. `P1-014` — FINAL PASS / Owner Accepted — Mercato `bef7c0a3e0995e7ecddb29156bdfa3777463a6b6` / Scanner frozen `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `b97f1640621b5b01571efec313b7fa0325c1aedf`
+18. `P1-015` — FINAL PASS / Owner Accepted — Mercato `f9b0b89cbd05d723ca36501c5dfb1dd57ce8a2e4` / Scanner frozen `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `f201bd0beb2411b4f87f28ca6562a4fc11e6a249`
 
-## P1-014 accepted boundary
+## P1-015 accepted boundary
 
 Preserve these accepted behaviors:
 
-- initial ERP posting is allowed only from Shipment `LABEL_GENERATED` or `OWN_TRANSPORT` and durably enters `POSTING_PENDING`;
-- the approved implementation uses an explicit deterministic Testing ERP adapter/contract seam; it does **not** claim a real external ERP endpoint;
-- explicit adapter acceptance advances `POSTING_PENDING → POSTED` and explicit structured business rejection advances `POSTING_PENDING → POSTING_ERROR`;
-- timeout/no-response is a technical incident and leaves the Shipment in `POSTING_PENDING`; it is not reclassified as business `POSTING_ERROR`;
-- real server-authoritative Warehouse Supervisor authority is required for `POSTING_ERROR → POSTING_PENDING` retry and `POSTING_ERROR → CANCELLED` give-up; non-Supervisor actions fail closed;
-- direct cancellation from `POSTING_PENDING` or `POSTED` is forbidden;
-- repeated/concurrent initial posting is idempotent: a duplicate arriving while the original call is in Phase 2 returns an explicit in-flight replay and does not create a second posting row, attempt, transition or ERP adapter invocation;
-- post-settlement duplicate calls return a safe replay without state regression;
-- P1-014 does not implement `POSTED → IN_MANIFEST`, CarrierManifest lifecycle, final inventory/order settlement, Scanner changes, Return Receipt or Prod/Demo behavior.
+- only `Shipment POSTED` may enter an `OPEN` `CarrierManifest`; successful assignment advances `POSTED → IN_MANIFEST` and one Shipment belongs to exactly one manifest;
+- `CarrierManifest OPEN → CLOSED` is irreversible and freezes composition; no post-close add/remove/reopen, Shipment cancellation or Carrier correction;
+- close serializes against member Shipment mutations with real PostgreSQL row locks;
+- `CLOSED → HANDED_OVER` is physical handover and advances included Shipments `IN_MANIFEST → HANDED_TO_CARRIER`, TUs `IN_SHIPMENT → DISPATCHED`, and contributing OutboundOrders `READY_FOR_DISPATCH → DISPATCHED`;
+- `HANDED_OVER → CONFIRMED` is a distinct final warehouse-confirmation boundary with exactly one `CarrierManifestConfirmed` fact and deterministic membership snapshot under duplicate/parallel calls;
+- P1-015 does not perform final `Inventory`/`Allocation`/`OutboundOrderLine`/`OutboundOrder`/`CustomerOrder` settlement; that boundary is P1-016;
+- no external carrier API and no Scanner changes were introduced.
 
-Accepted proof in `05_EVIDENCE/P1-014_EVIDENCE.md`:
+Accepted proof in `05_EVIDENCE/P1-015_EVIDENCE.md`:
 
-- final Mercato head `bef7c0a3e0995e7ecddb29156bdfa3777463a6b6`, exactly two commits after accepted P1-013 base `5e6b70aa81afd28fe3217e4aad216e8a6482a769`;
-- P1-014 PostgreSQL **18/18**, including two real `postShipment()` service calls, exact PostgreSQL lock contention, one posting row, one attempt, one `ShipmentPostingRequested`, one `ShipmentPosted` and exactly one Testing adapter call;
-- P1-013 regression **15/15**, P1-012 **14/14**, P1-011 **18/18**, FND-002 state transitions **77/77**, FND-002 transaction simulation **8/8**;
-- P1-014 Playwright **5/5** against served runtime `bef7c0a3e0995e7ecddb29156bdfa3777463a6b6`, including non-Supervisor fail-closed, no manifest action and timeout/non-business boundary;
-- final worktrees recorded clean and Scanner remained frozen.
+- final Mercato head `f9b0b89cbd05d723ca36501c5dfb1dd57ce8a2e4`, exactly two commits above accepted P1-014 base `bef7c0a3e0995e7ecddb29156bdfa3777463a6b6`;
+- P1-015 PostgreSQL **21/21**, including exact-session lock proof for assignment, add-vs-close, duplicate confirm and carrier-correction-vs-close;
+- post-remediation regression aggregate **171/171**;
+- fresh P1-015 Playwright **6/6** against canonical Testing served from exact final runtime `f9b0b89cbd05d723ca36501c5dfb1dd57ce8a2e4`;
+- durable final evidence `f201bd0beb2411b4f87f28ca6562a4fc11e6a249`; Scanner remained frozen.
 
 ## Current position
 
-Completed: **17/37**.
+Completed: **18/37**.
 
 Next implementation item:
 
-**P1-015 — CarrierManifest lifecycle and dispatch boundaries — item 18/37.**
+**P1-016 — Final line/order/inventory settlement and cancellation boundaries — item 19/37.**
 
 Fresh Task Catalog grounding:
 
-- objective: implement one-manifest assignment and `CarrierManifest OPEN → CLOSED → HANDED_OVER → CONFIRMED`, with irreversible `CLOSED` composition boundary and final warehouse-confirmation event;
-- Architect source: P1 KROK 12–13, R39–R40 and manifest-related state/event rules;
-- requirements traced by the task: `FR-P1-20`, `FR-P1-44`, `FR-P1-46`, `CON-04`, `CON-05`;
-- dependency: `P1-014` — satisfied;
-- target components: `CarrierManifest`, Shipment membership and Mercato dispatch/Supervisor UI;
-- acceptance mapping: `TC-001`, `TC-008`, `TC-128`, `TC-129`, `TC-132`, `TC-133`;
-- task DoD: `CLOSED` is irreversible and distinct from physical handover; duplicate confirmation has one business effect.
+- objective: settle `Inventory`/`Allocation`/`OutboundOrderLine` quantities per confirmed contributing manifest, terminalize lines and orders only after all contributing Shipment/manifest coverage is confirmed, continuously aggregate CustomerOrderLine/CustomerOrder, and enforce cancellation boundaries;
+- Architect source: P1 R37–R38, R41–R42, R49–R50, F1, R70–R72, general cancellation; P3/P4 entry routing;
+- requirements: `FR-P1-19`, `FR-P1-21`, `FR-P1-25`, `FR-P1-27`, `FR-P1-44`, `FR-P1-45`, `FR-P1-46`, `FR-P5-09`, `INT-06`, `CON-05`;
+- dependencies: `P1-015`, `P1-004`, `P1-001` — satisfied;
+- target: Inventory ledger, Allocation, OutboundOrder/Line, CustomerOrder/Line, cancellation correlation/orchestration;
+- acceptance: `TC-001`, `TC-003`, `TC-008`, `TC-009`, `TC-065`, `TC-128`, `TC-129`, `TC-130`, `TC-131`, `TC-132`, `TC-133`.
 
-Authoritative P1 behavior for this boundary:
+Authoritative P1-016 boundaries:
 
-- only `Shipment POSTED` may be added to an `OPEN` manifest; add advances Shipment `POSTED → IN_MANIFEST`;
-- one Shipment may belong to exactly one manifest;
-- `OPEN → CLOSED` is irreversible and freezes composition; after `CLOSED` no add/remove/reopen, Shipment cancellation or Carrier correction may be permitted;
-- `CLOSED → HANDED_OVER` represents physical carrier/self-transport handover and advances included Shipments `IN_MANIFEST → HANDED_TO_CARRIER`;
-- `HANDED_OVER → CONFIRMED` is the final warehouse confirmation and must be idempotent/exactly-once;
-- P1-015 must create a durable, deterministic confirmation boundary/event suitable for downstream settlement without performing the final `Inventory`/`Allocation`/`OutboundOrderLine`/`CustomerOrder` settlement owned by `P1-016`;
-- do not use legacy `carrier_shipments` as the target CarrierManifest truth merely because it exists;
-- no external carrier API is required;
-- Scanner remains frozen unless current product inspection proves the authorized manifest handover action is already scanner-owned; do not move it to Scanner by invention.
+- each `CONFIRMED` manifest settles only the quantities physically represented by its Outbound TUs: `Inventory PICKED → SHIPPED`, `Allocation.reservedQty` decreases by exactly that quantity, and line `shippedQty` advances exactly once;
+- partial multi-manifest issue leaves `OutboundOrderLine PACKED` and `Allocation CONFIRMED`; only full contributing-TU confirmation allows `OutboundOrderLine → SHIPPED` and `Allocation → CONSUMED` with `reservedQty = 0`;
+- `OutboundOrder DISPATCHED → COMPLETED` only when every Shipment containing any TU of that order is on a `CONFIRMED` manifest; confirmation order is irrelevant;
+- CustomerOrderLine and CustomerOrder aggregation follows Architect F1; no premature `SHIPPED`/`CLOSED`;
+- duplicate/parallel settlement must have one business effect; cross-manifest concurrent settlement of one line/allocation must not lose or double arithmetic;
+- cancellation remains impossible from Shipment `POSTING_PENDING` onward and after `CarrierManifest.CLOSED`; Return Receipt remains outside scope;
+- incoming cancellation/correction correlation chooses P3 vs P4 from formal `pickedQty`; P1-016 establishes the boundary/routing but must not implement future P3/P4 physical recovery workflows;
+- Scanner remains frozen; no P2 Crossdock implementation, Return Receipt, external carrier APIs or Prod/Demo changes.
 
 Current executor guide:
 
-`06_AGENT_GUIDES/P1-015_EXECUTION.md`
+`06_AGENT_GUIDES/P1-016_EXECUTION.md`
 
-P1-015 Mercato branch must start from exact accepted P1-014 SHA:
+P1-016 Mercato branch must start from exact accepted P1-015 SHA:
 
-`bef7c0a3e0995e7ecddb29156bdfa3777463a6b6`
-
-Do not absorb `P1-016` final settlement/cancellation work, Crossdock GR gating, Return Receipt, external carrier APIs, unrelated Scanner work or Prod/Demo changes.
+`f9b0b89cbd05d723ca36501c5dfb1dd57ce8a2e4`
 
 ## Authority and architecture-context rule
 
@@ -121,15 +116,15 @@ Inbound remains **CLOSED / REFERENCE** except targeted regression when an author
 
 ## Current-state documents
 
-`04_CURRENT_STATE/*` remains the pre-implementation audit baseline captured before ETAP 2 writes. Do not rewrite that baseline to masquerade as current runtime truth.
+`04_CURRENT_STATE/*` remains the pre-implementation audit baseline captured before ETAP 2 writes.
 
 Current authoritative handover:
 
-`08_HANDOVER/HANDOVER_CURRENT_2026-09-04.md`
+`08_HANDOVER/HANDOVER_CURRENT_2026-09-05.md`
 
 Current operational mirror in Devaxonic-WMS:
 
-`.ai/HANDOVER_OUTBOUND_CURRENT_2026-09-04.md`
+`.ai/HANDOVER_OUTBOUND_CURRENT_2026-09-05.md`
 
 ## Operating workflow
 

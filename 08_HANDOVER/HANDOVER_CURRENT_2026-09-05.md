@@ -8,94 +8,120 @@
 
 Plan: **37 items**, **109/109 Architect requirements mapped**.
 
-Current progress: **22/37 FINAL PASS**.
+Current progress: **23/37 FINAL PASS**.
 
 Latest accepted checkpoint:
 
-`P2-003` — Mercato `db0ef671b58ab13c2c0685205fbadcae1e1cf628` / Scanner `2ae72fb00db882fecae659b842e91efed17f949f` / evidence `f985d6099bdff939a0471012a25126baa8e216c2` — **FINAL PASS / Owner Accepted**.
+`P2-004` — Mercato `9859be5c7dee4fe802d4d00478459a19982eddfe` / Scanner `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa` / evidence `9fb9abd33c1ff8318b6339efc9b69cce3a3161ac` — **FINAL PASS / Owner Accepted**.
 
-P2-003 was independently supervisor-verified before Owner acceptance.
+P2-004 was independently supervisor-verified, corrected for Warehouse Supervisor role/state authorization, re-verified, and then explicitly accepted by Owner.
 
-## Accepted P2-003 proof
+## Accepted P2-004 proof
 
-- remote Mercato `outbound/p2-003` exactly `db0ef671b58ab13c2c0685205fbadcae1e1cf628`, clean local worktree and matching origin;
-- remote Scanner `outbound/p2-003` exactly `2ae72fb00db882fecae659b842e91efed17f949f`, clean local worktree and matching origin;
-- both product heads descend directly from the frozen accepted P2-002 bases with no unrelated branch divergence;
-- dedicated P2-003 canonical PostgreSQL suite **8/8 PASSED** with all **18 substantive behaviors** mapped to real assertions;
+- remote Mercato `outbound/p2-004` exactly `9859be5c7dee4fe802d4d00478459a19982eddfe`;
+- remote Scanner `outbound/p2-004` exactly `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa`;
+- both final product heads descend linearly from accepted P2-003 bases, two commits ahead / zero behind;
+- dedicated P2-004 canonical PostgreSQL suite **16/16 PASSED**;
+- P2-003 PostgreSQL **8/8 PASSED**;
 - P2-002 PostgreSQL **22/22 PASSED**;
-- P1-008 PostgreSQL **22/22 PASSED** and real Scanner TU identity **1/1 PASSED**;
-- P2-001 crossdock eligibility **10/10 PASSED**;
-- P2-002 Scanner assignment **1/1 PASSED**;
-- Mercato typecheck **19/19 packages PASSED**;
-- real Scanner P2-003 Journey A + Journey B **2/2 PASSED**, zero route mocks/interception, persisted canonical DB reconciliation;
-- Journey A proved lazy target + valid 1:1 GS1 TU_NUMBER/SSCC inheritance + completion;
-- Journey B proved n:n generated identity + physical-full `PACKING_SEALED` continuation into a distinct second target + exact 2+3=5 reconciliation;
-- no Allocation increase on normal crossdock execution;
-- canonical Mercato runtime active on port 3009 with `/login` HTTP 200 and non-empty `.mercato/next` production manifests;
-- canonical Scanner runtime active on port 8081 with HTTP 200;
-- permanent Mercato build-tooling correction includes `.mercato/next/**` Turbo outputs with cache exclusion and explicit workspace `cross-env` dependency;
-- evidence did not self-declare Owner acceptance/Human Verified.
+- P2-001 PostgreSQL **10/10 PASSED**;
+- Mercato full generate/build-packages/typecheck/build-app contract PASSED;
+- real P2-004 Playwright **4/4 PASSED** with zero route mocks/interception;
+- P2-003 Scanner real regression **2/2 PASSED**;
+- P2-002 Scanner assignment regression **1/1 PASSED**;
+- P1-008 Scanner identity regression **1/1 PASSED**;
+- canonical Mercato runtime active/running on port 3009, HTTP 200, non-empty production manifests;
+- canonical Scanner runtime active/running on port 8081, HTTP 200;
+- final evidence records exact pushed product SHAs and does not self-declare Owner acceptance.
 
-## Accepted P2-003 boundary
+## Accepted P2-004 authorization correction
+
+The first P2-004 closeout was rejected at supervisor gate because the Packer could execute Architect-defined Warehouse Supervisor decisions.
+
+The accepted corrective now guarantees:
+
+- normal Packer `/api/wms_outbound/cross-dock/execute` has no `supervisor_decision` action;
+- Scanner Packer UI has no `WAIT`, `CANCEL`, or `ALLOW_PARTIAL` controls;
+- Packer sees an escalation/waiting state only;
+- dedicated Supervisor endpoint `/api/wms_outbound/supervisor/cross-dock-decision` requires `wms_outbound.manage_orders`;
+- Supervisor identity comes from authenticated actor, not client-supplied id;
+- Packer direct HTTP attempt is rejected with HTTP 403 and zero side effect;
+- Supervisor decision is legal only for `CrossDockPickTask SHORT_PICKED` + `exceptionReason = SHORTAGE_ESCALATED`;
+- first accepted decision is immutable/replay-safe;
+- late `unexpected SKU` after final task state is rejected with zero discrepancy side effect;
+- real role-separated Scanner Packer -> rendered Mercato Warehouse Supervisor flow is covered by Playwright.
+
+This role/state boundary is frozen for all later P2 work.
+
+## Accepted P2-004 functional boundary
 
 Preserve:
 
-- first successful real placement starts task/line/order execution states;
-- target Outbound TU is lazy until first successful placement;
-- valid 1:1 GS1 source inherits TU_NUMBER + SSCC;
-- invalid/non-GS1 1:1 and every n:n topology generate new target identity through accepted TUSetup/Sequence behavior;
-- exact decimal placement quantity and replay-safe idempotency;
-- `confirmedQty <= plannedQty`;
-- physical-full target seal leaves the same task active and permits continuation in a new target;
-- completion is replay-safe and packs the line;
-- P2 normal crossdock path creates no Allocation;
-- normal P2-003 path covers only quality `OK` execution.
+- shortage with `allowPartialShipment=true` automatic partial packing/backorder behavior;
+- `DAMAGED` segregation to QC without contaminating OK target quantity;
+- `allowPartialShipment=false` shortage escalation to Warehouse Supervisor;
+- empty source TU cancellation / source `LOST` semantics;
+- general cancellation guard while task is `IN_PROGRESS`;
+- exact quantity conservation `confirmed + damaged + residual = declared`;
+- source finalization and physical-return handoff facts;
+- no orphan active target/task after recovery;
+- accepted P2-003 normal OK path remains unchanged and Allocation-free.
 
-P2-003 explicitly stops before shortage, damage, unexpected SKU, empty source TU, in-progress cancellation/recovery, GR gate and Shipment/ERP integration.
+P2-004 explicitly stops before P2-005 GR correlation/gating and P2-006 automatic Shipment/dispatch joining.
 
 ## Active item
 
-**P2-004 — Crossdock shortage, damage, empty-TU and cancellation recovery — item 23/37.**
+**P2-005 — Goods Receipt correlation gate and re-evaluation — item 24/37.**
 
 Authoritative guide:
 
-`06_AGENT_GUIDES/P2-004_EXECUTION.md`
+`06_AGENT_GUIDES/P2-005_EXECUTION.md`
 
 Frozen accepted bases:
 
-- Mercato `db0ef671b58ab13c2c0685205fbadcae1e1cf628`;
-- Scanner `2ae72fb00db882fecae659b842e91efed17f949f`;
-- P2-003 evidence `f985d6099bdff939a0471012a25126baa8e216c2`.
+- Mercato `9859be5c7dee4fe802d4d00478459a19982eddfe`;
+- Scanner `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa`;
+- P2-004 evidence `9fb9abd33c1ff8318b6339efc9b69cce3a3161ac`.
 
 Task Catalog objective:
 
-- confirmed shortage;
-- `DAMAGED` quantity;
-- unexpected SKU;
-- empty source TU;
-- cancellation while `CrossDockPickTask IN_PROGRESS`;
-- residual/finalization rules;
-- architect-defined `allowPartialShipment=false/true` outcomes;
-- non-regressive source/target TU recovery and Inbound settlement handoff boundary.
+- correlate Goods Receipt results by source Inbound TU;
+- store crossdock GR acceptance status for every contributing source;
+- gate ERP Shipment posting until all of that Shipment's contributing crossdock sources have `GR_ACCEPTED`;
+- re-evaluate the gate on later GR messages.
 
 Requirements:
 
-`FR-P2-06`, `FR-P2-07`, `FR-P2-08`, `FR-P2-09`, `FR-P2-10`, `FR-P2-11`, `FR-P2-12`, `FR-P2-15`, `FR-P2-19`, `FR-P5-12`, `FR-P5-13`, `FR-P5-14`, `FR-P5-15`.
+`FR-P2-13`, `FR-P2-14`, `FR-P2-17`, `FR-P2-18`, `FR-P5-16`, `INT-02`, `INT-03`.
 
 Acceptance mapping:
 
-`TC-021`, `TC-023`, `TC-024`, `TC-025`, `TC-026`, `TC-027`, `TC-035`, `TC-039`, `TC-067`, `TC-081`, `TC-121`.
+`TC-028`, `TC-030`, `TC-031`, `TC-038`, `TC-067`.
 
-Definition-of-Done anchor:
+## P2-005 Architect truth
 
-- `confirmed + damaged + residual` exactly reconcile to declared source quantity;
-- cancellation/finalization leaves no orphan active target or task.
+The executor must preserve these exact semantics:
 
-## Mandatory deep reset before P2-004
+1. Correlation is only by `sourceInboundTU` + `GR_SETTLEMENT_SOURCE = CROSSDOCK`; no task id is required.
+2. Settlement/message version is not a discriminator between CROSSDOCK and PUTAWAY.
+3. A valid GR result updates the same `grAcceptanceStatus` on every CrossDockPickTask for that source TU, even if those tasks feed multiple Shipments.
+4. Unknown source TU or non-CROSSDOCK/PUTAWAY result changes zero crossdock GR status.
+5. Gate is computed separately per Shipment from all of its own distinct contributing source TUs.
+6. One accepted source never unlocks a Shipment that also depends on another pending/rejected source.
+7. Residual quantity and later Putaway settlement do not participate in or regress the crossdock GR gate.
+8. An initial P1-014 ERP post attempt while the gate is unsatisfied must stop before `POSTING_PENDING` and before posting/attempt/outbox/ERP-adapter side effects.
+9. `GR_REJECTED` itself does not set Shipment `POSTING_ERROR`; it only leaves the gate unsatisfied.
+10. Later `GR_ACCEPTED` after rejection re-evaluates normally and requires no manual data repair.
+11. A Shipment already `POSTING_ERROR` for a true ERP error also re-evaluates on GR messages, but P2-005 must not auto-retry ERP posting; accepted P1-014 Warehouse Supervisor retry remains authoritative.
+12. Warehouse Supervisor can inspect contributing source GR statuses; there is no manual GR override/escalation state.
+13. Inbound retains responsibility for retrying Goods Receipt messages.
+14. P2-005 does not implement P2-006 automatic Shipment formation/joining.
 
-P2-004 is a **new Task Catalog item**, not a continuation of P2-003.
+## Mandatory deep reset before P2-005
 
-Before any implementation action, run:
+P2-005 is a **new Task Catalog item**, not a continuation of P2-004.
+
+Before any P2-005 implementation action, run:
 
 ```bash
 cd /home/ubuntu/git/Devaxonic-WMS
@@ -103,38 +129,75 @@ git pull --ff-only
 bash scripts/reset-testing-runtime.sh --deep
 ```
 
-This reset is mandatory before every new catalog item. It must not downgrade the canonical Supabase schema and must not reconstruct product repos from P2-002. P2-004 branches descend from the accepted P2-003 product SHAs above.
+The reset is mandatory new-item Testing hygiene only. It must not:
+
+- downgrade canonical Supabase schema;
+- remove accepted P2-003/P2-004 migrations;
+- reset Mercato/Scanner to old P2 bases;
+- rewrite accepted branch history.
+
+After reset, any changed product branch `outbound/p2-005` starts from the exact frozen P2-004 head above.
+
+## P2-005 test/evidence contract
+
+Dedicated canonical PostgreSQL coverage must explicitly map all **18 substantive behaviors** listed in `P2-005_EXECUTION.md`, including:
+
+- pending/non-accepted initial state;
+- accepted/rejected correlation to all tasks of one source;
+- reject -> accepted normal re-evaluation;
+- duplicate/idempotent GR result;
+- unknown-source no-op;
+- PUTAWAY no-op;
+- version is not settlement-source discriminator;
+- per-Shipment multi-source gate;
+- one source feeding two Shipments;
+- residual/Putaway isolation;
+- P1-only Shipment non-regression;
+- blocked post has zero P1-014 side effects / ERP adapter calls;
+- POSTING_ERROR re-evaluation without auto-retry;
+- tenant/org isolation;
+- Supervisor read model.
+
+Mandatory regressions:
+
+- P1-014 ERP posting PostgreSQL accepted **18/18** behavior;
+- P2-004 PostgreSQL **16/16**;
+- P2-003 PostgreSQL **8/8**;
+- Mercato repository-native full generate/build/typecheck/build-app contract.
+
+P2-002/P2-001 broader regressions only if their surfaces are touched. Shared/Inbound regressions only if shared primitives are actually modified.
+
+Real Playwright uses canonical runtime and zero route mocks. It must prove:
+
+- two-source Shipment blocked in rendered Mercato UI until all required crossdock GR statuses are accepted;
+- blocked rendered posting action produces zero posting side effects;
+- later valid GR_ACCEPTED unblocks the gate and normal P1-014 post can proceed;
+- POSTING_ERROR case re-evaluates gate but does not auto-retry; existing Supervisor retry remains required;
+- PUTAWAY result does not alter crossdock gate/status;
+- Supervisor sees exact source statuses/blockers.
+
+Scanner has no direct P2-005 decision. Keep Scanner frozen at accepted P2-004 SHA unless a concrete P2-005 defect proves a Scanner change is necessary.
+
+## Hard exclusions for P2-005
+
+- no P2-006 automatic crossdock Shipment/dispatch joining;
+- no CarrierManifest implementation/change;
+- no unrelated carrier-selection redesign;
+- no ERP payload redesign beyond the required GR precondition;
+- no P3;
+- no new P4 work;
+- no Return Receipt;
+- no Inbound GR retry ownership transfer;
+- no Demo/Prod;
+- no local PostgreSQL.
 
 ## Executor/session transition
 
-Owner has chosen to continue with **Antigravity** after Codex usage limits.
+Owner is using **Antigravity**.
 
-P2-004 should start in a **new Antigravity chat/session**. It must bootstrap from current Git truth only, not from old executor prose.
+P2-005 should start in a **new Antigravity chat/session** because it is a new Task Catalog item.
 
-Launch prompt stays microscopic; the detailed scope is in `06_AGENT_GUIDES/P2-004_EXECUTION.md`.
-
-## Test/evidence rules for P2-004
-
-- dedicated canonical PostgreSQL coverage for shortage/damage/empty/unexpected/cancel/finalization/conservation/idempotency;
-- accepted P2-003 dedicated suite **8/8** remains mandatory regression;
-- accepted real P2-003 Scanner Journey A/B **2/2** remains mandatory regression, zero route mocks;
-- P2-002 **22/22** remains mandatory;
-- P1-008 identity regression where target TU identity remains relevant;
-- P2-001 only when binding/eligibility surface is touched;
-- shared/Inbound regressions only if shared primitives are actually modified;
-- real rendered Scanner/Mercato actions where the architect assigns the role, with DB/API used only for deterministic setup/reconciliation;
-- exact canonical runtime proof before Playwright;
-- no evidence self-acceptance.
-
-## Hard exclusions for P2-004
-
-- no P2-005 GR gate lifecycle;
-- no P2-006 Shipment/ERP/manifest/carrier dispatch;
-- no P3 implementation;
-- no P4 PutBack workflow beyond an explicitly required P2 cancellation handoff fact;
-- no Return Receipt;
-- no Demo/Prod;
-- no reinterpretation of accepted Inbound semantics.
+Launch prompt stays microscopic; detailed scope is only in `06_AGENT_GUIDES/P2-005_EXECUTION.md`.
 
 ## Supervisor protocol
 
@@ -143,4 +206,5 @@ Launch prompt stays microscopic; the detailed scope is in `06_AGENT_GUIDES/P2-00
 - workflow remains `SHOT -> RECEIVE -> VERIFY EVIDENCE -> NEXT SHOT`;
 - detailed instructions live in Git, owner-facing prompts remain short;
 - two genuine attempts on one material technical path then STOP unless Owner authorizes a distinct path;
-- only supervisor verification followed by explicit Owner acceptance advances the catalog counter.
+- only supervisor verification followed by explicit Owner acceptance advances the catalog counter;
+- do not start P2-006 before P2-005 is supervisor-verified and Owner Accepted.

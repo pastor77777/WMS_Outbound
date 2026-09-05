@@ -69,11 +69,13 @@ Accepted proof in `05_EVIDENCE/P1-015_EVIDENCE.md`:
 
 ## Current position
 
-Completed: **18/37**.
+Completed and accepted: **18/37**.
 
-Next implementation item:
+Active implementation item — **execution in flight, not yet verified or accepted**:
 
 **P1-016 — Final line/order/inventory settlement and cancellation boundaries — item 19/37.**
+
+Owner reported on 2026-09-05 that an owner-selected Codex executor is executing `06_AGENT_GUIDES/P1-016_EXECUTION.md`. Do not infer completion from this fact. Steering/acceptance advances only after the executor finishes, supervisor independently verifies refs/diff/evidence, and the Owner explicitly accepts the result.
 
 Fresh Task Catalog grounding:
 
@@ -132,4 +134,4 @@ The persisted workflow remains:
 
 `06_AGENT_GUIDES/GIT_PROMPT_WORKFLOW.md`
 
-Detailed executor instructions live in Git; owner-facing launch prompts stay microscopic; supervisor independently verifies refs/diffs/evidence. Testing uses designated Testing credentials/configuration; do not rotate Testing credentials unless the owner explicitly changes that rule.
+Detailed executor instructions live in Git; owner-facing launch prompts stay microscopic and stand alone without appended questions/suggestions. The Owner controls executor launch/resume/session organization. Supervisor independently verifies refs/diffs/evidence. Testing uses designated Testing credentials/configuration; do not rotate Testing credentials unless the owner explicitly changes that rule.

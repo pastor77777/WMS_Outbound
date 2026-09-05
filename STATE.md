@@ -4,7 +4,7 @@
 **Campaign:** WMS Outbound v1  
 **Architecture:** implementation-ready; no unresolved product/architecture blocker recorded  
 **Current phase:** product implementation  
-**Implementation progress:** **22/37 items FINAL PASS**
+**Implementation progress:** **23/37 items FINAL PASS**
 
 ## Architect baseline
 
@@ -44,76 +44,93 @@ Requirements: **109 IDs = 98 FR + 6 INT + 5 CON**.
 20. `P2-001` — FINAL PASS / Owner Accepted — Mercato `8a264fff5c2ca665294d1e02df90c6f37554fe7f` / Scanner frozen `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `941d614966b1d2197d8654b3af924afb6ab14d58`
 21. `P2-002` — FINAL PASS / Owner Accepted — Mercato `50b27fdd0c9b495ab612ce458bc90e65428ecb93` / Scanner `6796b70aff9ab53d27a0b36d0764ccc83f4b0440` / evidence `2074e2541b7c28cf3c6031cb48ad68901333625a`
 22. `P2-003` — FINAL PASS / Owner Accepted — Mercato `db0ef671b58ab13c2c0685205fbadcae1e1cf628` / Scanner `2ae72fb00db882fecae659b842e91efed17f949f` / evidence `f985d6099bdff939a0471012a25126baa8e216c2`
+23. `P2-004` — FINAL PASS / Owner Accepted — Mercato `9859be5c7dee4fe802d4d00478459a19982eddfe` / Scanner `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa` / evidence `9fb9abd33c1ff8318b6339efc9b69cce3a3161ac`
 
-## P2-003 accepted boundary
+## P2-004 accepted boundary
 
 Preserve these accepted behaviors:
 
-- real Scanner normal `OK` crossdock execution starts task/line/order state on first successful placement;
-- target Outbound TU is lazy until first successful placement;
-- valid 1:1 GS1 source SSCC inherits TU_NUMBER + SSCC;
-- invalid/non-GS1 1:1 and all n:n cases use generated outbound TU identity;
-- placement quantity is exact decimal and idempotent;
-- `confirmedQty` never exceeds `plannedQty`;
-- physical-full seals the current target while the same task remains `IN_PROGRESS` and may continue into a new target;
-- completion is replay-safe and packs the line without creating Allocation;
-- Journey A 1:1 and Journey B n:n/physical-full passed through real Scanner UI with zero route mocks and persisted reconciliation;
-- P2-003 does not implement shortage, damage, empty source, cancellation recovery, GR gate, Shipment/ERP, P3 or P4.
+- shortage with `allowPartialShipment=true` packs confirmed quantity and backorders the remainder;
+- `DAMAGED` quantity is separated from confirmed OK stock and routed to QC;
+- `allowPartialShipment=false` shortage enters `SHORT_PICKED` + `SHORTAGE_ESCALATED` and waits for a real Warehouse Supervisor decision;
+- ordinary Packer/Scanner authorization cannot execute `WAIT`, `CANCEL`, or `ALLOW_PARTIAL`;
+- Supervisor decisions use the dedicated `wms_outbound.manage_orders` surface, exact tenant/org/warehouse scope and authenticated Supervisor identity;
+- Supervisor decision is legal only for `SHORT_PICKED` + `SHORTAGE_ESCALATED`, immutable/replay-safe after first acceptance;
+- unexpected SKU is routed to QC only while task is executable and cannot create late discrepancy facts after final state;
+- empty source TU before picking cancels task/lines and marks source TU `LOST`;
+- general cancellation remains blocked while crossdock sorting is `IN_PROGRESS`;
+- crossdock finalization conserves exactly `confirmed + damaged + residual = declared` and leaves no orphan active target/task;
+- normal accepted P2-003 OK execution remains non-regressive;
+- real role-separated Packer -> Warehouse Supervisor UI flow passed with zero Playwright route mocks.
 
-Accepted P2-003 proof:
+Accepted P2-004 proof:
 
-- dedicated canonical PostgreSQL suite **8/8**;
-- all **18 substantive behaviors** explicitly mapped and asserted;
+- dedicated canonical PostgreSQL suite **16/16**;
+- P2-003 regression **8/8**;
 - P2-002 regression **22/22**;
-- P1-008 PostgreSQL **22/22** and real Scanner identity **1/1**;
 - P2-001 regression **10/10**;
-- P2-002 Scanner assignment regression **1/1**;
-- Mercato typecheck **19/19 packages**;
-- real P2-003 Scanner Playwright **2/2**, zero route mocks;
-- final canonical Mercato runtime on port 3009 with `/login` HTTP 200 and non-empty production manifests;
-- final canonical Scanner runtime on port 8081 HTTP 200;
-- clean final product worktrees and pushed `outbound/p2-003` branches.
+- Mercato generate/build-packages/typecheck/build-app all PASS;
+- real P2-004 Playwright **4/4**, including Packer 403 negative and rendered Mercato Supervisor decision;
+- P2-003 Scanner regression **2/2**;
+- P2-002 Scanner regression **1/1**;
+- P1-008 Scanner identity regression **1/1**;
+- canonical Mercato runtime active on port 3009 with HTTP 200 and non-empty production manifests;
+- canonical Scanner runtime active on port 8081 HTTP 200;
+- final product branches clean, pushed, and exactly two commits ahead / zero behind accepted P2-003 bases.
+
+P2-004 does not implement P2-005 GR correlation/gating or P2-006 Shipment/dispatch joining.
 
 ## Current position
 
-Completed and accepted: **22/37**.
+Completed and accepted: **23/37**.
 
 Next authorized implementation item:
 
-**P2-004 — Crossdock shortage, damage, empty-TU and cancellation recovery — item 23/37.**
+**P2-005 — Goods Receipt correlation gate and re-evaluation — item 24/37.**
 
 Authoritative executor guide:
 
-`06_AGENT_GUIDES/P2-004_EXECUTION.md`
+`06_AGENT_GUIDES/P2-005_EXECUTION.md`
 
-Frozen accepted bases for P2-004:
+Frozen accepted bases for P2-005:
 
-- Mercato `db0ef671b58ab13c2c0685205fbadcae1e1cf628`;
-- Scanner `2ae72fb00db882fecae659b842e91efed17f949f`;
-- P2-003 evidence `f985d6099bdff939a0471012a25126baa8e216c2`.
+- Mercato `9859be5c7dee4fe802d4d00478459a19982eddfe`;
+- Scanner `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa`;
+- P2-004 evidence `9fb9abd33c1ff8318b6339efc9b69cce3a3161ac`.
 
-P2-004 objective:
+P2-005 objective:
 
-- confirmed shortage;
-- `DAMAGED` quantity;
-- unexpected SKU;
-- empty source TU;
-- in-progress cancellation;
-- residual/finalization rules;
-- `allowPartialShipment` policy outcomes;
-- exact `confirmed + damaged + residual` conservation and no orphan active target/task.
+- correlate Goods Receipt outcomes only by `sourceInboundTU` + `GR_SETTLEMENT_SOURCE=CROSSDOCK`;
+- store the same `grAcceptanceStatus` for all crossdock tasks of a source TU;
+- reject unknown-source and PUTAWAY settlement messages with zero crossdock mutation;
+- derive the GR gate separately per Shipment from all of its contributing crossdock source TUs;
+- keep Shipment outside `POSTING_PENDING` until every required source is `GR_ACCEPTED`;
+- keep residual/Putaway settlement outside this gate;
+- re-evaluate on every GR result, including while Shipment is `POSTING_ERROR` for another cause;
+- never turn `GR_REJECTED` itself into `POSTING_ERROR`;
+- preserve accepted P1-014 manual Supervisor retry semantics;
+- expose blocking source GR statuses to Warehouse Supervisor;
+- keep Inbound ownership of Goods Receipt retry.
 
 Requirements:
 
-`FR-P2-06`, `FR-P2-07`, `FR-P2-08`, `FR-P2-09`, `FR-P2-10`, `FR-P2-11`, `FR-P2-12`, `FR-P2-15`, `FR-P2-19`, `FR-P5-12`, `FR-P5-13`, `FR-P5-14`, `FR-P5-15`.
+`FR-P2-13`, `FR-P2-14`, `FR-P2-17`, `FR-P2-18`, `FR-P5-16`, `INT-02`, `INT-03`.
 
 Acceptance mapping:
 
-`TC-021`, `TC-023`, `TC-024`, `TC-025`, `TC-026`, `TC-027`, `TC-035`, `TC-039`, `TC-067`, `TC-081`, `TC-121`.
+`TC-028`, `TC-030`, `TC-031`, `TC-038`, `TC-067`.
+
+Definition-of-Done anchor:
+
+- Shipment cannot start ERP posting while any of its contributing crossdock source TUs lacks CROSSDOCK `GR_ACCEPTED`;
+- later valid `GR_ACCEPTED` satisfies the gate without manual data repair;
+- wrong-source/PUTAWAY messages do not alter the crossdock gate;
+- P1-only Shipment posting remains unchanged;
+- P2-006 automatic Shipment joining is not implemented here.
 
 ## Mandatory new-item deep Testing reset
 
-Before the first P2-004 implementation action, run the canonical deep reset:
+Before the first P2-005 implementation action, run the canonical deep reset:
 
 ```bash
 cd /home/ubuntu/git/Devaxonic-WMS

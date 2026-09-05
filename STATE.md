@@ -4,7 +4,7 @@
 **Campaign:** WMS Outbound v1  
 **Architecture:** implementation-ready; no unresolved product/architecture blocker recorded  
 **Current phase:** product implementation  
-**Implementation progress:** **20/37 items FINAL PASS**
+**Implementation progress:** **21/37 items FINAL PASS**
 
 ## Architect baseline
 
@@ -42,74 +42,92 @@ Requirements: **109 IDs = 98 FR + 6 INT + 5 CON**.
 18. `P1-015` — FINAL PASS / Owner Accepted — Mercato `f9b0b89cbd05d723ca36501c5dfb1dd57ce8a2e4` / Scanner frozen `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `f201bd0beb2411b4f87f28ca6562a4fc11e6a249`
 19. `P1-016` — FINAL PASS / Owner Accepted — Mercato `dd5ff1493740ffc99e11ce40e0b5ffc6b646f574` / Scanner frozen `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `50c5664fda12caf5c2f7bcdb0e9e86c3495a01c2`
 20. `P2-001` — FINAL PASS / Owner Accepted — Mercato `8a264fff5c2ca665294d1e02df90c6f37554fe7f` / Scanner frozen `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `941d614966b1d2197d8654b3af924afb6ab14d58`
+21. `P2-002` — FINAL PASS / Owner Accepted — Mercato `50b27fdd0c9b495ab612ce458bc90e65428ecb93` / Scanner `6796b70aff9ab53d27a0b36d0764ccc83f4b0440` / evidence `2074e2541b7c28cf3c6031cb48ad68901333625a`
 
-## P2-001 accepted boundary
+## P2-002 accepted boundary
 
 Preserve these accepted behaviors:
 
-- Outbound consumes only Inbound `TU` type `ELEMENTARY` already at `IN_CROSS_DOCK`;
-- binding demand is recalculated at that boundary against current `BACKORDERED` demand;
-- `demandEligibleQty` deducts ATPReservation and all non-CANCELLED OutboundOrderLine `requiredQty` across channels;
-- source capacity uses ASN declaration and keeps `ACTIVE`, `CONSUMED` and `DAMAGED` binding quantity deducted; only `RELEASED` returns unexecuted capacity;
-- positive binding uses exact decimal arithmetic and deterministic idempotency;
-- zero match records deterministic residual truth without creating P2-002 work;
-- concurrency is serialized in real PostgreSQL with source/demand locks and no double assignment;
-- accepted Inbound automatic cross-dock result harness explicitly controls/restores its `AUTOMATIC` prerequisite without changing Inbound business semantics;
-- Scanner remained frozen.
+- accepted positive P2-001 binding truth is converted exactly once into CROSSDOCK OutboundOrder/Line + CrossDockPickTask;
+- no Allocation exists in crossdock;
+- task `plannedQty` is the authoritative quantity lock and exact binding quantity;
+- channel is immutable CROSSDOCK and STANDARD/CROSSDOCK lines are not mixed in one OutboundOrder;
+- grouping uses customer/address/priority/identical SLA and accepted allowPartial semantics;
+- no eager physical target Outbound TU exists before first placement;
+- Crossdock Scanner module assigns the next task with no zone selector, same warehouse ordering and one-active-warehouse-task protection;
+- rendered Scanner shows task/source/planned quantity/status and stops before P2-003 execution controls;
+- canonical Testing runtime may require repository-native `yarn build` including `yarn generate` + restart of `mercato-localhost.service` after route additions; source SHA alone is not proof of served route presence.
 
-Accepted proof in `05_EVIDENCE/P2-001_EVIDENCE.md`:
+Accepted proof in `05_EVIDENCE/P2-002_EVIDENCE.md`:
 
-- dedicated P2-001 PostgreSQL **10/10**, substantively mapping all 20 required guide scenarios;
-- literal PostgreSQL CON-03 backend PID / lock-wait evidence;
-- focused regressions **4 suites / 38/38** including Inbound **3/3** on final head;
-- accepted P1-016 base reproduced Inbound **1/3** under ambient `MANUAL`, proving the original failure was a test-harness prerequisite rather than P2-001 regression;
-- durable evidence `941d614966b1d2197d8654b3af924afb6ab14d58`.
+- corrected architecture-aligned CON-03 PASS; P2-001 regression **10/10**;
+- dedicated P2-002 PostgreSQL **22/22**;
+- remaining mandatory Mercato regressions **5 suites / 41 tests**;
+- current-UI P1-005 Scanner regression **1/1**, zero route mocks;
+- dedicated P2-002 Scanner Playwright **1/1**, zero route mocks, real A/B/blocked request-task outcomes and persisted ownership/lock/allocation assertions;
+- rebuild-only stale generated/runtime route recovery; no Mercato source change;
+- clean final Mercato/Scanner worktrees.
 
 ## Current position
 
-Completed and accepted: **20/37**.
+Completed and accepted: **21/37**.
 
 Next authorized implementation item:
 
-**P2-002 — Crossdock OutboundOrder/Line and CrossDockPickTask planning — item 21/37.**
+**P2-003 — RF crossdock sorting into outbound TUs — item 22/37.**
 
 Task grounding:
 
-- objective: create CROSSDOCK OutboundOrder/Line and exactly-once CrossDockPickTask assignments from accepted P2-001 binding truth, without Allocation;
-- requirements: `FR-P2-02`, `FR-P2-03`, `FR-P2-04`, `FR-P2-16`, `FR-P2-21`, `FR-P2-22`, `FR-P2-25`, `CON-03`;
-- dependencies: `P2-001`, `FND-002` — satisfied;
-- source: P2 R3–R8, R29–R30, R39–R40, R43;
-- target: CrossDock planner, CrossDockPickTask, OutboundOrder/Line and bounded RF module assignment;
-- acceptance: `TC-020`, `TC-021`, `TC-022`, `TC-029`, `TC-030`, `TC-032`, `TC-033`, `TC-034`, `TC-036`, `TC-092`, `TC-099`, `TC-101`, `TC-119`, `TC-134`.
+- objective: implement the normal Scanner crossdock execution path from assigned task through source/SKU/quantity/quality OK placement into one or more target Outbound TUs, including lazy first target creation, physical-full sealing/new target continuation and task completion;
+- requirements: `FR-P2-02`, `FR-P2-04`, `FR-P2-05`, `FR-P2-10`, `FR-P2-12`, `FR-P2-19`, `FR-P2-21`, `FR-P2-22`;
+- dependencies: `P2-002`, `P1-008` — satisfied;
+- source: P2 R3–R4, R7–R10, R19–R20, R23–R24, R34, R39–R40;
+- target: Scanner crossdock journey, CrossDockPickTask execution service, Outbound TU placement/sealing;
+- acceptance: `TC-020`, `TC-021`, `TC-022`, `TC-023`, `TC-027`, `TC-030`, `TC-032`, `TC-033`, `TC-034`, `TC-035`, `TC-037`, `TC-099`, `TC-101`.
 
-Key P2-002 boundaries:
+Key P2-003 boundaries:
 
-- `OutboundOrder.fulfillmentChannel = CROSSDOCK` is immutable and never mixed with STANDARD lines;
-- grouping requires same customer/address/priority and identical `slaDeadline`; `allowPartialShipment = false` keeps grouping inside one CustomerOrder;
-- every crossdock OutboundOrderLine is created with exactly one CrossDockPickTask; task `plannedQty` is the authoritative source quantity lock;
-- replay/concurrency cannot double-plan P2-001 binding/source quantity;
-- no `Allocation` exists in crossdock;
-- physical target Outbound TU creation/numbering remains lazy until first placement and therefore belongs to P2-003;
-- P2-002 may expose the Scanner crossdock module only through assignment/visibility: no zone selector, same warehouse ordering as PickTask, one active warehouse task per operator;
-- P2-002 must not implement RF sorting/scans, quantity/quality confirmation, target TU placement/sealing, task completion, shortage/QC, GR gate or later P2 work.
+- first real scan transitions task `ASSIGNED → IN_PROGRESS`, line `CREATED → PICKING`, first line start moves order `CREATED → PACKING_IN_PROGRESS`;
+- physical target Outbound TU remains lazy until first successful placement;
+- 1:1 with valid GS1 source SSCC inherits TU_NUMBER/SSCC; otherwise/n:n creates a new Outbound TU identity using accepted P1-008 TUSetup/Sequence rules;
+- physical-full target may be sealed by RF and execution continues into a new target TU under the same task;
+- task completion fixes `confirmedQty <= plannedQty` and must be idempotent;
+- P2-003 covers normal OK execution only; shortage, DAMAGED, unexpected SKU, empty source TU, in-progress cancellation, residual/finalization exception handling belong to P2-004;
+- no GR gate, Shipment/ERP/manifest, P3/P4 implementation in this item.
 
-Current executor guide:
+Authoritative executor guide:
 
-`06_AGENT_GUIDES/P2-002_EXECUTION.md`
+`06_AGENT_GUIDES/P2-003_EXECUTION.md`
 
-P2-002 Mercato branch starts from accepted P2-001 head:
+## Test/evidence guardrails for all remaining items P2-003 → ACC-004
 
-`8a264fff5c2ca665294d1e02df90c6f37554fe7f`
+1. **Exact runtime before Playwright.** Source SHA is not served-runtime proof. For every route/product change, build with the repository-native full build/generate path, restart only canonical Testing services, and prove the intended route/runtime is present before browser assertions.
+2. **Real warehouse readiness.** Scanner Playwright must wait for real warehouse resolution/selection before entering a module. Do not use `Choose mode` alone as readiness.
+3. **Current UI contract.** Ground assertions in the current tested SHA (`testID`, accessibility labels, current rendered copy). Historical accepted selectors/text are not immutable product requirements.
+4. **Regression relevance.** Historical regression specs are evidence only when they still represent the current accepted contract and the new diff touches that surface. If a red spec is on untouched code, first compare current product/UI contract and fixture prerequisites before declaring regression.
+5. **Architecture-first concurrency.** Prove the architect-required business effect (serialization, no duplicate assignment/effect, exactly-once state) using genuine overlapping PostgreSQL operations. Do not elevate incidental diagnostics such as one `wait_event` or `pg_blocking_pids()` shape into requirements unless Architect Source explicitly requires them.
+6. **Diagnose by layer.** 404/5xx/API-null is diagnosed at route/runtime/API/persistence before changing UI selectors. If API is correct but rendering is wrong, then classify as Scanner/Mercato render defect.
+7. **Deterministic fixtures.** Test identities must receive explicit org/tenant/warehouse/role/zone or policy prerequisites. Never rely on ambient Testing cardinality or defaults (for example “only one warehouse”). Preserve/restore shared configuration on every exit path.
+8. **Canonical DB only.** Local PostgreSQL remains forbidden. DB-backed Jest/Playwright uses canonical Supabase Testing `yzonugcenguvmojwiihb` through the approved environment source.
+9. **Shared regression only when touched.** Inbound/shared regressions are mandatory for actually modified Inventory/TU/warehouse/task-lock/orchestration primitives; do not add broad historical suites merely by habit.
+10. **UI evidence designed with implementation.** Human-facing tasks must define their real rendered journey before implementation closeout, with real request/response and persisted reconciliation; do not bolt Playwright onto the end after backend completion.
+11. **No evidence relabeling.** X-001/ACC-001..004 must reference exact current executable proof; old accepted evidence may be retained only when the relevant product surface/SHA semantics are unchanged and the evidence class remains truthful.
+12. **Two-strikes rule remains.** Two genuine attempts on the same material technical path then STOP unless Owner explicitly authorizes a new narrow path.
 
-Scanner starts from accepted frozen head if bounded assignment UI work is required:
+## Remaining-plan risk notes
 
-`f4a404600efb1120cb2f1c5b86383ad148cd1e1a`
+- `P2-003/P2-004`: highest Scanner/quantity risk — require real RF n:n placement and quantity conservation from the start.
+- `P2-005/P2-006`: highest runtime/integration risk — route generation/runtime provenance and INT-02/03 correlation must be proven before UI gate assertions.
+- `P3-001/P3-003`: route recovery strictly by authoritative `pickedQty`; pre-confirm physical race returns to exact source location and must not create PutBackTask.
+- `P4-001..003`: logical cancellation is immediate; physical recovery is later; `pickedQty > 0` only; invalid-location loop has no retry limit/auto escalation.
+- `X-001`: executable CON-01..05 proof must test business outcomes, not diagnostic implementation details.
+- `ACC-001..004`: freeze exact app/runtime revisions and use normal UI; API/DB may prepare/verify fixtures but may not replace decisive human-facing actions.
 
 ## Authority and workflow
 
 For Outbound behavior: Architect Source/Canon → traceability/task docs → current code/DB as implementation evidence → implementation plan as delivery decomposition.
 
-Inbound remains **CLOSED / REFERENCE**. P2-002 may consume accepted P2-001 truth and run targeted regressions, but must not reinterpret accepted Inbound qualification/deintegration/transport semantics.
+Inbound remains **CLOSED / REFERENCE**. Run targeted regressions only for shared primitives actually touched.
 
 Current authoritative handover: `08_HANDOVER/HANDOVER_CURRENT_2026-09-05.md`.
 Current Devaxonic mirror: `.ai/HANDOVER_OUTBOUND_CURRENT_2026-09-05.md`.

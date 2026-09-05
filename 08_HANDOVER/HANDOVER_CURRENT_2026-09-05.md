@@ -79,3 +79,24 @@ Guide:
 - executor prose is not acceptance; supervisor verifies refs/diff/evidence independently;
 - Testing credentials are designated Testing data and are not a feature-work target;
 - do not modify `AGENTS.md` or unrelated `.ai/*` policy files as part of feature delivery.
+
+## Fresh-chat first step before continuing P2-001
+
+The Owner is switching ChatGPT sessions before launching the next execution stack.
+
+The **first operation in the fresh chat** is shell cleanup for the two existing owner commands:
+
+- `codex-local`
+- `codex-tests`
+
+Rules for that shell step:
+
+1. Start with a **non-mutating audit** of the existing command/function definitions and current Codex CLI help/version. Do not guess or recreate their existing path/environment semantics from memory.
+2. Preserve the existing purpose of both commands. The intended change is only to move their Codex invocation to the current automatic approval-review mode `--approve-for-me`, subject to the exact installed CLI syntax discovered in the audit.
+3. Do not use `exec codex`.
+4. Do not create a global `codex()` wrapper and do not change unrelated aliases/functions.
+5. Do not touch `AGENTS.md`, product code, Testing credentials, executor guides or application runtime while making this shell-only change.
+6. Apply one minimal `.bashrc` change only after the current definitions are known; verify the resulting definitions in a fresh shell before the Owner launches the stack.
+7. Owner controls when/how the stack and executor sessions are started.
+
+After this shell step is complete, return to P2-001 using `06_AGENT_GUIDES/P2-001_EXECUTION.md`.

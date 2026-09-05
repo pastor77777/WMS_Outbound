@@ -8,76 +8,108 @@
 
 Plan: **37 items**, **109/109 Architect requirements mapped**.
 
-Current progress: **20/37 FINAL PASS**.
+Current progress: **21/37 FINAL PASS**.
 
 Latest accepted checkpoint:
 
-`P2-001` — Mercato `8a264fff5c2ca665294d1e02df90c6f37554fe7f` / Scanner frozen `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `941d614966b1d2197d8654b3af924afb6ab14d58` — **FINAL PASS / Owner Accepted**.
+`P2-002` — Mercato `50b27fdd0c9b495ab612ce458bc90e65428ecb93` / Scanner `6796b70aff9ab53d27a0b36d0764ccc83f4b0440` / evidence `2074e2541b7c28cf3c6031cb48ad68901333625a` — **FINAL PASS / Owner Accepted**.
 
 Accepted proof:
 
-- dedicated P2-001 PostgreSQL **10/10**, mapping all 20 required scenarios;
-- literal real PostgreSQL CON-03 backend-PID/lock-wait evidence;
-- focused regressions **4 suites / 38/38**;
-- accepted Inbound cross-dock result suite final **3/3** after explicit test-harness `AUTOMATIC` prerequisite with restoration;
-- base P1-016 reproduced Inbound **1/3** under ambient `MANUAL`, proving the original red regression was not introduced by P2-001;
-- Scanner unchanged.
+- architecture-aligned CON-03 PASS and P2-001 regression **10/10**;
+- P2-002 dedicated canonical PostgreSQL **22/22**;
+- remaining mandatory Mercato regressions **5 suites / 41 tests**;
+- current-UI P1-005 Scanner regression **1/1**, zero route mocks;
+- dedicated P2-002 Scanner Playwright **1/1**, zero route mocks;
+- real Crossdock request-task outcomes: operator A HTTP 200 expected task, operator B HTTP 200 distinct task, blocked operator HTTP 400 active-task rejection;
+- rendered task number/source/plannedQty/status/no-zone/P2-003 boundary plus persisted ownership, two task locks and unchanged Allocation count;
+- canonical Mercato 404 was classified as stale generated/build/runtime routing and recovered by repository-native full `yarn build` including `yarn generate` plus canonical `mercato-localhost.service` restart; no Mercato source change;
+- final Mercato and Scanner worktrees clean.
 
-## Accepted P2-001 boundary
+## Accepted P2-002 boundary
 
 Preserve:
 
-- only Inbound `TU ELEMENTARY` already at `IN_CROSS_DOCK` is eligible;
-- binding demand is recalculated at boundary time;
-- exact source/demand/crossdock quantity arithmetic and all-channel demand coverage deduction;
-- `ACTIVE`, `CONSUMED`, `DAMAGED` source binding quantity remains deducted; only `RELEASED` returns unexecuted capacity;
-- deterministic zero-match residual fact and replay idempotency;
-- real PostgreSQL source/demand serialization with no double assignment;
-- no P2-002 work was created by P2-001.
+- positive accepted P2-001 binding becomes exactly one CROSSDOCK OOL + CrossDockPickTask;
+- no Allocation in crossdock;
+- exact `plannedQty` source quantity lock;
+- immutable CROSSDOCK channel and accepted grouping/allowPartial semantics;
+- no target Outbound TU before first placement;
+- Crossdock RF entry/assignment has no zone selector and respects warehouse queue + one-active-task guard;
+- P2-002 stops before sorting, quality/quantity confirmation, target placement/sealing, completion and shortage handling.
 
 ## Active item
 
-**P2-002 — Crossdock OutboundOrder/Line and CrossDockPickTask planning — item 21/37.**
+**P2-003 — RF crossdock sorting into outbound TUs — item 22/37.**
 
-Grounding:
+Authoritative guide:
 
-- requirements: `FR-P2-02`, `FR-P2-03`, `FR-P2-04`, `FR-P2-16`, `FR-P2-21`, `FR-P2-22`, `FR-P2-25`, `CON-03`;
-- dependencies satisfied: P2-001, FND-002;
-- source: P2 R3–R8, R29–R30, R39–R40, R43;
-- acceptance: `TC-020`, `TC-021`, `TC-022`, `TC-029`, `TC-030`, `TC-032`, `TC-033`, `TC-034`, `TC-036`, `TC-092`, `TC-099`, `TC-101`, `TC-119`, `TC-134`;
-- exact Mercato base: `8a264fff5c2ca665294d1e02df90c6f37554fe7f`;
-- Scanner baseline if bounded assignment UI is needed: `f4a404600efb1120cb2f1c5b86383ad148cd1e1a`.
+`06_AGENT_GUIDES/P2-003_EXECUTION.md`
+
+Frozen accepted bases:
+
+- Mercato `50b27fdd0c9b495ab612ce458bc90e65428ecb93`;
+- Scanner `6796b70aff9ab53d27a0b36d0764ccc83f4b0440`;
+- P2-002 evidence `2074e2541b7c28cf3c6031cb48ad68901333625a`.
+
+Requirements:
+
+`FR-P2-02`, `FR-P2-04`, `FR-P2-05`, `FR-P2-10`, `FR-P2-12`, `FR-P2-19`, `FR-P2-21`, `FR-P2-22`.
+
+Acceptance mapping:
+
+`TC-020`, `TC-021`, `TC-022`, `TC-023`, `TC-027`, `TC-030`, `TC-032`, `TC-033`, `TC-034`, `TC-035`, `TC-037`, `TC-099`, `TC-101`.
 
 Authoritative behavior:
 
-- consume accepted positive P2-001 binding truth; do not create a second reservation truth;
-- create immutable `fulfillmentChannel = CROSSDOCK` OutboundOrder/Line and exactly one CrossDockPickTask per planned line;
-- `CrossDockPickTask.plannedQty` is the authoritative quantity lock; replay/concurrency cannot double-plan source quantity;
-- no `Allocation` exists for crossdock;
-- grouping requires same customer/address/priority and identical `slaDeadline`; `allowPartialShipment = false` keeps grouping inside one CustomerOrder;
-- physical target Outbound TU creation/numbering remains lazy until first placement and therefore is not performed by P2-002;
-- Scanner scope is bounded to entering/selecting the crossdock module and receiving the next task without a zone selector, under the accepted single-active-warehouse-task and queue-ordering rules;
-- no P2-003 source/SKU/quantity/quality scans, target placement, sealing, completion or shortage/QC handling.
+- first real scan starts execution: task `ASSIGNED → IN_PROGRESS`, OOL `CREATED → PICKING`, first line start moves order `CREATED → PACKING_IN_PROGRESS`;
+- scan/confirm normal `OK` SKU/quantity into target Outbound TU(s);
+- target TU is created lazily at first placement, not during P2-002 planning;
+- 1:1 with valid GS1 source SSCC inherits TU_NUMBER/SSCC; otherwise and for n:n use accepted P1-008 TUSetup/Sequence identity generation;
+- physically full target can be RF-sealed and the same task continues into a new open target TU;
+- task completion fixes an idempotent `confirmedQty <= plannedQty`;
+- P2-003 normal path must support both 1:1 and n:n through the real Scanner UI;
+- shortage/DAMAGED/unexpected SKU/empty source/cancellation/residual exception logic remains P2-004.
 
-Guide:
+## Test/evidence lessons — mandatory from P2-003 through ACC-004
 
-`06_AGENT_GUIDES/P2-002_EXECUTION.md`
+1. Before every Playwright run, prove the exact intended Testing runtime/revision. Source SHA alone is not enough; route generation/build/service state must match.
+2. Scanner browser tests wait for real warehouse resolution/selection before module entry. `Choose mode` alone is not readiness.
+3. Assertions use the current tested SHA's UI contract (`testID`, accessibility, current copy), not historical accepted text.
+4. A historical regression spec is not automatically authoritative after later accepted UI evolution. On red, first compare the new diff, current product contract and fixture prerequisites.
+5. Concurrency proof targets the Architect-required business outcome using genuine overlapping PostgreSQL operations. Do not make incidental `pg_stat_activity`/`pg_blocking_pids` shapes into requirements unless Architect Source says so.
+6. Diagnose failures by layer: 404/5xx/API-null → runtime/route/API/persistence first; correct API + wrong UI → render defect.
+7. Fixtures explicitly set org/tenant/warehouse/role/zone/policy prerequisites and restore shared configuration. Never depend on ambient Testing defaults or cardinality.
+8. Local PostgreSQL is forbidden. Canonical DB is Supabase Testing project `yzonugcenguvmojwiihb` through the approved environment source.
+9. Shared/Inbound regression is required only for actually touched Inventory/TU/warehouse/task-lock/orchestration primitives; do not run broad historical suites by habit.
+10. Design the real rendered Playwright journey together with implementation, including real request evidence and persisted reconciliation; do not bolt it on at the end.
+11. X/ACC stages may retain prior proof only if the relevant surface/semantics and evidence class remain truthful; never relabel stale evidence.
+12. Two genuine attempts on one material technical path then STOP unless Owner authorizes a distinct narrow path.
 
-## Hard exclusions
+## Remaining-plan hotspots
 
-- no P2-003 RF sorting/execution;
-- no eager physical target Outbound TU creation/numbering/labeling;
-- no Allocation;
-- no GR gate or later P2 shipment/ERP work;
-- no P3/P4 execution;
+- **P2-003/P2-004:** real RF 1:1+n:n sorting, target-TU identity/continuity and quantity conservation are the main risk.
+- **P2-005/P2-006:** integration correlation + generated route/runtime provenance are the main risk; prove route presence before UI gate assertions.
+- **P3:** authoritative `pickedQty` determines P3 vs P4; pre-confirm physical race returns to exact source and never creates PutBackTask.
+- **P4:** logical cancellation is immediate; physical recovery is asynchronous; PutBack only for `pickedQty > 0`; invalid-location loop has no retry limit or auto escalation.
+- **X-001/X-002:** test business exactly-once/correlation outcomes, not implementation diagnostics.
+- **ACC-001..004:** freeze exact Mercato/Scanner/runtime revisions; normal UI actions remain decisive, while API/DB is setup/verification only.
+
+## Hard exclusions for P2-003
+
+- no P2-004 shortage/damage/empty/cancellation recovery;
+- no GR gate or P2-005;
+- no Shipment/ERP/manifest P2-006 work;
+- no P3/P4 implementation;
 - no Return Receipt;
-- no Prod/Demo;
+- no Demo/Prod;
 - no reinterpretation of accepted Inbound semantics.
 
 ## Supervisor protocol
 
-- Owner controls executor selection, launch, resume and session organization;
-- launch prompts are microscopic and contain no appended questions/suggestions;
-- executor prose is not acceptance; supervisor verifies refs/diff/evidence independently;
+- next executor run should use a **new Codex session** bootstrapped only from current Git state/guide;
+- Owner controls executor selection, launch and session organization;
+- launch prompts stay microscopic;
+- executor prose is not acceptance; supervisor independently verifies refs/diff/evidence;
 - Testing credentials are designated Testing data and are not a feature-work target;
-- do not modify `AGENTS.md` or unrelated `.ai/*` policy files as part of feature delivery.
+- do not modify Architect Source/Canon/Task Catalog/AGENTS/.ai steering unless separately authorized.

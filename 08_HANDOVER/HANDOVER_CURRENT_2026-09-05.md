@@ -8,69 +8,71 @@
 
 Plan: **37 items**, **109/109 Architect requirements mapped**.
 
-Current progress: **19/37 FINAL PASS**.
+Current progress: **20/37 FINAL PASS**.
 
 Latest accepted checkpoint:
 
-`P1-016` — Mercato `dd5ff1493740ffc99e11ce40e0b5ffc6b646f574` / Scanner frozen `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `50c5664fda12caf5c2f7bcdb0e9e86c3495a01c2` — **FINAL PASS / Owner Accepted**.
+`P2-001` — Mercato `8a264fff5c2ca665294d1e02df90c6f37554fe7f` / Scanner frozen `f4a404600efb1120cb2f1c5b86383ad148cd1e1a` / evidence `941d614966b1d2197d8654b3af924afb6ab14d58` — **FINAL PASS / Owner Accepted**.
 
 Accepted proof:
 
-- P1-016 PostgreSQL **25/25**;
-- real PostgreSQL Race A/B lock evidence + rollback proof;
-- mandatory regressions **9 suites / 187/187**;
-- dedicated P1-016 Playwright A–F **6/6** against canonical Testing on exact final Mercato SHA;
+- dedicated P2-001 PostgreSQL **10/10**, mapping all 20 required scenarios;
+- literal real PostgreSQL CON-03 backend-PID/lock-wait evidence;
+- focused regressions **4 suites / 38/38**;
+- accepted Inbound cross-dock result suite final **3/3** after explicit test-harness `AUTOMATIC` prerequisite with restoration;
+- base P1-016 reproduced Inbound **1/3** under ambient `MANUAL`, proving the original red regression was not introduced by P2-001;
 - Scanner unchanged.
 
-## Accepted P1-016 boundary
+## Accepted P2-001 boundary
 
 Preserve:
 
-- exact-once settlement per confirmed manifest contribution;
-- no early terminalization under partial multi-manifest coverage;
-- exact Allocation reservedQty / OutboundOrderLine shippedQty arithmetic;
-- OutboundOrder completion only after all relevant Shipment manifests are confirmed;
-- CustomerOrderLine/CustomerOrder aggregation per Architect F1;
-- cancellation hard boundaries and atomic whole-order rejection;
-- real PostgreSQL serialization for same-manifest replay and different-manifest shared-line settlement.
+- only Inbound `TU ELEMENTARY` already at `IN_CROSS_DOCK` is eligible;
+- binding demand is recalculated at boundary time;
+- exact source/demand/crossdock quantity arithmetic and all-channel demand coverage deduction;
+- `ACTIVE`, `CONSUMED`, `DAMAGED` source binding quantity remains deducted; only `RELEASED` returns unexecuted capacity;
+- deterministic zero-match residual fact and replay idempotency;
+- real PostgreSQL source/demand serialization with no double assignment;
+- no P2-002 work was created by P2-001.
 
 ## Active item
 
-**P2-001 — Inbound crossdock boundary and demand/source eligibility — item 20/37.**
+**P2-002 — Crossdock OutboundOrder/Line and CrossDockPickTask planning — item 21/37.**
 
 Grounding:
 
-- requirements: `FR-P2-01`, `FR-P2-03`, `FR-P2-23`, `FR-P2-24`, `FR-P2-25`, `INT-01`, `CON-03`;
-- dependencies satisfied: FND-001, FND-003, P1-002, P1-003;
-- source: P2 R1–R2, R5–R6, R41–R43, KROK 1, R29–R30;
-- acceptance: `TC-020`, `TC-029`, `TC-036`, `TC-092`, `TC-102`, `TC-103`, `TC-119`, `TC-134`;
-- exact Mercato base: `dd5ff1493740ffc99e11ce40e0b5ffc6b646f574`.
+- requirements: `FR-P2-02`, `FR-P2-03`, `FR-P2-04`, `FR-P2-16`, `FR-P2-21`, `FR-P2-22`, `FR-P2-25`, `CON-03`;
+- dependencies satisfied: P2-001, FND-002;
+- source: P2 R3–R8, R29–R30, R39–R40, R43;
+- acceptance: `TC-020`, `TC-021`, `TC-022`, `TC-029`, `TC-030`, `TC-032`, `TC-033`, `TC-034`, `TC-036`, `TC-092`, `TC-099`, `TC-101`, `TC-119`, `TC-134`;
+- exact Mercato base: `8a264fff5c2ca665294d1e02df90c6f37554fe7f`;
+- Scanner baseline if bounded assignment UI is needed: `f4a404600efb1120cb2f1c5b86383ad148cd1e1a`.
 
 Authoritative behavior:
 
-- only Inbound `TU` `ELEMENTARY` already at `IN_CROSS_DOCK` enters Outbound crossdock;
-- Inbound qualification is only a transport premise; binding demand matching happens at `IN_CROSS_DOCK` against current `BACKORDERED` demand;
-- `sourceEligibleQty = ASN qty - active plannedQty - completed confirmedQty - completed damagedQty`;
-- `demandEligibleQty = CustomerOrderLine.Quantity - ATPReservation - sum(requiredQty of all non-CANCELLED OutboundOrderLines, all channels)`;
-- `crossDockEligibleQty = min(sourceEligibleQty, demandEligibleQty)`;
-- concurrent matching cannot assign any quantity twice and follows warehouse priority order;
-- zero match creates no crossdock work and returns the full declared quantity as residual to the Inbound handoff;
-- P2-001 does not create P2-002 CrossDockPickTask/OutboundOrder planning and does not implement Scanner crossdock sorting.
+- consume accepted positive P2-001 binding truth; do not create a second reservation truth;
+- create immutable `fulfillmentChannel = CROSSDOCK` OutboundOrder/Line and exactly one CrossDockPickTask per planned line;
+- `CrossDockPickTask.plannedQty` is the authoritative quantity lock; replay/concurrency cannot double-plan source quantity;
+- no `Allocation` exists for crossdock;
+- grouping requires same customer/address/priority and identical `slaDeadline`; `allowPartialShipment = false` keeps grouping inside one CustomerOrder;
+- physical target Outbound TU creation/numbering remains lazy until first placement and therefore is not performed by P2-002;
+- Scanner scope is bounded to entering/selecting the crossdock module and receiving the next task without a zone selector, under the accepted single-active-warehouse-task and queue-ordering rules;
+- no P2-003 source/SKU/quantity/quality scans, target placement, sealing, completion or shortage/QC handling.
 
 Guide:
 
-`06_AGENT_GUIDES/P2-001_EXECUTION.md`
+`06_AGENT_GUIDES/P2-002_EXECUTION.md`
 
 ## Hard exclusions
 
-- no P2-002 task/order planning;
-- no P2-003 Scanner sorting;
-- no GR gate (P2-005);
+- no P2-003 RF sorting/execution;
+- no eager physical target Outbound TU creation/numbering/labeling;
+- no Allocation;
+- no GR gate or later P2 shipment/ERP work;
 - no P3/P4 execution;
 - no Return Receipt;
-- no external carrier API;
 - no Prod/Demo;
-- no reinterpretation of accepted Inbound qualification/TU semantics.
+- no reinterpretation of accepted Inbound semantics.
 
 ## Supervisor protocol
 
@@ -79,24 +81,3 @@ Guide:
 - executor prose is not acceptance; supervisor verifies refs/diff/evidence independently;
 - Testing credentials are designated Testing data and are not a feature-work target;
 - do not modify `AGENTS.md` or unrelated `.ai/*` policy files as part of feature delivery.
-
-## Fresh-chat first step before continuing P2-001
-
-The Owner is switching ChatGPT sessions before launching the next execution stack.
-
-The **first operation in the fresh chat** is shell cleanup for the two existing owner commands:
-
-- `codex-local`
-- `codex-tests`
-
-Rules for that shell step:
-
-1. Start with a **non-mutating audit** of the existing command/function definitions and current Codex CLI help/version. Do not guess or recreate their existing path/environment semantics from memory.
-2. Preserve the existing purpose of both commands. The intended change is only to move their Codex invocation to the current automatic approval-review mode `--approve-for-me`, subject to the exact installed CLI syntax discovered in the audit.
-3. Do not use `exec codex`.
-4. Do not create a global `codex()` wrapper and do not change unrelated aliases/functions.
-5. Do not touch `AGENTS.md`, product code, Testing credentials, executor guides or application runtime while making this shell-only change.
-6. Apply one minimal `.bashrc` change only after the current definitions are known; verify the resulting definitions in a fresh shell before the Owner launches the stack.
-7. Owner controls when/how the stack and executor sessions are started.
-
-After this shell step is complete, return to P2-001 using `06_AGENT_GUIDES/P2-001_EXECUTION.md`.

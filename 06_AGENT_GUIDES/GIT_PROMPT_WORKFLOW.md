@@ -23,9 +23,48 @@ Current source wins over an older guide or old chat history.
 
 ## Canonical rhythm
 
-**SHOT -> RECEIVE -> VERIFY EVIDENCE -> NEXT SHOT**
+**ITEM -> EXECUTE END-TO-END -> REPORT ONLY PASS OR REAL BLOCKER -> VERIFY EVIDENCE -> NEXT ITEM**
 
-### 1. Put the detailed shot in Git
+An executor owns the full authorized Task Catalog item once launched. It is expected to keep working through ordinary implementation, fixture, auth, environment, runtime, build and test issues without returning control after every local failure.
+
+The supervisor must not decompose a healthy in-progress item into a chain of tiny reactive shots merely because one test, fixture or runtime check failed. Continuation inside the same item is the default.
+
+### Executor autonomy inside one item
+
+Within the exact authorized item and hard exclusions, every executor — including Antigravity, local Codex, Codex Cloud and any other owner-authorized executor — must:
+
+- inspect current state and continue from the first unfinished point;
+- diagnose and fix ordinary implementation/test/fixture/tooling/runtime issues autonomously;
+- rerun the smallest relevant check as needed while stabilizing the item;
+- preserve already-proven green areas unless a later product change invalidates them;
+- avoid broad unrelated refactors or business-scope expansion;
+- continue until the item is genuinely complete and pushed/evidenced, or until a real blocker reaches the two-strikes boundary below.
+
+Do **not** STOP merely for:
+
+- a missing/incorrect test fixture;
+- login/auth/session setup mismatch in a test;
+- TLS/self-signed-certificate handling in Testing;
+- a stale selector or deterministic test-data problem;
+- a transient service start delay;
+- an executor-terminal lifecycle issue when durable host-side execution/recovery is available;
+- a first failing assertion that can be locally diagnosed within scope.
+
+Those are executor-owned problems, not owner decisions.
+
+### Two-strikes means the same real blocker, not two ordinary failures
+
+For one **material blocker on the same technical path**:
+
+1. diagnose root cause and make one substantive attempt;
+2. if it still fails, make one genuinely different evidence-based corrective attempt;
+3. only after the second materially similar failure, when there is no normal in-scope next move, STOP and return the exact blocker for supervisor/Owner decision.
+
+Two-strikes does not mean “two test failures anywhere in the item.” It applies only to the same unresolved material path after two substantive attempts.
+
+Do not burn the two strikes on trivial fixture corrections, syntax fixes, missing test data, auth plumbing or similar routine work that the executor can resolve locally.
+
+### 1. Put the detailed item guide in Git
 
 Before launch, create or update a bounded task guide under:
 
@@ -38,12 +77,14 @@ The guide carries all material detail the executor needs locally:
 - exact allowed files/behavior and hard exclusions;
 - decisive real evidence requirements;
 - whether product/test/evidence changes are allowed;
-- STOP condition;
-- two-strikes/override status where applicable.
+- final completion condition;
+- true escalation boundary for the same material blocker.
 
 Do not rely on chat-session memory for correctness.
 
 Preferred naming remains task-specific, e.g. `<TASK>_EXECUTION.md`, `<TASK>_REMEDIATION.md`, `<TASK>_CLOSEOUT.md`.
+
+A guide should authorize the executor to finish the whole item. Do not write guides that require a supervisor round-trip after every ordinary intermediate failure.
 
 ### 2. Owner-facing launch prompt is microscopic
 
@@ -55,19 +96,20 @@ Normal launch prompt should be 2–4 lines, for example:
 Sync WMS_Outbound/main and execute ONLY:
 `06_AGENT_GUIDES/<GUIDE>.md`
 
-Push required implementation/evidence, then STOP.
+Finish the whole item, push required implementation/evidence, then STOP only for PASS or a true two-strikes blocker.
 ```
 
 Add `continue in the same session` only when session continuity is intentionally useful and the owner asked for that wording. Do not make it a hidden requirement.
 
-**The launch prompt is the final owner-facing content for that shot.** Do not append questions, suggested follow-ups, menus, extra options, automation suggestions, explanations or executor-startup instructions below it unless the owner explicitly asks for them.
+**The launch prompt is the final owner-facing content for that item.** Do not append questions, suggested follow-ups, menus, extra options, automation suggestions, explanations or executor-startup instructions below it unless the owner explicitly asks for them.
 
 ### 3. Executor-neutral operation
 
 The owner selects the executor/venue **and controls how executors are started, resumed, organized and switched**.
 
-Codex, Antigravity and Claude may execute the same Git guide when authorized and operating under the canonical Devaxonic-WMS contract.
+Antigravity, local Codex, Codex Cloud, Claude and other authorized executors may execute the same Git guide when authorized and operating under the canonical Devaxonic-WMS contract.
 
+- The autonomy/two-strikes rule is identical across executors and venues.
 - Do not tell the owner how to launch, restart, resume, organize or sequence executors unless the owner explicitly asks for those mechanics.
 - Do not silently switch executor/model/venue to escape a blocker.
 - A fresh executor session is valid when owner-selected; it must bootstrap from Git/state, not old chat memory.
@@ -79,7 +121,7 @@ Executor-specific launch mechanics belong in `Devaxonic-WMS/.ai/OPERATIONS.md`, 
 
 ### 4. Receive
 
-Normal owner return is simply `done` or the executor's short final report.
+Normal owner return is simply `done`, a PASS report, or one real two-strikes blocker.
 
 Do not ask the owner to paste:
 
@@ -118,17 +160,15 @@ Verify as relevant:
 - `FINAL PASS / Owner Accepted` occurs only after explicit owner acceptance at the required boundary.
 - After owner acceptance, update durable STATE/handover as appropriate.
 
-### 7. Two-strikes / STOP
+### 7. STOP boundary
 
-For the same material path:
+Executor STOP is appropriate only when:
 
-- one initial attempt;
-- one genuine corrective attempt;
-- after materially identical second failure: STOP unless the owner explicitly authorizes a narrow additional shot.
+- the full authorized item is complete, pushed and evidenced for supervisor verification; or
+- the same material blocker has survived two substantive evidence-based attempts and there is no normal in-scope next move; or
+- continuing would require business-scope expansion, destructive action, environment/venue switch, Demo/Prod access, or another owner-controlled decision.
 
-Each explicit override permits only the authorized narrow extra shot.
-
-After STOP, report the exact blocker/current refs. Do not automatically invent another remediation, switch executor or broaden scope.
+After a true blocker STOP, report the exact blocker/current refs. Do not automatically switch executor or broaden scope.
 
 ## Real evidence invariants
 
@@ -177,8 +217,8 @@ A fresh supervisor/executor must read current state/handover and this workflow f
 
 Keep it operational:
 
-- verified PASS or exact blocker;
-- one microscopic launch prompt when another shot is authorized;
+- verified PASS or exact true blocker;
+- one microscopic launch prompt when another item/true corrective shot is authorized;
 - otherwise STOP.
 
 Do not add post-prompt engagement questions, optional next steps or explanatory tails when the owner asked only for the prompt.

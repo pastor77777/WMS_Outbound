@@ -31,10 +31,25 @@ Read:
 - `/home/ubuntu/git/Devaxonic-WMS/AGENTS.md`
 - `/home/ubuntu/git/Devaxonic-WMS/.ai/TESTING.md`
 - `/home/ubuntu/git/Devaxonic-WMS/.ai/OPERATIONS.md`
+- `06_AGENT_GUIDES/GIT_PROMPT_WORKFLOW.md`
 
 Those files are the single steering source for executor/runtime/Testing/credential mechanics. Do not duplicate those operational facts into WMS_Outbound steering.
 
 A fresh executor session must consume current Devaxonic-WMS state/handover plus this repository's current `STATE.md`/handover before declaring environment/runtime unavailable.
+
+### Full-item executor mode
+
+The normal work unit is the whole owner-authorized Task Catalog item.
+
+Antigravity, local Codex, Codex Cloud, Claude and any other authorized executor must keep working through ordinary implementation, fixture, auth, TLS, test-data, tooling, runtime, build and test failures until the whole item is complete/pushed/evidenced or a true escalation boundary is reached.
+
+Do not return to the owner/supervisor after every first failure. Do not split one healthy in-progress item into a chain of reactive micro-tickets.
+
+A blocker is escalated only when the **same material technical path** remains unresolved after two genuinely different substantive evidence-based attempts, or when continuing requires an owner-controlled decision such as scope expansion, destructive action, environment/venue switch or Demo/Prod access.
+
+Routine fixture/auth/test-data/TLS/tooling corrections are executor-owned while a normal in-scope fix exists and do not consume the two-strikes boundary merely because a test failed.
+
+Current canonical Git steering wins over stale historical tickets, handovers, old chat instructions or older executor-skill wording if they conflict.
 
 ### Language routing
 

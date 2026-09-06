@@ -4,7 +4,7 @@
 **Campaign:** WMS Outbound v1  
 **Architecture:** implementation-ready; no unresolved product/architecture blocker recorded  
 **Current phase:** product implementation  
-**Implementation progress:** **26/37 items FINAL PASS / Owner Accepted**
+**Implementation progress:** **28/37 items FINAL PASS / Owner Accepted**
 
 ## Architect baseline
 
@@ -48,62 +48,72 @@ Requirements: **109 IDs = 98 FR + 6 INT + 5 CON**.
 24. `P2-005` — FINAL PASS / Owner Accepted — Mercato `069f02d4c5c9b345b688b838eb685be02206afbd` / Scanner frozen `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa` / evidence `0c7cf142e1723ff80e86cfd0f00d4b12c1e4b777` / supervisor correction `cf399679360d8b7fc071f9f958709c3bb99b7c59`
 25. `P2-006` — FINAL PASS / Owner Accepted — Mercato `4f64641ab14a5359bc22d0685e390b511252b5b5` / Scanner frozen `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa` / evidence `9a580b046b5f2aa3bcbf2422eeaf6413248f68db`
 26. `P3-001` — FINAL PASS / Owner Accepted — Mercato `9fb32493ed9ec443a18a494aa1a8ec3a1bde6d06` / Scanner frozen `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa` / evidence `15c3ad937a4e81d7b67ff96409bd0b6a65553864`
+27. `P3-002` — FINAL PASS / Owner Accepted — Mercato `84274acacfbfe0119e270ca5bfbcb723e47d7723` / Scanner frozen `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa` / evidence `efe6fec205f5f75baa1822c0c5560fbbdd0c9a14`
+28. `P4-001` — catalog item 29/37 — FINAL PASS / Owner Accepted — Mercato `66e2e8620041d2db1d10d069e286936083667139` / Scanner frozen `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa` / evidence `6780af113cbc31db26449fa6ca2fde5f238ab801`
 
 ## Current position
 
-Completed and accepted: **26/37**.
+Completed and accepted: **28/37**.
+
+Because P3-003 depended on P4-001, P4-001 was executed and accepted before catalog item 28. That dependency is now satisfied.
 
 Next authorized implementation item:
 
-**P3-002 — Reservation retention policy and automatic release timer — item 27/37.**
+**P3-003 — Cancellation race: physical movement before formal confirmation — catalog item 28/37.**
 
 Authoritative executor guide:
 
-`06_AGENT_GUIDES/P3-002_EXECUTION.md`
+`06_AGENT_GUIDES/P3-003_EXECUTION.md`
 
 Guide commit:
 
-`b299f9d66ff8438ae2f69a0cc068ac06455b17f7`
+`80613b4fc516be66b34d200b3375e4b16217ea4f`
 
-Frozen accepted bases:
+Accepted bases:
 
-- Mercato P3-001 `9fb32493ed9ec443a18a494aa1a8ec3a1bde6d06`;
+- Mercato P4-001 `66e2e8620041d2db1d10d069e286936083667139`;
 - Scanner `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa`;
+- P4-001 evidence `6780af113cbc31db26449fa6ca2fde5f238ab801`;
+- P3-002 evidence `efe6fec205f5f75baa1822c0c5560fbbdd0c9a14`;
 - P3-001 evidence `15c3ad937a4e81d7b67ff96409bd0b6a65553864`.
 
 Grounding:
 
-- P3 R9-R10;
-- `FR-P3-05`, `FR-P3-06`;
-- `TC-112`, `TC-113`.
+- P3 R7-R8;
+- `FR-P3-04`, `INT-06`;
+- `TC-042`, `TC-043`;
+- P4-001 accepted discriminator/logical cancellation boundary.
 
 Core boundary:
 
-- warehouse partial-reservation policy has exactly three variants: retain, auto-release-after-time, Supervisor decision;
-- configured retention time is independent of `priority` and `slaDeadline`;
-- actual release must reuse accepted P3-001 and preserve its formal `pickedQty = 0` boundary, atomicity and idempotency;
-- P3-002 does not own P3-003 physical-removal race/exact-source RF return or P4 PutBack;
-- Scanner remains frozen unless a real P3-002 requirement is found.
+- pre-confirm race means source location + SKU verified/physically removed while authoritative formal `pickedQty = 0`;
+- if P3 cancellation wins, reuse P3-001, cancel eligible task work and show exact-source RF return instruction with zero PutBackTask;
+- no formal pick state/quantity is created by the pre-confirm observation itself;
+- if formal confirmation wins and `pickedQty > 0`, route to accepted P4-001 and do not emit the P3 exact-source instruction;
+- server/PostgreSQL locking decides the winner, not Scanner-local state;
+- Scanner is now materially in scope for the RF instruction and pre-confirm observation;
+- P4-002/P4-003 remain out of scope.
 
 ## Mandatory new-item reset
 
-Before first P3-002 implementation action, perform the canonical reset defined in `Devaxonic-WMS/.ai/OPERATIONS.md` and require `RESET_OK`.
+Before first P3-003 implementation action, perform the canonical reset defined in `Devaxonic-WMS/.ai/OPERATIONS.md` and require a successful `RESET_OK` result.
 
-The reset is separate from executor launch. Do not repeat it for retries/continuations inside P3-002.
+The reset is separate from executor launch. Do not repeat it for retries/continuations inside P3-003.
 
 ## Executor / prompt workflow
 
 Detailed workflow: `06_AGENT_GUIDES/GIT_PROMPT_WORKFLOW.md`.
 
-Prompt skill routing: `06_AGENT_GUIDES/PROMPT_SKILL_ROUTING.md` (`a52587ddb1efcaae5babc0e0bd3a8e3c99f67942`).
+Prompt skill routing: `06_AGENT_GUIDES/PROMPT_SKILL_ROUTING.md`.
 
 Rules:
 
 - full Task Catalog item is the normal executor unit;
+- current Owner-selected executor for this item is Codex; executor choice does not change the guide/business/evidence contract;
 - executor owns ordinary implementation/fixture/auth/TLS/tooling/runtime/build/test failures until COMPLETE;
+- Testing credentials are frozen per canonical `Devaxonic-WMS/.ai/TESTING.md` and are not an implementation/refactor/rotation topic;
 - two-strikes only for the same material unresolved technical path after two genuinely different substantive attempts;
-- all executor venues use the same Git/business/evidence contract;
-- before writing executor prompts, supervisor refreshes WMS Outbound + Architect/Canon and applies current `wms-outbound`, `architecture-context` when shared compatibility is relevant, and current `fetch_me_prompt` + `operational-mode` guidance;
+- before writing executor prompts, supervisor refreshes WMS Outbound + Architect/Canon and applies current `wms-outbound`, `scanner-context`, `fetch_me_prompt` + `operational-mode`; `architecture-context` is compatibility-only if shared primitives are touched;
 - owner-facing handoff contains prompt content only; launcher/VPN/session-start commands are excluded unless Owner explicitly requests them;
 - executor prose is never acceptance;
 - Owner acceptance is explicit after independent supervisor verification.

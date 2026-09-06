@@ -43,12 +43,19 @@ The guide must tell the executor to:
 
 - own implementation through tests/build/runtime/UI/evidence/push;
 - solve ordinary fixture, auth, TLS, test-data, selector, service-startup, terminal-lifecycle and tooling issues autonomously;
+- treat implementation mistakes, compile/type errors, failing assertions and regressions caused by the executor's own in-scope changes as **executor-owned self-repair work, not blockers while a normal in-scope correction exists**;
+- on such a failure, continue the loop `diagnose -> patch -> rerun the smallest relevant check -> continue the item` without returning control to the Owner/supervisor;
 - preserve already-green proof unless later product changes invalidate it;
 - return only `COMPLETE` or a true escalation blocker;
 - apply two-strikes only to the **same material unresolved technical path** after two genuinely different substantive attempts;
 - never self-declare `FINAL PASS`, `Owner Accepted` or `Human Verified`.
 
-Do not generate `STOP after first failure` or artificial rerun-count limits for ordinary fixture/tooling failures.
+A `BLOCKER` response is invalid when it only reports an ordinary implementation/test regression and does not identify either:
+
+1. two genuinely different substantive failed attempts on the same material technical path, with the path still unresolved and no normal in-scope move remaining; or
+2. a genuine Owner-controlled boundary such as scope expansion, destructive action, Demo/Prod access, environment/venue/executor switch or a missing product decision.
+
+Do not generate `STOP after first failure` or artificial rerun-count limits for ordinary fixture/tooling/implementation failures.
 
 ## Owner-facing prompt
 
@@ -58,7 +65,7 @@ After the detailed Git guide exists, owner-facing executor text remains microsco
 Sync WMS_Outbound/main and execute ONLY:
 `06_AGENT_GUIDES/<GUIDE>.md`
 
-Finish the entire item. Return only COMPLETE or a true two-strikes blocker.
+Finish the entire item. Ordinary in-scope implementation/test regressions are not blockers: fix and continue. Return only COMPLETE or a true two-strikes / Owner-controlled blocker.
 ```
 
 Owner-facing handoff contains prompt content only. Do not combine it with shell/launcher/VPN/session-start commands unless Owner explicitly requests them. Pre-item reset is a separate operation and must not be conflated with executor launch.

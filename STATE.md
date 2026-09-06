@@ -4,7 +4,7 @@
 **Campaign:** WMS Outbound v1  
 **Architecture:** implementation-ready; no unresolved product/architecture blocker recorded  
 **Current phase:** product implementation  
-**Implementation progress:** **25/37 items FINAL PASS / Owner Accepted**
+**Implementation progress:** **26/37 items FINAL PASS / Owner Accepted**
 
 ## Architect baseline
 
@@ -47,63 +47,55 @@ Requirements: **109 IDs = 98 FR + 6 INT + 5 CON**.
 23. `P2-004` — FINAL PASS / Owner Accepted — Mercato `9859be5c7dee4fe802d4d00478459a19982eddfe` / Scanner `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa` / evidence `9fb9abd33c1ff8318b6339efc9b69cce3a3161ac`
 24. `P2-005` — FINAL PASS / Owner Accepted — Mercato `069f02d4c5c9b345b688b838eb685be02206afbd` / Scanner frozen `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa` / evidence `0c7cf142e1723ff80e86cfd0f00d4b12c1e4b777` / supervisor correction `cf399679360d8b7fc071f9f958709c3bb99b7c59`
 25. `P2-006` — FINAL PASS / Owner Accepted — Mercato `4f64641ab14a5359bc22d0685e390b511252b5b5` / Scanner frozen `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa` / evidence `9a580b046b5f2aa3bcbf2422eeaf6413248f68db`
+26. `P3-001` — FINAL PASS / Owner Accepted — Mercato `9fb32493ed9ec443a18a494aa1a8ec3a1bde6d06` / Scanner frozen `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa` / evidence `15c3ad937a4e81d7b67ff96409bd0b6a65553864`
 
 ## Current position
 
-Completed and accepted: **25/37**.
+Completed and accepted: **26/37**.
 
 Next authorized implementation item:
 
-**P3-001 — Reservation Release before formal pick — item 26/37.**
+**P3-002 — Reservation retention policy and automatic release timer — item 27/37.**
 
 Authoritative executor guide:
 
-`06_AGENT_GUIDES/P3-001_EXECUTION.md`
+`06_AGENT_GUIDES/P3-002_EXECUTION.md`
 
 Guide commit:
 
-`403ec74fb97bd920ca0da8965850101e17b5f40c`
+`b299f9d66ff8438ae2f69a0cc068ac06455b17f7`
 
-Frozen bases:
+Frozen accepted bases:
 
-- Mercato `4f64641ab14a5359bc22d0685e390b511252b5b5`;
+- Mercato P3-001 `9fb32493ed9ec443a18a494aa1a8ec3a1bde6d06`;
 - Scanner `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa`;
-- P2-006 evidence `9a580b046b5f2aa3bcbf2422eeaf6413248f68db`.
+- P3-001 evidence `15c3ad937a4e81d7b67ff96409bd0b6a65553864`.
 
 Grounding:
 
-- `FR-P3-01`, `FR-P3-02`, `FR-P3-03`, `INT-06`;
-- P3 R1–R6 and P3/P4 process-entry boundary;
-- `TC-040`, `TC-041`.
+- P3 R9-R10;
+- `FR-P3-05`, `FR-P3-06`;
+- `TC-112`, `TC-113`.
 
 Core boundary:
 
-- P3 applies only before formal pick (`pickedQty = 0` / no accepted pick confirmation for the released quantity);
-- true pre-pick release returns hard reserved stock to availability and ATP exactly once, cancels line/task state consistently, and creates no `PutBackTask`;
-- shortage -> CustomerOrderLine `BACKORDERED`; general cancellation -> CustomerOrderLine `CANCELLED`;
-- P3-002 owns retention policy/timer R9–R10;
-- P3-003 owns the physical-removal-before-confirmation race / exact-source return / P4 handoff R7–R8;
-- P4 owns physically picked quantity (`pickedQty > 0`).
+- warehouse partial-reservation policy has exactly three variants: retain, auto-release-after-time, Supervisor decision;
+- configured retention time is independent of `priority` and `slaDeadline`;
+- actual release must reuse accepted P3-001 and preserve its formal `pickedQty = 0` boundary, atomicity and idempotency;
+- P3-002 does not own P3-003 physical-removal race/exact-source RF return or P4 PutBack;
+- Scanner remains frozen unless a real P3-002 requirement is found.
 
 ## Mandatory new-item reset
 
-Before first P3-001 implementation action:
+Before first P3-002 implementation action, perform the canonical reset defined in `Devaxonic-WMS/.ai/OPERATIONS.md` and require `RESET_OK`.
 
-```bash
-cd /home/ubuntu/git/Devaxonic-WMS
-git pull --ff-only
-bash scripts/reset-testing-runtime.sh --deep
-```
-
-Required result: `RESET_OK`.
-
-Do not repeat deep reset for retries/continuations inside the same item.
+The reset is separate from executor launch. Do not repeat it for retries/continuations inside P3-002.
 
 ## Executor / prompt workflow
 
 Detailed workflow: `06_AGENT_GUIDES/GIT_PROMPT_WORKFLOW.md`.
 
-Prompt skill routing: `06_AGENT_GUIDES/PROMPT_SKILL_ROUTING.md` (`9aa7f0db21c1ffe02f22a2d610b95a5acc1d779d`).
+Prompt skill routing: `06_AGENT_GUIDES/PROMPT_SKILL_ROUTING.md` (`a52587ddb1efcaae5babc0e0bd3a8e3c99f67942`).
 
 Rules:
 
@@ -111,7 +103,8 @@ Rules:
 - executor owns ordinary implementation/fixture/auth/TLS/tooling/runtime/build/test failures until COMPLETE;
 - two-strikes only for the same material unresolved technical path after two genuinely different substantive attempts;
 - all executor venues use the same Git/business/evidence contract;
-- before writing executor prompts, supervisor refreshes WMS Outbound + Architect/Canon and applies current `fetch_me_prompt` + `operational-mode` guidance;
+- before writing executor prompts, supervisor refreshes WMS Outbound + Architect/Canon and applies current `wms-outbound`, `architecture-context` when shared compatibility is relevant, and current `fetch_me_prompt` + `operational-mode` guidance;
+- owner-facing handoff contains prompt content only; launcher/VPN/session-start commands are excluded unless Owner explicitly requests them;
 - executor prose is never acceptance;
 - Owner acceptance is explicit after independent supervisor verification.
 

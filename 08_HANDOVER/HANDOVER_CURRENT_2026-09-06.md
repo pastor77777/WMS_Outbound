@@ -8,120 +8,112 @@
 
 Plan: **37 items**, **109/109 Architect requirements mapped**.
 
-Formal progress: **26/37 FINAL PASS / Owner Accepted**.
+Formal progress: **28/37 FINAL PASS / Owner Accepted**.
 
-Latest accepted checkpoint:
+Latest accepted implementation checkpoints:
 
-**P3-001 — Reservation Release before formal pick — item 26/37 — FINAL PASS / Owner Accepted.**
+- `P3-002` — FINAL PASS / Owner Accepted — Mercato `84274acacfbfe0119e270ca5bfbcb723e47d7723` / Scanner frozen `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa` / evidence `efe6fec205f5f75baa1822c0c5560fbbdd0c9a14`.
+- `P4-001` — catalog item 29/37 — FINAL PASS / Owner Accepted — Mercato `66e2e8620041d2db1d10d069e286936083667139` / Scanner frozen `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa` / evidence `6780af113cbc31db26449fa6ca2fde5f238ab801`.
 
-- Mercato: `9fb32493ed9ec443a18a494aa1a8ec3a1bde6d06`
-- Scanner frozen: `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa`
-- WMS evidence: `15c3ad937a4e81d7b67ff96409bd0b6a65553864`
+P4-001 was intentionally executed before P3-003 because Task Catalog declares `P4-001` as a dependency of `P3-003`. That dependency is now satisfied.
 
-Supervisor independently verified P3-001 before Owner acceptance.
+## Accepted boundary to preserve
 
-## Accepted P3-001 boundary
+### P3 pre-pick
 
-Preserve exactly:
+- P3-001 release applies only before formal pick; accepted P3-001 evidence is `15c3ad937a4e81d7b67ff96409bd0b6a65553864`.
+- P3-002 retention policy reuses P3-001 and does not change the formal-pick discriminator.
 
-1. P3 release applies only before formal pick (`pickedQty = 0` / no accepted pick confirmation for released quantity).
-2. Allocation/hard Inventory reservation/ATP/task/line/order effects settle atomically and exactly once.
-3. General cancellation sets affected CustomerOrderLine to `CANCELLED`; shortage release sets it to `BACKORDERED`.
-4. Eligible pre-pick PickTask/TaskLine may be cancelled inside dedicated P3 orchestration without weakening generic P1-004 CON-02.
-5. True pre-pick release creates zero `PutBackTask`.
-6. `INT-06` replay is idempotent; conflicting key reuse fails safely.
-7. Crossdock/no-Allocation path does not fabricate Allocation.
-8. Formal `pickedQty > 0` is rejected from P3 and remains P4 territory.
-9. Automatic/system release can use the same accepted release operation without Supervisor notification dependency.
-10. P3-003 still owns the physical-removal-before-confirmation race/exact-source return/P4 handoff.
+### P4 formal pick
 
-Accepted proof summary:
+Accepted P4-001 boundary:
 
-- dedicated P3-001 canonical PostgreSQL suite **13/13 PASS** after supervisor-discovered multi-line idempotency remediation;
-- multi-line cancellation persists one request-level ReservationRelease and replays with zero duplicate release/ATP restoration;
-- P1-004 **11/11**, P1-001 **7/7**, P1-005 **10/10**, P1-016 **25/25** retained green;
-- typecheck/build/runtime proof green;
-- rendered Mercato Playwright **3/3 PASS**, zero route mocks;
-- Scanner remained frozen.
+- formal pick begins only on actual pick confirmation; task generation alone does not put `OutboundOrderLine` in `PICKING`;
+- partial formal pick keeps standard Allocation `RESERVED`; full pick transitions Allocation `RESERVED -> CONFIRMED`;
+- post-pick/post-pack cancellation performs immediate logical settlement and preserves physical-return correlation;
+- physically picked stock awaiting later P4 recovery is excluded from ATP/allocation by the unresolved physical-return handoff;
+- P4-001 creates no P4-002 PutBackTask execution and no P4-003 physical `PICKED -> AVAILABLE` recovery;
+- late Shipment/CarrierManifest cancellation boundaries remain intact.
 
-## Active next item
+P4-001 accepted proof includes dedicated PostgreSQL **18/18**, P1-014 **18/18**, P1-015 **21/21**, P1-016 **25/25**, P1-006/P1-004/P3-001/P3-002 regressions green, and rendered Mercato Playwright **3/3**.
 
-**P3-002 — Reservation retention policy and automatic release timer — item 27/37.**
+## Active item
+
+**P3-003 — Cancellation race: physical movement before formal confirmation — catalog item 28/37.**
 
 Authoritative guide:
 
-`06_AGENT_GUIDES/P3-002_EXECUTION.md`
+`06_AGENT_GUIDES/P3-003_EXECUTION.md`
 
 Guide commit:
 
-`b299f9d66ff8438ae2f69a0cc068ac06455b17f7`
+`80613b4fc516be66b34d200b3375e4b16217ea4f`
 
-Frozen accepted bases:
+Accepted bases:
 
-- Mercato P3-001 `9fb32493ed9ec443a18a494aa1a8ec3a1bde6d06`;
+- Mercato `66e2e8620041d2db1d10d069e286936083667139`;
 - Scanner `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa`;
+- P4-001 evidence `6780af113cbc31db26449fa6ca2fde5f238ab801`;
+- P3-002 evidence `efe6fec205f5f75baa1822c0c5560fbbdd0c9a14`;
 - P3-001 evidence `15c3ad937a4e81d7b67ff96409bd0b6a65553864`.
 
-### P3-002 Architect truth
+### P3-003 Architect truth
 
 Grounding:
 
-- P3 R9: warehouse partial-reservation policy has exactly three variants — retain reservation, automatic release after configured time, or Warehouse Supervisor decision;
-- P3 R10: configured retention time is independent of `priority` and `slaDeadline`;
-- requirements `FR-P3-05`, `FR-P3-06`;
-- acceptance `TC-112`, `TC-113`.
+- P3 R7-R8;
+- requirement `FR-P3-04` and `INT-06`;
+- acceptance `TC-042`, `TC-043`;
+- P4 process boundary and accepted P4-001 implementation once formal `pickedQty > 0` exists.
 
-Hard boundary:
+Hard behavior:
 
-- P3-002 owns policy/config/timer/Supervisor-decision orchestration only;
-- actual release reuses accepted P3-001 rather than duplicating release logic;
-- formal picked quantity remains outside P3;
-- no P3-003 exact-source RF race behavior and no P4 PutBack behavior;
-- no new priority/SLA semantics;
-- Scanner has no mapped P3-002 workflow and stays frozen unless authoritative scope proves otherwise.
+1. Race window is after source-location + SKU verification/physical removal but before formal Picking TU + quantity confirmation.
+2. In that window authoritative `pickedQty` remains `0`; pre-confirm observation itself must not create formal pick state, TU content or Allocation confirmation.
+3. If cancellation wins, reuse accepted P3-001, cancel eligible PickTask work and instruct the Scanner operator to return the SKU to the **exact original source location**, with no PutBackTask and no target-location selection/validation.
+4. If formal confirmation wins first and `pickedQty > 0`, no P3 exact-source instruction is created; cancellation routes to accepted P4-001.
+5. Server/PostgreSQL locking determines the winner; Scanner-local state cannot.
+6. Persist only the minimum technical correlation needed for the race/instruction; do not invent a new business state machine.
+7. Scanner is materially in scope: current code submits source location/SKU/quantity together, so P3-003 must expose a real pre-confirm server-visible step and rendered RF return instruction.
+8. P4-002/P4-003 remain forbidden in this item.
 
-## Mandatory new-item reset
+Scanner reference guidance is limited to server authority, idempotency, ordered context-sensitive operations and human-readable task/location/SKU feedback. Outbound Architect truth wins.
 
-Before first P3-002 implementation action, perform the canonical new-item Testing reset defined in `Devaxonic-WMS/.ai/OPERATIONS.md` and require `RESET_OK`.
+## Testing / credentials
 
-The reset is environment hygiene and is separate from executor launch. Do not repeat it for ordinary P3-002 retries/continuations.
+Canonical Testing contract is `Devaxonic-WMS/.ai/TESTING.md`.
 
-## Prompt-generation and executor mode
+Testing credential handling is frozen for implementation. Do not audit, refactor, relocate, redact, rotate, replace or redesign designated Testing credentials or create a blocker on that basis. Final credential rotation is a separate Owner-controlled production-cutover activity.
 
-Durable prompt routing:
+P3-003 requires real PostgreSQL race/concurrency/rollback proof and real rendered Scanner + Mercato acceptance as defined in the guide.
 
-`06_AGENT_GUIDES/PROMPT_SKILL_ROUTING.md`
+## New-item reset
 
-current steering commit: `a52587ddb1efcaae5babc0e0bd3a8e3c99f67942`.
+Before first P3-003 implementation action, perform the canonical new-item Testing reset defined in `Devaxonic-WMS/.ai/OPERATIONS.md` and require successful `RESET_OK`.
 
-Before any executor handoff, supervisor refreshes current WMS/Architect authority and applies current `wms-outbound`, `architecture-context` when shared compatibility is relevant, plus `fetch_me_prompt` + `operational-mode`.
+The reset is separate from executor launch and is not repeated for ordinary continuations within P3-003.
 
-All authorized executors own the **whole authorized item** through implementation/tests/runtime/UI/evidence/push and return only COMPLETE or a true same-material-path two-strikes blocker.
+## Executor selection and prompt routing
 
-Owner controls executor selection/launch/session organization. Owner-facing handoff contains prompt content only; do not combine it with shell launcher, VPN or session-start commands unless Owner explicitly requests them.
+Owner selected **Codex** for P3-003 because Antigravity is temporarily unavailable by quota. This changes only the executor venue, never business scope/evidence rules.
 
-## Fresh supervisor bootstrap
+Before the handoff, supervisor refreshed current `wms-outbound`, `scanner-context`, `fetch_me_prompt` and `operational-mode`, plus current Devaxonic-WMS/WMS steering and exact Architect sources.
 
-A new supervisor chat must not reconstruct project state from chat memory alone.
+Durable routing:
 
-Refresh:
+- `06_AGENT_GUIDES/GIT_PROMPT_WORKFLOW.md`
+- `06_AGENT_GUIDES/PROMPT_SKILL_ROUTING.md`
 
-1. current Drive handover/memory;
-2. current `Devaxonic-WMS` steering/state/testing/operations/handover;
-3. current `WMS_Outbound` AGENTS/STATE/handover/prompt workflow/routing;
-4. current `wms-outbound` context;
-5. exact Architect/Canon for the active item;
-6. `architecture-context` for shared/Inbound compatibility only;
-7. `scanner-context` only when Scanner is materially relevant;
-8. current `fetch_me_prompt` + `operational-mode` before composing executor handoff.
-
-**Git truth overrides stale Drive/chat history.**
+Owner-facing prompt remains microscopic and contains no launcher/VPN/session-start command.
 
 ## Supervisor protocol
 
+- executor owns the whole P3-003 item and ordinary execution failures;
+- two-strikes only for the same material unresolved technical path after two substantive attempts;
 - executor never self-accepts;
-- supervisor independently verifies final refs/diff/evidence;
-- formal catalog progress advances only after explicit Owner acceptance;
-- owner-facing executor prompt stays microscopic because detailed work lives in Git;
-- no P3-003 before P3-002 is supervisor-verified and Owner Accepted;
+- supervisor independently verifies final Mercato/Scanner/WMS refs, diff scope and evidence;
+- only explicit Owner acceptance advances progress;
+- do not start P4-002 or another item before P3-003 verification/acceptance;
 - Demo/Prod and local PostgreSQL remain out of scope.
+
+**Git truth overrides stale Drive/chat history.**

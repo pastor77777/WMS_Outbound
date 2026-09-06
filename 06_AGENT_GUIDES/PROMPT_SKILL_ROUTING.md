@@ -33,6 +33,8 @@ For every delegated implementation/test/remediation handoff:
 
 If skill wording conflicts with current Owner-authorized WMS Git steering, current WMS Git steering wins. The skill is a prompt-construction discipline, not business authority.
 
+**WMS-specific override:** any generic shared-skill guidance that defaults to decomposing one approved item into repeated micro-shots is subordinate here. For WMS Outbound, the normal execution unit is the entire authorized Task Catalog item. The executor may internally checkpoint and rerun focused checks, but the Owner must not be forced into repeated manual `continue`/`resume` handoffs for ordinary progress.
+
 ## Executor-neutral output contract
 
 The generated guide must be executable by Antigravity, local Codex, Codex Cloud or Claude without changing business scope or evidence rules.
@@ -55,13 +57,15 @@ A `BLOCKER` response is invalid when it only reports an ordinary implementation/
 1. two genuinely different substantive failed attempts on the same material technical path, with the path still unresolved and no normal in-scope move remaining; or
 2. a genuine Owner-controlled boundary such as scope expansion, destructive action, Demo/Prod access, environment/venue/executor switch or a missing product decision.
 
+A status-only response such as `incomplete`, `unevidenced`, `remaining work`, `tests still missing`, `execution window exceeded`, or a known in-scope defect with an obvious next corrective action is not a valid terminal blocker. Preserve progress and continue through the supported long-running mechanism or durable checkpoint.
+
 Do not generate `STOP after first failure` or artificial rerun-count limits for ordinary fixture/tooling/implementation failures.
 
 ## Codex long-horizon execution mode
 
 For a full Task Catalog item executed in Codex, use Codex **`/goal` long-running mode** rather than a normal one-turn prompt whenever the installed Codex surface supports it.
 
-Rationale: `/goal` is the Codex mechanism intended for a durable objective with a verifiable stopping condition across long-running work. A normal Codex turn must not be treated as the default execution container for an item expected to include implementation, repeated self-repair, PostgreSQL proof, regressions, rendered UI acceptance and evidence.
+Rationale: `/goal` is intended to give Codex a durable objective for long-running work. A normal Codex turn must not be treated as the default execution container for an item expected to include implementation, repeated self-repair, PostgreSQL proof, regressions, rendered UI acceptance and evidence.
 
 The supervisor must construct one goal for the **whole item**, with:
 
@@ -73,9 +77,27 @@ The supervisor must construct one goal for the **whole item**, with:
 
 Do not split a healthy item into repeated normal Codex turns merely because one turn ends. Do not replace `/goal` with repeated `continue`, `resume`, status prompts or micro-tickets when long-horizon goal mode is available.
 
-If `/goal` is not present in the current Codex slash-command list, the Owner may enable the Codex goals feature using the current Codex-supported goals setting/command, then launch the same full-item goal. This is executor capability setup, not a change to WMS business scope.
+If `/goal` is not present in the installed Codex surface, do **not** invent an enablement command or pretend the capability exists. Use the current supported long-running mechanism for that surface and enforce the same full-item ownership plus durable-checkpoint rules below.
 
 Antigravity and other executors continue to use their own long-running execution mechanisms; `/goal` is Codex-specific execution transport only and does not change business truth, guide content, evidence requirements or acceptance authority.
+
+## Durable checkpoint and executor/session handoff
+
+Provider windows, quota exhaustion, context compaction, terminal/session termination or executor switching do not turn a healthy item into a new item and do not authorize a Testing reset.
+
+For any interrupted in-flight WMS item:
+
+1. preserve all valid committed/pushed progress;
+2. inspect and preserve any valid uncommitted/unpushed workspace progress before changing branches or sessions;
+3. record/recover the exact repo, branch, HEAD, changed files, already-green checks and exact remaining DoD;
+4. continue from the first unfinished point;
+5. never recreate the item from the accepted base merely because the executor/session changed;
+6. never discard another executor's valid work just because a different executor takes over;
+7. same-item executor/session handoff does **not** trigger the mandatory new-item Testing reset.
+
+Codex → Antigravity, Antigravity → Codex, or fresh-session continuation is therefore a continuation checkpoint, not a restart. The replacement executor owns the remaining item end-to-end under the same guide and evidence contract.
+
+The Owner controls executor choice and launch/session mechanics. Supervisor prompts must not invent launch commands, VPN commands, wrappers or session-start mechanics unless the Owner explicitly asks for them.
 
 ## Owner-facing prompt
 
@@ -103,5 +125,7 @@ Do not paste the detailed ticket into owner chat. Do not append menus/explanatio
 ## Fresh supervisor chat rule
 
 A fresh ChatGPT supervisor session must first load current Drive handover/memory and then refresh Git authority and the contexts above. Its first executor prompt for the next item must be created only after this bootstrap and `fetch_me_prompt`/`operational-mode` routing.
+
+The fresh supervisor must preserve this WMS-specific full-item rule even if a generic shared skill still contains older micro-shot defaults. Current WMS Git steering wins.
 
 Git truth overrides stale Drive/chat history.

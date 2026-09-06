@@ -14,6 +14,14 @@
 - Two-strikes applies only to the same material unresolved technical path after two genuinely different substantive attempts. Routine fixture/auth/TLS/test-data/selector/tooling/runtime/build/test issues remain executor-owned while a normal in-scope correction exists.
 - Return only `COMPLETE` or a true two-strikes / Owner-controlled blocker. Never self-declare `FINAL PASS`, `Owner Accepted` or `Human Verified`.
 
+### No status-only STOPs
+
+- A progress report, summary of missing work, statement that the item is incomplete, failing regression, compile/type/test failure, missing evidence file, missing test suite, missing Playwright journey or other known unfinished requirement is **not** a valid terminal response.
+- If the executor can identify what is missing or failing and a normal in-scope corrective action exists, it must perform that action immediately in the same item and continue the self-repair loop: diagnose -> correct -> rerun -> continue.
+- Do not return control merely to say what remains to be done. Do the remaining work.
+- A terminal `BLOCKER` is valid only after the same material path has survived two genuinely different substantive attempts with evidence, or when the next action crosses an Owner-controlled boundary. Otherwise continue working.
+- This rule applies equally to Codex, Codex Cloud, Antigravity, Claude and every other authorized executor.
+
 ## Canonical bases
 
 Start from the exact accepted product boundary unless current Git proves a later Owner-accepted descendant:

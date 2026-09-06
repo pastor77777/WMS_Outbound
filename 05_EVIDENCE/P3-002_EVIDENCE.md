@@ -6,10 +6,10 @@ Evidence class: REAL POSTGRESQL INTEGRATION and PLAYWRIGHT VERIFIED. This is not
 ## Exact Revisions and Scope
 
 - Mercato branch: `outbound/p3-002`
-- Mercato candidate commit SHA: `f75845f085e683eeec1f5313a52c38522300bcf9`
+- Mercato candidate commit SHA: `88e6721deae29a51b5137a59e2df3172c8a53bb3`
 - Accepted P3-001 Mercato base: `9fb32493ed9ec443a18a494aa1a8ec3a1bde6d06`
 - Scanner frozen SHA: `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa` (unmodified and clean)
-- P3-001 evidence SHA: `39a4d3e8e25d218a5629471f547c87c06eb62817`
+- P3-001 evidence SHA: `15c3ad937a4e81d7b67ff96409bd0b6a65553864`
 - Item: 27/37 — P3-002: Reservation retention policy and automatic release timer.
 - Authority: `proces_3_reservation_release.md` (P3 R9–R10), `wymagania_outbound.md` (`FR-P3-05`, `FR-P3-06`), `scenariusze_testowe_outbound.md` (`TC-112`, `TC-113`), `TASK_CATALOG.md` item 27.
 
@@ -25,10 +25,10 @@ Evidence class: REAL POSTGRESQL INTEGRATION and PLAYWRIGHT VERIFIED. This is not
   - Unique Idempotency Constraint: `(organization_id, tenant_id, idempotency_key)` (`wms_outbound_res_retentions_idemp_uq`) ensuring idempotent decision submissions.
   - Query Index: `(organization_id, tenant_id, warehouse_id, policy_variant, status, due_at)` (`wms_outbound_res_retentions_wh_due_idx`) for efficient timer evaluation.
 
-## Dedicated PostgreSQL Suite Mapping (13 Tests)
+## Dedicated PostgreSQL Suite Mapping (15 Tests)
 
 Suite: `apps/mercato/src/modules/wms_outbound/services/__tests__/p3-002-postgres.integration.test.ts`  
-Result: **13/13 PASSED** (57.7s) on canonical Testing PostgreSQL (Supabase pooler :6543).
+Result: **15/15 PASSED** (64.1s) on canonical Testing PostgreSQL (Supabase pooler :6543).
 
 1. **TEST 1 (TC-112 Variant 1 - RETAIN)**: Warehouse policy `RETAIN` keeps partial reservation intact indefinitely during evaluation. Allocation remains `RESERVED` / `SHORT`, inventory reservation unchanged, zero P3 release triggered.
 2. **TEST 2 (TC-112 Variant 2 - AUTO_RELEASE_AFTER_TIME timer not expired)**: When `due_at` has not arrived (`NOW() < due_at`), evaluation preserves reservation intact and triggers zero release.
@@ -38,11 +38,13 @@ Result: **13/13 PASSED** (57.7s) on canonical Testing PostgreSQL (Supabase poole
 6. **TEST 6 (Supervisor Decisive Action - RELEASE)**: Supervisor submits decisive `RELEASE` action; reservation is released atomically via P3-001 with reason `GENERAL_CANCELLATION`, actor `SUPERVISOR`, and retention record settled as `RELEASED`.
 7. **TEST 7 (Supervisor Decisive Action - RETAIN)**: Supervisor submits decisive `RETAIN` action; reservation remains intact (`RESERVED`), zero P3 release occurs, retention record settled as `RETAINED`.
 8. **TEST 8 (Pre-pick Discriminator Guard - pickedQty > 0 blocks P3 release)**: Partial allocation with confirmed picked quantity (`pickedQty > 0`) rejects supervisor release attempt with explicit error directing to P4 Physical Putback (`TC-043`).
-9. **TEST 9 (Idempotency - Replay of identical decision)**: Replay of supervisor decision with identical idempotency key returns `replayed: true` with zero duplicate mutations or releases.
-10. **TEST 10 (Idempotency - Conflicting key reuse)**: Attempt to reuse idempotency key for conflicting action rejects safely with `Idempotency key collision`.
-11. **TEST 11 (Stable Timer Semantics)**: `registerOrGetRetentionRecord` called repeatedly returns existing `due_at` without recomputing or extending duration from current time.
-12. **TEST 12 (Concurrency & Deterministic Locking)**: Two concurrent evaluation / decision transactions acquire `PESSIMISTIC_WRITE` locks, serialize deterministically via PostgreSQL lock manager, resulting in exactly one release.
-13. **TEST 13 (Transactional Atomicity & Rollback Proof)**: Simulated failure before commit completely rolls back retention record update, allocation release, and inventory unreservation.
+9. **TEST 9 (Pre-pick Discriminator Guard - PICKING status with pickedQty = 0 blocks P3 release)**: Partial allocation with line in `PICKING` status and `pickedQty = 0` rejects supervisor release, auto-release timer, and direct release, directing to P4 Physical Putback (`P3 R8`, `TC-043`, `TC-112`, `TC-113`).
+10. **TEST 10 (Pre-pick Discriminator Guard - SHORT_PICKED status with pickedQty = 0 blocks P3 release)**: Partial allocation with line in `SHORT_PICKED` status and `pickedQty = 0` rejects supervisor release, auto-release timer, and direct release, directing to P4 Physical Putback (`P3 R8`, `TC-043`, `TC-112`, `TC-113`).
+11. **TEST 11 (Idempotency - Replay of identical decision)**: Replay of supervisor decision with identical idempotency key returns `replayed: true` with zero duplicate mutations or releases.
+12. **TEST 12 (Idempotency - Conflicting key reuse)**: Attempt to reuse idempotency key for conflicting action rejects safely with `Idempotency key collision`.
+13. **TEST 13 (Stable Timer Semantics)**: `registerOrGetRetentionRecord` called repeatedly returns existing `due_at` without recomputing or extending duration from current time.
+14. **TEST 14 (Concurrency & Deterministic Locking)**: Two concurrent evaluation / decision transactions acquire `PESSIMISTIC_WRITE` locks, serialize deterministically via PostgreSQL lock manager, resulting in exactly one release.
+15. **TEST 15 (Transactional Atomicity & Rollback Proof)**: Simulated failure before commit completely rolls back retention record update, allocation release, and inventory unreservation.
 
 ## Mandatory Regressions
 
@@ -72,6 +74,6 @@ Result: **2/2 PASSED** (38.5s) on real rendered Mercato UI with zero route mocks
 
 - No P3-003 RF physical-removal race window.
 - Zero `PutBackTask` or physical recovery records created.
-- Formally picked quantity (`pickedQty > 0`) cannot be released by P3 (routes to P4).
+- Formally picked quantity (`pickedQty > 0`) or lines in physical picking status (`PICKING`, `SHORT_PICKED`, `PICKED`, `PACKED`, `SHIPPED`) even with `pickedQty = 0` cannot be released by P3 (routes to P4).
 - P3-002 owns policy/timer/decision orchestration only; reuses accepted P3-001 pre-pick release mechanism.
 - Scanner remains frozen at baseline `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa`.

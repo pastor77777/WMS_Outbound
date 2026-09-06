@@ -6,7 +6,7 @@ Evidence class: REAL POSTGRESQL INTEGRATION and PLAYWRIGHT VERIFIED. This is not
 ## Revisions and scope
 
 - Mercato branch: `outbound/p2-006`
-- Mercato candidate: `2c50a186ade68ec2e73ec479654a8ec989c88eb4`
+- Mercato candidate: `4f64641ab14a5359bc22d0685e390b511252b5b5`
 - Accepted P2-005 ancestor: `069f02d4c5c9b345b688b838eb685be02206afbd`
 - Scanner frozen and clean: `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa`
 - No schema migration or separate CROSSDOCK Shipment, carrier, label, ERP, CarrierManifest, or settlement model was added.
@@ -27,18 +27,18 @@ No product source changed after these typecheck/build/runtime proofs; subsequent
 
 ## Zero-mock rendered UI proof
 
-Durable final unit: `p2-006-playwright-20260906T000808Z.service` — exit status 0, **2 tests passed** (`results.json` under Mercato `.ai/qa/test-results/`). The P2-006 spec contains no `page.route` or `.route(` usage.
+Durable final unit: `p2-006-playwright-20260906T002556Z.service` — `Result=success`, `ExecMainStatus=0`, **2 tests passed** in 3.6 minutes (`results.json` under Mercato `.ai/qa/test-results/`). The P2-006 spec contains no `page.route` or `.route(` usage.
 
-1. Journey A: a real CROSSDOCK contribution used the rendered common Shipment UI for carrier selection, WMS label generation/print, visible P2-005 GR gate and blocked posting; a real authenticated external GR ingress accepted the source; rendered ERP posting then succeeded; the normal rendered CarrierManifest open/add/close/handover/confirm lifecycle completed. Persisted reconciliation proved exactly one settlement, line/order/customer terminal aggregates, zero Allocation for the crossdock line, and zero standard Inventory movement.
-2. Journey B/C: a mixed STANDARD+CROSSDOCK `allowPartialShipment=false` CustomerOrder remained outside Shipment while the crossdock line was incomplete; the rendered normal group-waiting-TUs action joined both sealed TUs into one common Shipment only after equality was satisfied; the rendered Shipment detail exposed the crossdock GR gate; replaying the normal grouping action preserved the one-Shipment membership invariant.
+1. Journey A: a CROSSDOCK Packing TU began `PACKING_SEALED`, unassigned, with persisted source-TU, completed CrossDockPickTask and placement lineage. The rendered common group-waiting-TUs action attached it to the common Shipment. On that same Shipment, rendered carrier selection, WMS label generation/print, visible P2-005 GR blocking and zero blocked-ERP postings preceded real authenticated GR acceptance; rendered ERP and normal CarrierManifest open/add/close/handover/confirm then completed. Persisted reconciliation proved exactly one settlement, terminal Shipment/TU/line/order/customer aggregates, zero Allocation and zero standard Inventory movement for the crossdock contribution.
+2. Journey B/C: a compatible mixed STANDARD+CROSSDOCK `allowPartialShipment=false` CustomerOrder kept both sealed TUs outside Shipment while the crossdock line was incomplete. Expiring the identical SLA still could not bypass that rendered grouping guard. After P1 R58 equality completed, the rendered normal grouping action attached both TUs to one common Shipment. Its visible P2-005 gate listed exactly the CROSSDOCK source, not STANDARD content; real GR acceptance unblocked that same Shipment, whose rendered carrier, label, ERP and normal CarrierManifest lifecycle completed. Persisted reconciliation proved exactly-once STANDARD Allocation consumption and one standard Inventory movement, with zero CROSSDOCK Allocation and standard Inventory movement; both channel aggregates closed. A rendered grouping replay preserved the single-Shipment membership invariant.
 
 The real GR ingress used the repository's established `getAuthToken` + `apiRequest` helper for the external producer boundary. Human-facing Shipment and CarrierManifest decisions remained rendered browser actions.
 
 ## P2-006 behavior mapping
 
-- Common model/grouping/no fork, grouping key, P2 R43 inheritance, one-TU membership, partial/no-partial and SLA guards: dedicated 20/20 PostgreSQL matrix; rendered mixed Journey B/C.
-- Common readiness, carrier, label, ERP and P2-005 gate: retained P1/P2 regressions plus rendered Journey A.
-- Shared CarrierManifest lifecycle and irreversible UI actions: retained P1-015 plus rendered Journey A.
-- Exactly-once final settlement, multi-shipment/replay semantics, standard Allocation/Inventory preservation and Allocation-free/no-standard-inventory CROSSDOCK settlement: dedicated 20/20 matrix, retained P1-016, and rendered Journey A reconciliation.
+- Common model/grouping/no fork, grouping key, P2 R43 inheritance, one-TU membership, partial/no-partial and SLA guards: dedicated 20/20 PostgreSQL matrix; continuous rendered Journey A and Journey B/C.
+- Common readiness, carrier, label, ERP and P2-005 gate: retained P1/P2 regressions plus both continuous rendered journeys.
+- Shared CarrierManifest lifecycle and irreversible UI actions: retained P1-015 plus both continuous rendered journeys.
+- Exactly-once final settlement, multi-shipment/replay semantics, standard Allocation/Inventory preservation and Allocation-free/no-standard-inventory CROSSDOCK settlement: dedicated 20/20 matrix, retained P1-016, and both continuous rendered reconciliations.
 
 Supervisor verification is still required before any acceptance state changes.

@@ -6,7 +6,7 @@ Evidence class: REAL POSTGRESQL INTEGRATION, REAL CONCURRENCY (approved Testing 
 ## Exact Revisions and Scope
 
 - Mercato branch: `outbound/x-002`
-- Mercato final commit SHA: `c04bb4f836198d5385ccb21bbf53c371c3bd64ae`
+- Mercato final commit SHA: `4a89a95aad42c476ac206b53fe8ff67f3c8021a9` (acceptance correction of `c04bb4f836198d5385ccb21bbf53c371c3bd64ae` — see "Acceptance Correction" below)
 - Mercato base: `outbound/x-001` @ `b56515ecffba729c828f5fe9ca0ec6471edc4c43` (X-001 FINAL PASS / Owner Accepted)
 - Scanner: untouched, `outbound/p4-003` @ `a2759a29347285dd1dcd14bf51633431fbf2a302` (frozen; no RF user-flow defect was found in this item's scope)
 - Item: 33/37 — X-002: Integration correlation, observability and operational recovery
@@ -29,7 +29,7 @@ No boundary was refactored for uniformity. Only INT-02 had a real gap; the other
 | # | Authority | Direction / owner | Correlation identity | Durable fact | Idempotency/replay | Safe diagnostics | Owning tests | Code changed |
 |---|---|---|---|---|---|---|---|---|
 | INT-01 | P2 STEP 1 | Inbound → Outbound; Inbound owns TU qualification | `sourceInboundTuId` + `itemId` + `receiptCorrelation` | `WmsOutboundCrossDockBinding` (ASN-declared qty, source TU/item, receipt correlation) | Replay via `idempotencyKey:*` prefix returns existing bindings, zero new rows (`p2-001` test "TC-092/103") | Rejection messages name only ELEMENTARY/IN_CROSS_DOCK/scope violations, no internals | `p2-001-crossdock-eligibility-postgres.integration.test.ts` (10/10) | No |
-| INT-02 | P2 STEP 3 | Outbound → Inbound; Inbound derives residual | `sourceInboundTuId` | `WmsOutboundCrossDockFinalization` (`confirmedQty` + `damagedQty`; `residualQty` is an Outbound-internal reconciliation fact only, never an outbound-to-Inbound contract field) | **Gap found and fixed** — see below | Quantity-conservation violation throws a plain domain error, no internals | `p2-003-crossdock-execution-postgres.integration.test.ts` (8/8), `p2-004-crossdock-recovery-postgres.integration.test.ts` (17/17, incl. new decisive concurrency test) | **Yes** |
+| INT-02 | P2 STEP 3 | Outbound → Inbound; Inbound derives residual | `sourceInboundTuId` | `WmsOutboundCrossDockFinalization`; explicit `toInboundCrossDockSettlementContract()` mapping exposes exactly `sourceInboundTuId` + `confirmedQty` + `damagedQty` — `residualQty` stays a real persisted column but is asserted absent from the contract | **Gap found and fixed** — see below | Quantity-conservation violation throws a plain domain error, no internals | `p2-003-crossdock-execution-postgres.integration.test.ts` (8/8), `p2-004-crossdock-recovery-postgres.integration.test.ts` (18/18, incl. new decisive concurrency test and new contract test) | **Yes** |
 | INT-03 | P2 STEP 4 | Inbound → Outbound (GR result); GR retry stays Inbound-owned | `sourceInboundTU` + `settlementSource = CROSSDOCK` | `WmsOutboundCrossDockGrResult` | Idempotency-key replay returns the existing result with `tasksUpdated: 0`; wrong source/settlement source is a zero-mutation no-op (`p2-005` tests 4–8) | Outcome is `matched`/`replayed`/`reason` only | `p2-005-crossdock-gr-gate-postgres.integration.test.ts` (19/19) | No |
 | INT-04/05 | current P1 STEP 11A | Outbound → ERP; retry is a separate Supervisor decision | Shipment `correlationId` (`SHIP-POST-<shipmentNumber>`) + posting `idempotencyKey` | `WmsOutboundShipmentPosting` + append-only `WmsOutboundShipmentPostingAttempt` rows | Duplicate/in-flight calls are exactly-once (`p1-014` test 15); genuine overlapping-transaction proof (`p1-014` test 14, `pg_blocking_pids`) | `POSTING_ERROR` carries `errorCategory`/`errorCode`/`errorMessage`/`errorDetails` only; technical timeout never becomes a fabricated business rejection | `p1-014-erp-posting-postgres.integration.test.ts` (18/18) | No |
 | INT-06 | P3 STEP 1 + P4 STEP 1 | Ordering system → Outbound; routes by formally confirmed picked quantity | `sourceSystem` + `externalOrderId` + `externalLineId` + request `idempotencyKey` | `WmsOutboundReservationRelease` (both P3 pre-pick and P4 post-pick paths already persist `sourceSystem`/`externalOrderId`/`externalLineId`/`idempotencyKey`) | Idempotency-key collision on a different order/line/allocation is rejected; P3-003 race re-evaluation preserved (`ordering-adapter-service.ts::executeCancellation` catch path) | Rejection reasons are plain domain strings (`blockingReason`) | `fnd-001-ordering-adapter.test.ts` (6/6), `p3-002-postgres.integration.test.ts` (17/17, exercises `executeCancellation`), `p3-003-postgres.integration.test.ts` (14/14, incl. the accepted race tests 10/11), `p4-001-postgres.integration.test.ts` (18/18) | No |
@@ -40,13 +40,27 @@ No boundary was refactored for uniformity. Only INT-02 had a real gap; the other
 
 **Fix:** move the source TU's `PESSIMISTIC_WRITE` lock acquisition to the first statement in `checkAndFinalizeSourceTu`, before the task/finalization reads. This serializes the two completions on the source TU row: whichever transaction acquires the row lock second is forced to wait for the first to commit, then re-reads a **fresh, fully-committed** task/finalization snapshot — guaranteeing exactly one finalization is created with the correct combined totals, regardless of which of the two overlapping completions physically wins the row lock first. The change is additive to the existing code path (same reads, same writes, only the lock's position moved) and does not alter any existing accepted `p2-003`/`p2-004` assertion.
 
-**Decisive new test:** `p2-004-crossdock-recovery-postgres.integration.test.ts` test 17 — "genuine PostgreSQL concurrency of the last two tasks completing for one source TU serializes on the source-TU lock and produces exactly one durable finalization with the combined confirmed quantity":
+**Decisive test:** `p2-004-crossdock-recovery-postgres.integration.test.ts` test 17 — "genuine PostgreSQL concurrency of the last two tasks completing for one source TU serializes on the source-TU lock and produces exactly one durable finalization with the combined confirmed quantity":
 - Two independent `WmsOutboundCrossDockPickTask` rows, sharing only the source TU (fully independent customer orders/lines/outbound orders/lines/bindings — so the source-TU row is the *only* lock the two completions can contend on).
 - Transaction A (`serviceA.complete(task1)`) is held open via an `onSourceTuLocked` instrumentation hook (mirrors the existing `onTransactionStarted`/`onSerializationAcquired`/`onPhase1Locked` seams already used by `cross-dock-eligibility-service.ts` and `shipment-posting-service.ts`) once it has genuinely acquired the source-TU row lock.
-- Transaction B (`serviceB.complete(task2)`) is launched concurrently on an independent `EntityManager`/connection; the test asserts B has **not settled** while A holds the lock (distinct real overlapping PostgreSQL transactions, not sequential calls).
+- Transaction B (`serviceB.complete(task2)`) is launched concurrently on an independent `EntityManager`/connection.
 - A is released; both complete; fresh independent read proves exactly one `WmsOutboundCrossDockFinalization` row for the source, with `confirmedQty: '10.000000'` (both tasks' 5.000000 combined), `damagedQty: '0.000000'`, `residualQty: '0.000000'`, `status: 'CROSS_DOCKED'`, and the source TU's `processStatus` at `CROSS_DOCKED`.
 
-## Exact Test Commands and Results (final Mercato head `c04bb4f83`)
+## Acceptance Correction — Real PostgreSQL Blocking Proof and Explicit Contract Assertion
+
+Supervisor review of the original test 17 required two corrections before FINAL PASS, both closed in this same item on the same branch:
+
+**1. Real concurrency proof (was timing-only).** The original test 17 proved contention only via "B's promise has not settled yet" — a timing-only signal, not decisive PostgreSQL-side evidence. Corrected: the test now captures both transactions' real backend PIDs and, while A holds the source-TU row lock, queries `pg_stat_activity`/`pg_blocking_pids()` from an independent observer connection until it finds a real backend pid genuinely blocked by A's pid, asserting `wait_event_type = 'Lock'` and that the blocked pid is distinct from A's. A's held lock is now released in a `finally` block so a failed blocking assertion can never leave an open transaction hanging the suite's cleanup.
+
+Fixing this decisively surfaced a real bug in the `onSourceTuLocked` instrumentation seam itself: it captured the backend pid via `tx.getConnection().execute('SELECT pg_backend_pid()...')`, which does **not** reliably resolve through the same pinned transactional connection that `tx.findOneOrFail(...)` used to take the row lock — the captured pid consistently did not match either of the two real, independently-observable overlapping connections in `pg_stat_activity`. Switched to `tx.execute('SELECT pg_backend_pid()...')`, matching the already-proven, already-accepted pattern in `shipment-posting-service.ts`'s `onPhase1Locked` hook (CON-05, X-001 evidence). After the fix, the captured pid correctly and reproducibly matches the real backend holding the lock; the already-accepted `p1-014` CON-05 concurrency test was independently re-verified still green throughout this investigation, confirming the bug was specific to this new instrumentation call, not an environment regression.
+
+**2. Explicit external contract assertion (was implicit).** Added `toInboundCrossDockSettlementContract()` — an explicit, additive mapping from the internal `WmsOutboundCrossDockFinalization` row to the exact Outbound → Inbound settlement contract. New test 18 — "the Outbound -> Inbound settlement contract exposes exactly source correlation + confirmedQty + damagedQty; residualQty is an internal-only reconciliation fact that Inbound derives itself" — proves:
+- the contract's key set is exactly `{sourceInboundTuId, confirmedQty, damagedQty}` (`Object.keys(...).sort()` equality check);
+- `residualQty` is absent from the contract object (`'residualQty' in contract === false`);
+- the internal persisted `WmsOutboundCrossDockFinalization.residualQty` column is unchanged/not removed;
+- Inbound can derive residual itself: `declaredQty - confirmedQty - damagedQty` (computed independently in the test from only what Inbound already knows plus what the contract actually transmits) equals the internal `residualQty` exactly.
+
+## Exact Test Commands and Results (final Mercato head `4a89a95a`)
 
 All commands run with the canonical Testing DB environment sourced in the same shell (`.ai/TESTING.md` §2):
 
@@ -54,7 +68,7 @@ All commands run with the canonical Testing DB environment sourced in the same s
 set -a && source /etc/mercato-localhost.env && set +a
 npx jest --config jest.config.cjs --testPathPatterns "p2-00[1-6].*postgres" --forceExit
 # Test Suites: 6 passed, 6 total
-# Tests:       98 passed, 98 total
+# Tests:       99 passed, 99 total
 
 npx jest --config jest.config.cjs --testPathPatterns "p1-014|p3-002|p3-003|p4-001|fnd-001" --forceExit
 # Test Suites: 6 passed, 6 total
@@ -62,14 +76,14 @@ npx jest --config jest.config.cjs --testPathPatterns "p1-014|p3-002|p3-003|p4-00
 
 npx jest --config jest.config.cjs src/modules/wms_outbound/services/__tests__/p2-004-crossdock-recovery-postgres.integration.test.ts --forceExit
 # Test Suites: 1 passed, 1 total
-# Tests:       17 passed, 17 total   (rerun twice for flakiness; both green)
+# Tests:       18 passed, 18 total   (test 17 rerun 3x standalone for flakiness after the pid fix; all green)
 ```
 
 `npx tsc --noEmit` (apps/mercato): clean, no errors.
 
 ## Regression Scope
 
-Only `cross-dock-execution-service.ts` (INT-02) changed product code. Directly affected regressions rerun: all six P2 crossdock suites (`p2-001`..`p2-006`, 98/98), P1 ERP posting (`p1-014`, 18/18, included above), and P3/P4 cancellation (`p3-002`, `p3-003`, `p4-001`, `fnd-001`, included above). No shared `wms_orchestration` implementation/schema was touched, so no broader Inbound regression sweep was required per the guide.
+Only `cross-dock-execution-service.ts` (INT-02) changed product code (plus its owning test file). Directly affected regressions rerun: all six P2 crossdock suites (`p2-001`..`p2-006`, 99/99), P1 ERP posting (`p1-014`, 18/18, included above), and P3/P4 cancellation (`p3-002`, `p3-003`, `p4-001`, `fnd-001`, included above). No shared `wms_orchestration` implementation/schema was touched, so no broader Inbound regression sweep was required per the guide.
 
 No new Playwright evidence was added: no Mercato/Scanner user-visible behavior changed (the fix and its test are backend-only, exercising the service layer directly against real PostgreSQL). Scanner remains frozen — no real RF user-flow defect was found or required a change.
 

@@ -45,7 +45,7 @@ Evidence class: REAL POSTGRESQL INTEGRATION and PLAYWRIGHT VERIFIED. This is not
 5. **Physical Stock & Inventory Isolation Boundary (P4 R3, TC-050, TC-051)**:
    - Physical stock remains physically picked in warehouse locations (`wms_inventory_balances` reserved quantity drops, but stock does NOT return to AVAILABLE in P4-001; no fabricated inventory movement).
    - No P4-003 put-back is executed.
-   - While a physical-return handoff is pending (`status = 'PENDING'`), the physically picked stock is strictly deducted from available allocation and ATP stock queries. A subsequent allocation cannot reserve the physically picked quantity, guaranteeing inventory isolation until physical putback occurs.
+   - Existence of an unresolved durable physical-return handoff (`wms_outbound_physical_return_handoffs`) excludes that physically picked quantity from available ATP and wave allocation calculations. `WmsOutboundPhysicalReturnHandoff` has no lifecycle status field; the physical isolation is enforced by the presence of the unresolved durable handoff record itself until later P4-002/P4-003 owns and settles the recovery lifecycle. A subsequent allocation cannot reserve the physically picked quantity, guaranteeing inventory isolation until physical putback occurs.
 6. **Durable Recovery Fact for P4-002 (P4 R4, TC-050, TC-051, TC-053)**:
    - For `pickedQty > 0`, a durable record is persisted in `wms_outbound_physical_return_handoffs` recording `customer_order_id`, `outbound_order_line_id`, `sku`, `quantity`, and `tu_id`.
    - For `pickedQty = 0`, zero recovery handoff is created (`TC-053`).
@@ -53,7 +53,8 @@ Evidence class: REAL POSTGRESQL INTEGRATION and PLAYWRIGHT VERIFIED. This is not
 ## Schema, Audit & Recovery Fact Changes
 
 - Table `wms_outbound_physical_return_handoffs`:
-  - Columns: `id`, `organization_id`, `tenant_id`, `warehouse_id`, `customer_order_id`, `outbound_order_id`, `outbound_order_line_id`, `sku`, `quantity`, `tu_id`, `source_location_id`, `reason`, `status`, `created_at`, `updated_at`.
+  - Columns: `id`, `organization_id`, `tenant_id`, `warehouse_id`, `customer_order_id`, `outbound_order_id`, `outbound_order_line_id`, `sku`, `quantity`, `tu_id`, `source_location_id`, `reason`, `created_at`, `updated_at`.
+  - *Lifecycle note*: There is no lifecycle `status` field on this entity. The presence of the unresolved handoff record represents the durable recovery fact.
 - Entity `WmsOutboundReservationRelease`:
   - Extended to record `releaseType = 'POST_PICK'` with actor role `SUPERVISOR` or `SYSTEM`, tracking affected lines, recovery handoffs, released allocations, and withdrawn TUs.
 - State transitions in `transitions.ts`:
@@ -89,7 +90,7 @@ Result: **18/18 PASSED** (63.7s) on canonical Testing PostgreSQL (Supabase poole
 18. **TEST 18 (P4 Logical Settlement Inventory Boundary & Pending Return Handoff Lockout)**:
     - Confirms physical picked quantity is NOT returned to AVAILABLE in `wms_inventory_balances`.
     - Confirms zero P4-003 putback tasks are created.
-    - Confirms with no other stock for the SKU, a second allocation request cannot reserve the physically picked quantity while the return handoff is pending, settling the second allocation to `SHORT` (`SHORT_ALLOCATED`).
+    - Confirms with no other stock for the SKU, a second allocation request cannot reserve the physically picked quantity due to the unresolved return handoff record, settling the second allocation to `SHORT` (`SHORT_ALLOCATED`).
 
 ## Mandatory Regressions
 
@@ -99,6 +100,9 @@ All regression suites executed and verified on canonical Testing PostgreSQL:
 - **P1-004 Outbound Wave Allocation Suite**: `apps/mercato/src/modules/wms_outbound/services/__tests__/p1-004-postgres.integration.test.ts` — **11/11 PASSED** (47.8s).
 - **P3-001 Reservation Release Suite**: `apps/mercato/src/modules/wms_outbound/services/__tests__/p3-001-reservation-release-postgres.integration.test.ts` — **13/13 PASSED** (80.7s).
 - **P3-002 Reservation Retention Suite**: `apps/mercato/src/modules/wms_outbound/services/__tests__/p3-002-postgres.integration.test.ts` — **17/17 PASSED** (81.5s).
+- **P1-014 ERP Posting Suite**: `apps/mercato/src/modules/wms_outbound/services/__tests__/p1-014-erp-posting-postgres.integration.test.ts` — **18/18 PASSED** (74.7s).
+- **P1-015 Manifest Lifecycle Suite**: `apps/mercato/src/modules/wms_outbound/services/__tests__/p1-015-manifest-lifecycle-postgres.integration.test.ts` — **21/21 PASSED** (117.4s).
+- **P1-016 Final Settlement Suite**: `apps/mercato/src/modules/wms_outbound/services/__tests__/p1-016-final-settlement-postgres.integration.test.ts` — **25/25 PASSED** (80.5s).
 - **P1-001 CustomerOrder Lifecycle & Aggregation**: `apps/mercato/src/modules/wms_outbound/services/__tests__/p1-001-customer-order-lifecycle.test.ts` — **10/10 PASSED** (1.9s).
 - **FND-001 Ordering Adapter & Routing**: `apps/mercato/src/modules/wms_outbound/services/__tests__/fnd-001-ordering-adapter.test.ts` — **10/10 PASSED** (1.9s).
 

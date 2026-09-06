@@ -13,7 +13,7 @@ Evidence class: REAL POSTGRESQL INTEGRATION and PLAYWRIGHT VERIFIED. This is not
 - Accepted P3-002 evidence: `efe6fec205f5f75baa1822c0c5560fbbdd0c9a14`
 - Accepted P3-001 evidence: `15c3ad937a4e81d7b67ff96409bd0b6a65553864`
 - Scanner branch: `outbound/p3-003`
-- Scanner candidate commit SHA: `e39352100d33d1db52b2076d25cb7a7310fc5b41`
+- Scanner candidate commit SHA: `135d86e1342bae7b21a8b676b1ef220a39a0f0b5`
 - Accepted Scanner base: `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa`
 - Item: 28/37 — P3-003: Cancellation race: physical movement before formal confirmation
 - Authority & Provenance:
@@ -54,7 +54,7 @@ Result: **14/14 PASSED** (77.6s) on canonical Testing PostgreSQL (Supabase poole
 5. **TEST 5 (P3 cancellation after valid observation - exact-source recovery)**: Proves that cancellation during the pre-confirm race executes accepted P3-001 release exactly once, cancels the PickTask and lines, restores ATP, and marks observation `RETURN_TO_SOURCE` with exact source location label.
 6. **TEST 6 (Zero PutBackTask and zero P4 handoff on P3 race path / TC-042)**: Confirms that zero `PutBackTask` and zero `wms_outbound_physical_return_handoffs` records are created when cancellation wins before formal pick.
 7. **TEST 7 (Idempotent replay of cancellation / instruction read)**: Proves that re-reading or replaying the cancellation instruction produces no duplicate release, no double ATP restoration, and no repeated mutations.
-8. **TEST 8 (Formal pick confirmation settles observation)**: Proves that successful formal pick confirmation via `confirmPickLine` transitions the observation to `FORMALLY_CONFIRMED`, increments `pickedQty > 0`, and settles allocation per P1 KROK 6.
+8. **TEST 8 (Formal pick confirmation settles observation)**: Proves that successful formal pick confirmation via `confirmPickLine` transitions the observation to `FORMALLY_CONFIRMED`, increments `pickedQty > 0`, and settles allocation per P1 KROK 6 (`RESERVED -> CONFIRMED`).
 9. **TEST 9 (Cancellation after formal pick routes to P4 / TC-043)**: Proves that when formal `pickedQty > 0` exists, cancellation routes strictly to P4-001 (`P4_PHYSICAL_PUTBACK`), creates a physical return handoff, and produces zero P3 return-to-source instruction.
 10. **TEST 10 (Real Concurrency A - P3 cancellation commits before formal confirmation)**: Using PostgreSQL advisory locking and serializing transactions, P3 cancellation commits first; the competing formal pick confirmation is rejected safely (`TASK_CANCELLED`), and the exact-source return instruction remains active for the operator.
 11. **TEST 11 (Real Concurrency B - Formal confirmation commits before cancellation)**: Formal pick confirmation commits first (`pickedQty > 0`); subsequent cancellation is routed to P4-001 post-pick settlement with zero P3 return-to-source instruction.
@@ -91,41 +91,50 @@ All regression suites executed and verified on canonical Testing PostgreSQL:
 ## Real Rendered Acceptance Proof (PLAYWRIGHT VERIFIED)
 
 Suite: `Devaxonic-scanner/e2e/p3-003-rendered-acceptance.spec.ts`  
-Result: **2/2 PASSED** (40.4s) on real rendered UI with zero route mocks (`page.route` count = 0):
+Result: **2/2 PASSED** (45.2s) on real rendered UI (`https://scanner.info-start.com.pl`) with zero route mocks (`page.route` count = 0):
 
 ### Journey A (TC-042 Pre-Confirm Cancellation Race & Exact-Source Return)
 - **Setup & Workflow**:
-  - Prepares an allocated CustomerOrder and assigned PickTask with SKU `SKU-42-RACE` at location `LOC-STAGE-A`.
-  - Operator `op-42-race` logs into Scanner UI, opens the active picking task, scans source location `LOC-STAGE-A`, and scans SKU `SKU-42-RACE`.
-  - Server confirms pre-confirm observation (`OBSERVED`). Quantity and TU are NOT yet confirmed (`pickedQty = 0`).
+  - Prepares an allocated CustomerOrder and assigned PickTask with SKU `SKU-P3042-...` at location `LOC-42-...`.
+  - Allocation is seeded in PostgreSQL with status `RESERVED` (`pickedQty = 0`), preserving the strict P3 R7 pre-confirm boundary.
+  - Operator `op-42-...` logs into Scanner UI, opens the active picking task, scans source location, and scans SKU.
+  - Server confirms pre-confirm observation (`ACTIVE`/`OBSERVED`). Quantity and TU are NOT yet confirmed (`pickedQty = 0`).
+  - Database verification confirms Allocation remains strictly `RESERVED` and `pickedQty = 0` before cancellation.
   - Supervisor navigates to Mercato Customer Orders UI (`/backend/customer-orders/[id]`) and clicks `[Cancel Order (P3 Pre-Pick)]`.
-  - Supervisor cancellation settles via P3-001: Order transitions to `CANCELLED`, Allocation transitions to `RELEASED`, hard inventory reservation cleared, PickTask cancelled, observation transitions to `RETURN_TO_SOURCE`.
+  - Supervisor cancellation settles via P3-001: Order transitions to `CANCELLED`, Allocation transitions from `RESERVED` to `RELEASED`, hard inventory reservation cleared, PickTask cancelled, observation transitions to `RETURN_TO_SOURCE`.
   - Scanner polling detects the recovery instruction and visibly displays:
-    `"Return SKU-42-RACE to exact source location LOC-STAGE-A. This is a return-to-source instruction, not a PutBackTask."`
+    `"Return <SKU> to exact source location <LOC>. This is a return-to-source instruction, not a PutBackTask."`
   - Operator clicks `[Acknowledge & Return to Menu]`, returning safely to the main menu.
   - The cancelled task is verified as not pickable again.
 - **Database & Architecture Assertions**:
+  - Allocation status before cancellation: strictly `RESERVED`.
+  - Allocation status after cancellation: `RELEASED`.
   - `pickedQty`: `0.000000` (unchanged).
   - PutBackTask count: `0` (zero putback tasks created).
   - Physical Return Handoff count: `0` (zero P4 handoffs created).
 - **Screenshot Evidence**:
-  - `Devaxonic-scanner/e2e/screenshots/tc-042-rendered-return-instruction.png` (95 KB, crisp rendered proof of return instruction).
+  - `Devaxonic-scanner/e2e/screenshots/tc-042-rendered-return-instruction.png` (86 KB, crisp rendered proof of return instruction).
 
 ### Journey B (TC-043 Formal Pick Confirmation Routes to P4 Post-Pick Settlement)
 - **Setup & Workflow**:
-  - Prepares an allocated CustomerOrder and assigned PickTask with SKU `SKU-43-P4` at location `LOC-STAGE-B`.
-  - Operator `op-43-p4` logs into Scanner UI, scans source location, scans SKU, and formally confirms quantity `6` into Picking TU `TU-43-BOX`.
-  - Pick confirmation completes successfully, transitioning line to `PICKING` (`pickedQty = 6.000000`) and settling observation to `FORMALLY_CONFIRMED`.
+  - Prepares an allocated CustomerOrder and assigned PickTask with SKU `SKU-P3043-...` at location `LOC-42-...`.
+  - Allocation is seeded in PostgreSQL with status `RESERVED` (`pickedQty = 0`).
+  - Operator `op-43-...` logs into Scanner UI, scans source location, scans SKU, and verifies Allocation is `RESERVED` before formal confirmation.
+  - Operator enters quantity `6` into Picking TU and clicks `[Confirm Pick]`.
+  - Pick confirmation completes successfully, transitioning line to `PICKING` (`pickedQty = 6.000000`), observation to `CONFIRMED`, and Allocation from `RESERVED` to `CONFIRMED` per accepted P1 KROK 6 lifecycle.
   - Supervisor navigates to Mercato Customer Orders UI and clicks `[Cancel Picked Order (P4)]`.
-  - Order cancellation settles via P4-001: Order cancelled, confirmed allocation released, durable recovery handoff created in `wms_outbound_physical_return_handoffs` for quantity 6.
+  - Order cancellation settles via P4-001: Order cancelled, confirmed allocation released (`CONFIRMED -> RELEASED`), durable recovery handoff created in `wms_outbound_physical_return_handoffs` for quantity 6.
   - Scanner receives zero P3 exact-source return instruction.
 - **Database & Architecture Assertions**:
+  - Allocation status before formal pick: strictly `RESERVED`.
+  - Allocation status after formal pick: `CONFIRMED`.
+  - Allocation status after P4 cancellation: `RELEASED`.
   - `pickedQty`: `6.000000`.
   - PutBackTask count: `0`.
   - Physical Return Handoff count: `1` (durable recovery fact persisted for quantity 6).
   - P3 Return-to-source instruction count: `0`.
 - **Screenshot Evidence**:
-  - `Devaxonic-scanner/e2e/screenshots/tc-043-p4-routing-no-p3-instruction.png` (67 KB, crisp rendered proof of formal pick completion with zero P3 instruction).
+  - `Devaxonic-scanner/e2e/screenshots/tc-043-p4-routing-no-p3-instruction.png` (68 KB, crisp rendered proof of formal pick completion with zero P3 instruction).
 
 ## Exclusions Preserved
 

@@ -40,20 +40,77 @@ The two concrete test-infrastructure gaps discovered during P4-003 verification 
 - WMS tracking record updated in `04_CURRENT_STATE/TEST_INFRA_GAPS.md` @ `6cde5bde465a1a4e10d41d9e04ccff443720c72c`.
 - No product code changed in this maintenance fix.
 
-The undiagnosed failures from the earlier abandoned full-directory sweep remain only as a recorded future integration-test concern; they were not part of this narrowly authorized maintenance correction.
+## Exact next item — grounded, not launched
 
-## Current execution boundary
+**X-001 — Enforce CON-01..05 concurrency and exactly-once business effects** — catalog item **32/37**.
 
-**Do not start the next Task Catalog item automatically.**
+Catalog objective: apply/verify explicit transactions, row/advisory locks, uniqueness and idempotency at every authoritative boundary covered by `CON-01..05`. Dependencies `P1-004`, `P1-011`, `P1-014`, `P1-015`, `P2-002` are already accepted.
 
-Before the next item:
+Grounded behavior:
+
+1. `CON-01` — parallel ATP/allocation competition cannot reserve more than available ATP.
+2. `CON-02` — existence of a PickTask freezes its assigned quantity against reallocation.
+3. `CON-03` — one physical source Cross-Dock TU/SKU quantity cannot enter two active/completed assignments.
+4. `CON-04` — concurrent Shipment grouping uses a stable deadline/boundary and one Packing TU/package cannot enter two Shipments.
+5. `CON-05` — duplicate/concurrent ERP and manifest effects settle once and never regress terminal state.
+
+## Existing accepted implementation evidence to preserve
+
+X-001 is a hardening/audit item, not a rewrite:
+
+- CON-01: current P1-004 has genuine two-transaction limited-stock competition with PostgreSQL advisory-lock wait proof and `sum(reserved) <= stock`.
+- CON-02: current P1-005 has a server-authoritative PickTask immutability guard. X-001 must audit whether the existing proof is a genuine overlapping race; harden only if it is not.
+- CON-03: current P2-002 contains corrected quantity-lock/unique-assignment PostgreSQL coverage. Verify the exact overlap/evidence quality before changing product code.
+- CON-04: P1-011 has real grouping-key lock contention and rollback proof; P1-015 has one-manifest and add-vs-close races.
+- CON-05: P1-014 has real in-flight/duplicate ERP posting exactly-once proof; P1-015 has duplicate/parallel manifest-confirm exactly-once proof. Include P1-016/P2-006 settlement side effects in the audit where their final effect can duplicate.
+
+The Definition of Done is not “rewrite all concurrency”. Each of the five CON requirements must finish with a decisive executable race/idempotency test at the owning DB/server boundary. Existing accepted proofs may satisfy that requirement if they are genuinely decisive; add or repair only missing guards/evidence. A stronger test exposing a real bug makes that bug in-scope self-repair.
+
+## Grounding defect: stale source-number references
+
+The derived requirements/index currently points `CON-04` to P1 R37–R41 and `CON-05` to P1 R43–R46. Those references are stale after later P1 renumbering and must not drive implementation literally.
+
+Authority hierarchy resolves this without a product decision:
+
+- current Shipment grouping behavior is in P1 STEP 9 / R26–R29, with R39–R40 covering singular manifest membership/irreversible close where applicable;
+- ERP/manifest exactly-once concern belongs to the current posting/manifest/final-settlement flow around P1 R37–R40 and R70–R72, while the explicit `CON-05` requirement supplies the concurrency/duplicate constraint;
+- current R43–R46 are SHORT_ALLOCATED/SHORT_PICKED rules and are not CON-05 behavior.
+
+Classification: **traceability-reference defect, not architecture/product blocker**. Do not mutate immutable Architect snapshots to conceal it.
+
+## Architecture-context / shared compatibility boundary
+
+`architecture-context` / WMS-Records remains Inbound/shared reference only. Allowed reuse is technical: transaction shape, record/advisory locks, idempotency, uniqueness, warehouse context and rollback patterns. No Inbound business state/process semantics may be imported into Outbound.
+
+If X-001 changes shared Inventory/TU/warehouse/record-lock/orchestration primitives, run the relevant accepted Inbound regressions. Do not introduce a new generic lock subsystem if accepted primitives already satisfy the boundary.
+
+## Expected execution surface
+
+- Primary repo: Mercato.
+- Scanner stays frozen by default; touch it only if a real product-visible conflict/retry defect is found.
+- No new UI journey is required merely because X-001 exists. Use Playwright only when X-001 changes user-visible conflict/retry behavior. Real PostgreSQL overlap/idempotency/rollback proof is the decisive default evidence.
+- No new external integration semantics.
+
+Execution bases:
+
+- Mercato `outbound/p4-003` @ `9a656bf9e5a42e29b6493f1b7bed5d62b7bf562c`.
+- Scanner `outbound/p4-003` @ `a2759a29347285dd1dcd14bf51633431fbf2a302`.
+
+## Next execution boundary
+
+Grounding is complete. **X-001 has not been launched.**
+
+Before first implementation action after Owner authorization:
 
 1. refresh current Git;
-2. load current `fetch_me_prompt` + `operational-mode` for a fresh Claude execution session;
-3. load current project steering and relevant skills (`wms-outbound`, `architecture-context`, plus `scanner-context` when Scanner work requires it);
-4. identify and ground the exact next Task Catalog item from current authority;
-5. after Owner authorization, perform the canonical new-item Testing reset and require `RESET_OK`;
-6. write/update the detailed execution guide and use a microscopic Owner-facing handoff.
+2. for a fresh Claude session load current `fetch_me_prompt` + `operational-mode` first, then project steering + `wms-outbound` + `architecture-context` (`scanner-context` only if Scanner becomes relevant);
+3. run the canonical new-item Testing reset from `Devaxonic-WMS/.ai/OPERATIONS.md` and require `RESET_OK`;
+4. write/update the detailed X-001 Git execution guide;
+5. use the Owner-selected executor with a microscopic handoff;
+6. executor owns ordinary in-scope defects/tests/build/evidence through self-repair;
+7. supervisor independently verifies; Owner Acceptance remains separate.
+
+Do not start X-002 automatically.
 
 ## Durable operating rules
 

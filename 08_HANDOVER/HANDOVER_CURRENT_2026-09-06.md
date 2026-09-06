@@ -6,119 +6,95 @@
 
 ## Current checkpoint
 
-Plan: **37 items**, **109/109 Architect requirements mapped**.
+Plan: **37 items**, **109/109 Architect requirements mapped**.  
+Formal progress: **32/37 FINAL PASS / Owner Accepted**.
 
-Formal progress: **31/37 FINAL PASS / Owner Accepted**.
+Latest accepted:
 
-Latest accepted checkpoints:
+- `P4-002` — item 30/37 — Mercato `d75dccbc7a43b64c2a0ed325d30a7a4b49b57eb1` / Scanner `7d13e34fc66fe19149b43a6747b5300c2bdcf945` / evidence `0961a7fe2e08395cd1b2522e30770d62c2fb2841`.
+- `P4-003` — item 31/37 — Mercato product candidate `6ddec6870b5498901224b3457f5955101204a2f0` / Scanner `a2759a29347285dd1dcd14bf51633431fbf2a302` / evidence `8a916dfc9387b09d92b9e9143010cc34145108bd`.
+- `X-001` — item 32/37 — **FINAL PASS / Owner Accepted** — Mercato `outbound/x-001` @ `b56515ecffba729c828f5fe9ca0ec6471edc4c43` / Scanner frozen `a2759a29347285dd1dcd14bf51633431fbf2a302` / evidence `8fcd97942545d9e49bcd819f2898dd8887843165`.
 
-- `P4-001` — catalog item 29/37 — Mercato `66e2e8620041d2db1d10d069e286936083667139` / Scanner frozen `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa` / evidence `6780af113cbc31db26449fa6ca2fde5f238ab801`.
-- `P3-003` — catalog item 28/37 — Mercato `f600782496e865603200d46d7e6041a54f90b9a4` / Scanner `135d86e1342bae7b21a8b676b1ef220a39a0f0b5` / evidence `40d4fd10430ab2b58457f96573ed34af8f57d316`.
-- `P4-002` — catalog item 30/37 — Mercato `d75dccbc7a43b64c2a0ed325d30a7a4b49b57eb1` / Scanner `7d13e34fc66fe19149b43a6747b5300c2bdcf945` / evidence `0961a7fe2e08395cd1b2522e30770d62c2fb2841`.
-- `P4-003` — catalog item 31/37 — **FINAL PASS / Owner Accepted** — Mercato product candidate `6ddec6870b5498901224b3457f5955101204a2f0` / Scanner `a2759a29347285dd1dcd14bf51633431fbf2a302` / evidence `8a916dfc9387b09d92b9e9143010cc34145108bd`.
+## X-001 accepted truth
 
-## P4-003 accepted truth
+- All `CON-01..05` have decisive executable final-head evidence.
+- CON-02: genuine overlapping `generatePickTasks` vs `releaseAllocation` PostgreSQL race proves Allocation row serialization and immutability after PickTask creation.
+- CON-03: genuine overlapping cross-dock `planBinding` and `assignNext` races prove real PostgreSQL row/advisory-lock waits and exactly-one durable assignment/planning.
+- CON-01/04/05 accepted guards remain unchanged and were rerun on final head.
+- Required dedicated X-001 set: **148/148 PASS**; typecheck clean.
+- No business UI/API/schema change; Scanner frozen.
+- Raw `pg.Client` SSL compatibility issue discovered during final reruns was fixed at the four known test call sites. Centralization is deliberately scheduled after X-002 and before ACC-001.
 
-- PutBack destination submission performs the authoritative server-side `IN_PROGRESS -> LOCATION_VALIDATION` transition.
-- Invalid/non-storage destination returns to `IN_PROGRESS` with zero Inventory movement; retry is unlimited and there is no automatic escalation.
-- Valid completion atomically performs `LOCATION_VALIDATION -> COMPLETED`, exact physical Inventory recovery, shared task-lock release and resolution of the corresponding P4-001 physical-return handoff.
-- The handoff remains unresolved/protecting quantity before completion and on reject/error/rollback; `resolved_at` disables that temporary subtraction only once completion succeeds.
-- Duplicate completion is idempotent; real concurrent completion is serialized by PostgreSQL locking; forced rollback leaves task, Inventory, task lock and handoff resolution unchanged.
-- P4-002 FIFO/no-zone/single-active-task behavior remains preserved.
-- No Inbound Putaway business states/flows were imported.
-- Dedicated PostgreSQL: **10/10 PASS**.
-- Mandatory targeted regressions: **133/133 PASS**.
-- Rendered P4-003 + P4-002 regression: **5/5 PLAYWRIGHT VERIFIED**, zero route mocks.
+## Exact next item — X-002 grounded/prepared, not launched
 
-## Post-acceptance maintenance completed
+**X-002 — Integration correlation, observability and operational recovery** — item **33/37**.
 
-The two concrete test-infrastructure gaps discovered during P4-003 verification were fixed separately after Owner authorization:
+Detailed execution guide:
 
-- Mercato `outbound/p4-003` maintenance commit `9a656bf9e5a42e29b6493f1b7bed5d62b7bf562c` adds `WmsOutboundPutBackTask` to the isolated MikroORM entity registries in exactly:
-  - `p3-002-postgres.integration.test.ts` — **17/17 PASS**;
-  - `p1-003-detail-api-postgres.integration.test.ts` — **1/1 PASS**.
-- WMS tracking record updated in `04_CURRENT_STATE/TEST_INFRA_GAPS.md` @ `6cde5bde465a1a4e10d41d9e04ccff443720c72c`.
-- No product code changed in this maintenance fix.
+`06_AGENT_GUIDES/X-002_EXECUTION.md` @ `0fff59ebfeddc7104e6396c3882d8defeaf8145e`
 
-## Exact next item — grounded, not launched
+Mercato base: `outbound/x-001` @ `b56515ecffba729c828f5fe9ca0ec6471edc4c43` -> future `outbound/x-002`.  
+Scanner: frozen by default at `outbound/p4-003` @ `a2759a29347285dd1dcd14bf51633431fbf2a302`.
 
-**X-001 — Enforce CON-01..05 concurrency and exactly-once business effects** — catalog item **32/37**.
+### X-002 governing integration boundaries
 
-Catalog objective: apply/verify explicit transactions, row/advisory locks, uniqueness and idempotency at every authoritative boundary covered by `CON-01..05`. Dependencies `P1-004`, `P1-011`, `P1-014`, `P1-015`, `P2-002` are already accepted.
+- `INT-01` — P2 STEP 1: accept only Inbound-qualified `ELEMENTARY` TU in `IN_CROSS_DOCK`; source quantity is ASN-declared; retain TU/SKU/item + receipt correlation.
+- `INT-02` — P2 STEP 3: source settlement passes Inbound `confirmedQty` + `damagedQty` with source correlation; residual is derived by Inbound, not an extra contract field.
+- `INT-03` — P2 STEP 4: GR outcome correlation is `sourceInboundTU + GR_SETTLEMENT_SOURCE=CROSSDOCK`; Outbound owns its gate consumption only; GR retry/transport remains Inbound-owned.
+- `INT-04` — current P1 STEP 11A: uniquely identifiable Shipment POST to ERP.
+- `INT-05` — current P1 STEP 11A: explicit rejection -> durable safe diagnostics + `POSTING_ERROR`; retry is explicit Supervisor action; acceptance -> `POSTED`; timeout remains technical incident, not business rejection.
+- `INT-06` — P3 STEP 1 + P4 STEP 1: external cancellation/correction correlates to proper line and routes by formally confirmed picked quantity, including accepted P3-003 race handling.
 
-Grounded behavior:
+### Existing implementation to preserve
 
-1. `CON-01` — parallel ATP/allocation competition cannot reserve more than available ATP.
-2. `CON-02` — existence of a PickTask freezes its assigned quantity against reallocation.
-3. `CON-03` — one physical source Cross-Dock TU/SKU quantity cannot enter two active/completed assignments.
-4. `CON-04` — concurrent Shipment grouping uses a stable deadline/boundary and one Packing TU/package cannot enter two Shipments.
-5. `CON-05` — duplicate/concurrent ERP and manifest effects settle once and never regress terminal state.
+X-002 is audit-and-harden, not a new bus:
 
-## Existing accepted implementation evidence to preserve
+- INT-01 already has `receiptCorrelation`, ASN-declared source quantity, source TU/item and idempotent binding in `cross-dock-eligibility-service.ts`.
+- INT-02 already has durable source `WmsOutboundCrossDockFinalization` with quantity conservation in `cross-dock-execution-service.ts`.
+- INT-03 already has durable/idempotent `WmsOutboundCrossDockGrResult`, Shipment gate and Supervisor visibility in accepted P2-005.
+- INT-04/05 already have typed ERP adapter, posting aggregate/attempt history, correlation/idempotency, shared orchestration fact/retry rows, safe rejection detail and Supervisor retry in `shipment-posting-service.ts`.
+- INT-06 already has deterministic external/internal order-line correlation and P3/P4 routing in `ordering-adapter-service.ts`.
 
-X-001 is a hardening/audit item, not a rewrite:
+Executor must first audit each boundary and change only concrete missing durable correlation/audit/diagnostic gaps. A single universal table or correlation key is not required and must not be invented merely for uniformity.
 
-- CON-01: current P1-004 has genuine two-transaction limited-stock competition with PostgreSQL advisory-lock wait proof and `sum(reserved) <= stock`.
-- CON-02: current P1-005 has a server-authoritative PickTask immutability guard. X-001 must audit whether the existing proof is a genuine overlapping race; harden only if it is not.
-- CON-03: current P2-002 contains corrected quantity-lock/unique-assignment PostgreSQL coverage. Verify the exact overlap/evidence quality before changing product code.
-- CON-04: P1-011 has real grouping-key lock contention and rollback proof; P1-015 has one-manifest and add-vs-close races.
-- CON-05: P1-014 has real in-flight/duplicate ERP posting exactly-once proof; P1-015 has duplicate/parallel manifest-confirm exactly-once proof. Include P1-016/P2-006 settlement side effects in the audit where their final effect can duplicate.
+### Traceability defect
 
-The Definition of Done is not “rewrite all concurrency”. Each of the five CON requirements must finish with a decisive executable race/idempotency test at the owning DB/server boundary. Existing accepted proofs may satisfy that requirement if they are genuinely decisive; add or repair only missing guards/evidence. A stronger test exposing a real bug makes that bug in-scope self-repair.
+Derived requirement/catalog references for INT-04/05 still say P1 STEP/KROK 13. Current P1 v1.20 puts ERP posting in **STEP 11A**; STEP 13 is dispatch/final settlement. Current P1 process prose wins. Classification: traceability-reference defect, not product blocker.
 
-## Grounding defect: stale source-number references
+## Testing / execution boundary
 
-The derived requirements/index currently points `CON-04` to P1 R37–R41 and `CON-05` to P1 R43–R46. Those references are stale after later P1 renumbering and must not drive implementation literally.
+X-002 has **not been implemented/launched** yet.
 
-Authority hierarchy resolves this without a product decision:
+Before first implementation action:
 
-- current Shipment grouping behavior is in P1 STEP 9 / R26–R29, with R39–R40 covering singular manifest membership/irreversible close where applicable;
-- ERP/manifest exactly-once concern belongs to the current posting/manifest/final-settlement flow around P1 R37–R40 and R70–R72, while the explicit `CON-05` requirement supplies the concurrency/duplicate constraint;
-- current R43–R46 are SHORT_ALLOCATED/SHORT_PICKED rules and are not CON-05 behavior.
+1. canonical new-item Testing reset from `Devaxonic-WMS/.ai/OPERATIONS.md` -> required `RESET_OK`;
+2. fresh Claude session, if used: load current `fetch_me_prompt` + `operational-mode` first, then current WMS steering + `wms-outbound` + `architecture-context`; `scanner-context` only if Scanner becomes relevant;
+3. execute only `06_AGENT_GUIDES/X-002_EXECUTION.md`;
+4. no broad full Outbound acceptance sweep in X-002; only focused INT contract proof + directly affected regressions/build/UI if applicable;
+5. supervisor independently verifies remote Git/diff/evidence; Owner Acceptance remains explicit.
 
-Classification: **traceability-reference defect, not architecture/product blocker**. Do not mutate immutable Architect snapshots to conceal it.
+If shared `wms_orchestration` implementation/schema changes, require the relevant accepted Inbound regressions. Reusing existing shared entities without changing shared code does not justify a broad Inbound sweep.
 
-## Architecture-context / shared compatibility boundary
+## Mandatory post-X-002 gate
 
-`architecture-context` / WMS-Records remains Inbound/shared reference only. Allowed reuse is technical: transaction shape, record/advisory locks, idempotency, uniqueness, warehouse context and rollback patterns. No Inbound business state/process semantics may be imported into Outbound.
+After X-002 is FINAL PASS + Owner Accepted, before ACC-001:
 
-If X-001 changes shared Inventory/TU/warehouse/record-lock/orchestration primitives, run the relevant accepted Inbound regressions. Do not introduce a new generic lock subsystem if accepted primitives already satisfy the boundary.
+`07_IMPLEMENTATION_PLAN/POST_X002_PRE_ACC_RAW_PG_SSL_MAINTENANCE.md`
 
-## Expected execution surface
+Sequence is fixed:
 
-- Primary repo: Mercato.
-- Scanner stays frozen by default; touch it only if a real product-visible conflict/retry defect is found.
-- No new UI journey is required merely because X-001 exists. Use Playwright only when X-001 changes user-visible conflict/retry behavior. Real PostgreSQL overlap/idempotency/rollback proof is the decisive default evidence.
-- No new external integration semantics.
+`X-002 -> raw pg SSL maintenance gate -> ACC-001 -> ACC-002 -> ACC-003 -> ACC-004`
 
-Execution bases:
-
-- Mercato `outbound/p4-003` @ `9a656bf9e5a42e29b6493f1b7bed5d62b7bf562c`.
-- Scanner `outbound/p4-003` @ `a2759a29347285dd1dcd14bf51633431fbf2a302`.
-
-## Next execution boundary
-
-Grounding is complete. **X-001 has not been launched.**
-
-Before first implementation action after Owner authorization:
-
-1. refresh current Git;
-2. for a fresh Claude session load current `fetch_me_prompt` + `operational-mode` first, then project steering + `wms-outbound` + `architecture-context` (`scanner-context` only if Scanner becomes relevant);
-3. run the canonical new-item Testing reset from `Devaxonic-WMS/.ai/OPERATIONS.md` and require `RESET_OK`;
-4. write/update the detailed X-001 Git execution guide;
-5. use the Owner-selected executor with a microscopic handoff;
-6. executor owns ordinary in-scope defects/tests/build/evidence through self-repair;
-7. supervisor independently verifies; Owner Acceptance remains separate.
-
-Do not start X-002 automatically.
+The SSL maintenance gate is non-catalog and does not change the 37-item count.
 
 ## Durable operating rules
 
 - Executor `COMPLETE` != Supervisor PASS != Owner Acceptance.
 - Owner controls executor/venue/launcher/session mechanics.
-- Provider/session/quota interruption preserves branch/HEAD/workspace checkpoint.
-- Testing credentials are frozen; do not audit/rotate/refactor them during implementation.
-- Inbound remains CLOSED / REFERENCE.
-- Demo/Prod remain out of scope unless explicitly authorized.
+- Detailed logic belongs in Git guide; Owner-facing executor prompt stays microscopic.
+- Ordinary in-scope implementation/test/runtime/build/evidence failures are executor-owned self-repair.
+- Provider/session/quota interruption preserves exact checkpoint; never restart from accepted base.
+- Testing credentials frozen; canonical Testing only; no local PostgreSQL.
+- Inbound remains CLOSED / REFERENCE; Demo/Prod out of scope without explicit Owner authorization.
 
 **Git truth overrides stale Drive/chat history.**

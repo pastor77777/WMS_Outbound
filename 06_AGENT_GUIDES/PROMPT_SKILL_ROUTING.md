@@ -61,6 +61,8 @@ Sync WMS_Outbound/main and execute ONLY:
 Finish the entire item. Return only COMPLETE or a true two-strikes blocker.
 ```
 
+Owner-facing handoff contains prompt content only. Do not combine it with shell/launcher/VPN/session-start commands unless Owner explicitly requests them. Pre-item reset is a separate operation and must not be conflated with executor launch.
+
 Do not paste the detailed ticket into owner chat. Do not append menus/explanations unless requested.
 
 ## Fresh supervisor chat rule

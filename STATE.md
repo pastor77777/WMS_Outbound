@@ -53,11 +53,57 @@ Owner-authorized maintenance fixed the two known `WmsOutboundPutBackTask` MikroO
 
 This maintenance does not change the accepted P4-003 product behavior or Task Catalog count.
 
-## Current position
+## Current position — X-001 grounded, not launched
 
 Completed and accepted: **31/37**.
 
-The next Task Catalog item has **not** been grounded or launched in this checkpoint. Ground it fresh from current Git and required skills before authorization.
+Exact next Task Catalog item: **X-001 — Enforce CON-01..05 concurrency and exactly-once business effects** (catalog item **32/37**).
+
+Grounded target:
+
+- `CON-01` — concurrent ATP/allocation competition must never reserve more than available stock.
+- `CON-02` — once a `PickTask` exists, its assigned quantity cannot be reallocated.
+- `CON-03` — the same source Cross-Dock TU/SKU quantity may be planned/confirmed at most once.
+- `CON-04` — concurrent Shipment grouping must use one stable grouping boundary and each Packing TU/package may enter at most one Shipment.
+- `CON-05` — duplicate/concurrent ERP posting response and manifest close/confirm paths must produce one business effect and never regress terminal state.
+
+Dependencies listed by the catalog (`P1-004`, `P1-011`, `P1-014`, `P1-015`, `P2-002`) are already accepted.
+
+This item is **hardening/audit of existing authoritative DB/server boundaries**, not permission to redesign accepted flows. Reuse accepted transactions, row/advisory locks, uniqueness and idempotency mechanisms. Do not refactor green code merely for uniformity; change product code only where a decisive race/idempotency test exposes a real gap.
+
+Existing accepted evidence already covers substantial parts of the target:
+
+- CON-01: P1-004 has genuine competing-allocation PostgreSQL overlap with advisory-lock wait and `sum(reserved) <= stock` proof.
+- CON-02: P1-005 has the accepted PickTask immutability guard; X-001 must verify whether its evidence is a decisive real overlap race and harden only if needed.
+- CON-03: P2-002 has corrected PostgreSQL quantity-lock/unique-assignment coverage; X-001 must verify the exact overlap proof rather than reimplement it.
+- CON-04: P1-011 has real Shipment grouping lock contention/rollback evidence; P1-015 has add-vs-close and singular-membership races.
+- CON-05: P1-014 has genuine ERP-posting duplicate/in-flight exactly-once proof; P1-015 has duplicate/parallel manifest-confirm and add/close serialization proof. P1-016/P2-006 settlement effects must be included in the final audit where relevant.
+
+### Grounding note — stale traceability references
+
+The current derived requirement/index layer carries stale source-number references for `CON-04`/`CON-05` after later P1 renumbering. This is a **traceability-reference defect, not a product blocker**. Active P1 process prose remains higher authority:
+
+- Shipment grouping behavior for CON-04 is currently anchored in STEP 9 / P1 R26–R29 (with one-manifest boundary R39–R40 where relevant).
+- ERP/manifest single-effect behavior for CON-05 is anchored in the current ERP/manifest/settlement flow around P1 R37–R40 and R70–R72, while the explicit CON-05 requirement defines the duplicate/concurrent exactly-once constraint.
+
+Do not edit immutable Architect snapshots to hide the mismatch and do not implement SHORT_PICKED rules R43–R46 as concurrency behavior merely because the stale derived reference points there.
+
+## X-001 compatibility / scope boundary
+
+- `architecture-context` / WMS-Records is shared/Inbound reference only. Reuse generic transaction, lock, idempotency and warehouse-context patterns technically; do not import Inbound business states/process rules into Outbound.
+- Mercato is the primary expected product repo. Keep Scanner frozen unless a real X-001 conflict-response defect requires a change.
+- No new human workflow or UI is implied by X-001. Playwright is required only if product-visible conflict/retry behavior changes; DB concurrency/idempotency proof is the decisive default evidence class.
+- Any touched shared Inventory/TU/warehouse/record-lock/orchestration primitive requires the corresponding accepted Inbound regression evidence.
+- No new external integration behavior; make duplicates/concurrency safe at existing bounded-context seams.
+
+Continuation bases for future execution:
+
+- Mercato `outbound/p4-003` @ `9a656bf9e5a42e29b6493f1b7bed5d62b7bf562c` (accepted P4-003 product lineage plus test-infra-only maintenance).
+- Scanner `outbound/p4-003` @ `a2759a29347285dd1dcd14bf51633431fbf2a302`.
+
+Grounding does **not** launch X-001. Before first implementation action, explicit Owner authorization and the canonical new-item Testing reset from `Devaxonic-WMS/.ai/OPERATIONS.md` are required; reset must end `RESET_OK`.
+
+Do not start X-002 automatically after X-001.
 
 ## Executor / prompt workflow — durable rules
 

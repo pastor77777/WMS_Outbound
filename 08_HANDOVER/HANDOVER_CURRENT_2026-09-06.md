@@ -8,138 +8,120 @@
 
 Plan: **37 items**, **109/109 Architect requirements mapped**.
 
-Formal progress: **25/37 FINAL PASS / Owner Accepted**.
+Formal progress: **26/37 FINAL PASS / Owner Accepted**.
 
 Latest accepted checkpoint:
 
-**P2-006 — Crossdock join into common Shipment/dispatch downstream — item 25/37 — FINAL PASS / Owner Accepted.**
+**P3-001 — Reservation Release before formal pick — item 26/37 — FINAL PASS / Owner Accepted.**
 
-- Mercato: `4f64641ab14a5359bc22d0685e390b511252b5b5`
+- Mercato: `9fb32493ed9ec443a18a494aa1a8ec3a1bde6d06`
 - Scanner frozen: `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa`
-- WMS evidence: `9a580b046b5f2aa3bcbf2422eeaf6413248f68db`
+- WMS evidence: `15c3ad937a4e81d7b67ff96409bd0b6a65553864`
 
-Supervisor independently verified P2-006 before Owner acceptance.
+Supervisor independently verified P3-001 before Owner acceptance.
 
-## Accepted P2-006 boundary
+## Accepted P3-001 boundary
 
 Preserve exactly:
 
-1. CROSSDOCK Packing TUs use the same common P1 Shipment/TU/content/OutboundOrderLine model; no second crossdock Shipment lifecycle exists.
-2. Shipment grouping remains channel-neutral: warehouse + customer + delivery address + priority + identical `slaDeadline`.
-3. P2 R43 priority/SLA inheritance remains authoritative.
-4. P1 R57/R58 completeness is CustomerOrder-level across STANDARD + CROSSDOCK; `allowPartialShipment=false` blocks every ready TU while any active line is incomplete.
-5. `slaDeadline` cannot bypass the no-partial completeness guard.
-6. Complete compatible STANDARD + CROSSDOCK contributions of one no-partial CustomerOrder join one common Shipment.
-7. Carrier Selection, WMS label, ERP posting and CarrierManifest are the existing P1 common pipeline.
-8. P2-005 GR gate remains before ERP Phase 1 and counts only contributing CROSSDOCK source TUs; STANDARD content creates no GR requirement.
-9. CROSSDOCK final settlement creates no fake Allocation and no standard Inventory decrement; STANDARD Allocation/Inventory settlement remains exactly once.
-10. Crossdock TU/line/order/customer terminal aggregates still advance through the common manifest-confirm lifecycle.
-11. Multi-Shipment/final aggregate and replay behavior remains accepted P1-016 behavior.
-12. Scanner has no second dispatch model and stayed frozen.
+1. P3 release applies only before formal pick (`pickedQty = 0` / no accepted pick confirmation for released quantity).
+2. Allocation/hard Inventory reservation/ATP/task/line/order effects settle atomically and exactly once.
+3. General cancellation sets affected CustomerOrderLine to `CANCELLED`; shortage release sets it to `BACKORDERED`.
+4. Eligible pre-pick PickTask/TaskLine may be cancelled inside dedicated P3 orchestration without weakening generic P1-004 CON-02.
+5. True pre-pick release creates zero `PutBackTask`.
+6. `INT-06` replay is idempotent; conflicting key reuse fails safely.
+7. Crossdock/no-Allocation path does not fabricate Allocation.
+8. Formal `pickedQty > 0` is rejected from P3 and remains P4 territory.
+9. Automatic/system release can use the same accepted release operation without Supervisor notification dependency.
+10. P3-003 still owns the physical-removal-before-confirmation race/exact-source return/P4 handoff.
 
 Accepted proof summary:
 
-- dedicated P2-006 canonical PostgreSQL matrix **20/20 PASS**;
-- P2-005 **19/19**, P1-011 **18/18**, P1-012 **14/14**, P1-013 **15/15**, P1-014 **18/18**, P1-015 **21/21**, P1-016 **25/25**, P2-002 **22/22**, P2-003 **8/8**, P2-004 **16/16** retained green;
-- durable Mercato typecheck/build/runtime proof green;
-- final rendered Mercato Playwright **2/2 PASS**, zero route mocks/interception;
-- Journey A is continuous: real CROSSDOCK `PACKING_SEALED` TU -> common grouping -> Shipment -> carrier -> label -> GR-blocked ERP -> real GR acceptance -> ERP -> CarrierManifest -> persisted settlement;
-- Journey B/C is continuous: mixed STANDARD+CROSSDOCK no-partial guard, SLA non-bypass, one Shipment, crossdock-only GR requirement, common downstream completion, exactly-once STANDARD settlement and allocation-free/no-standard-inventory CROSSDOCK settlement, replay one-Shipment invariant.
+- dedicated P3-001 canonical PostgreSQL suite **13/13 PASS** after supervisor-discovered multi-line idempotency remediation;
+- multi-line cancellation persists one request-level ReservationRelease and replays with zero duplicate release/ATP restoration;
+- P1-004 **11/11**, P1-001 **7/7**, P1-005 **10/10**, P1-016 **25/25** retained green;
+- typecheck/build/runtime proof green;
+- rendered Mercato Playwright **3/3 PASS**, zero route mocks;
+- Scanner remained frozen.
 
 ## Active next item
 
-**P3-001 — Reservation Release before formal pick — item 26/37.**
+**P3-002 — Reservation retention policy and automatic release timer — item 27/37.**
 
 Authoritative guide:
 
-`06_AGENT_GUIDES/P3-001_EXECUTION.md`
+`06_AGENT_GUIDES/P3-002_EXECUTION.md`
 
 Guide commit:
 
-`403ec74fb97bd920ca0da8965850101e17b5f40c`
+`b299f9d66ff8438ae2f69a0cc068ac06455b17f7`
 
-Frozen bases:
+Frozen accepted bases:
 
-- Mercato `4f64641ab14a5359bc22d0685e390b511252b5b5`;
+- Mercato P3-001 `9fb32493ed9ec443a18a494aa1a8ec3a1bde6d06`;
 - Scanner `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa`;
-- P2-006 evidence `9a580b046b5f2aa3bcbf2422eeaf6413248f68db`.
+- P3-001 evidence `15c3ad937a4e81d7b67ff96409bd0b6a65553864`.
 
-### P3-001 Architect truth
+### P3-002 Architect truth
 
 Grounding:
 
-- P3 R1–R2: pre-pick `Allocation RESERVED -> RELEASED`, stock hard reservation becomes available;
-- P3 R3–R4: shortage release cancels pre-pick OOL and leaves unfulfilled CustomerOrderLine `BACKORDERED`;
-- P3 R5–R6: general cancellation makes CustomerOrderLine `CANCELLED`; automatic/system release does not require Supervisor notification;
-- requirements `FR-P3-01`, `FR-P3-02`, `FR-P3-03`, `INT-06`;
-- acceptance `TC-040`, `TC-041`.
+- P3 R9: warehouse partial-reservation policy has exactly three variants — retain reservation, automatic release after configured time, or Warehouse Supervisor decision;
+- P3 R10: configured retention time is independent of `priority` and `slaDeadline`;
+- requirements `FR-P3-05`, `FR-P3-06`;
+- acceptance `TC-112`, `TC-113`.
 
 Hard boundary:
 
-- P3 is only for **formal `pickedQty = 0`** / no accepted pick confirmation for the released quantity;
-- no `PutBackTask` for true pre-pick release;
-- formally picked quantity belongs later to P4, not P3;
-- P3-002 owns retention policy/timer (`R9-R10`);
-- P3-003 owns the exact-source physical-removal-before-confirmation race and P4 handoff (`R7-R8`);
-- do not weaken generic accepted P1-004 CON-02; P3 must use a dedicated transactional cancellation orchestration that proves zero formal pick, cancels eligible task work, then releases hard reservation using accepted primitives.
+- P3-002 owns policy/config/timer/Supervisor-decision orchestration only;
+- actual release reuses accepted P3-001 rather than duplicating release logic;
+- formal picked quantity remains outside P3;
+- no P3-003 exact-source RF race behavior and no P4 PutBack behavior;
+- no new priority/SLA semantics;
+- Scanner has no mapped P3-002 workflow and stays frozen unless authoritative scope proves otherwise.
 
 ## Mandatory new-item reset
 
-Before launching P3-001 executor work:
+Before first P3-002 implementation action, perform the canonical new-item Testing reset defined in `Devaxonic-WMS/.ai/OPERATIONS.md` and require `RESET_OK`.
 
-```bash
-cd /home/ubuntu/git/Devaxonic-WMS
-git pull --ff-only
-bash scripts/reset-testing-runtime.sh --deep
-```
+The reset is environment hygiene and is separate from executor launch. Do not repeat it for ordinary P3-002 retries/continuations.
 
-Required result: `RESET_OK`.
+## Prompt-generation and executor mode
 
-This reset is only for the new item boundary; do not repeat it for ordinary P3-001 retries/continuations.
-
-## Operational executor rules — durable
-
-Canonical rule for **Antigravity, local Codex, Codex Cloud, Claude and other authorized executors**:
-
-**whole Task Catalog item -> autonomous implementation/diagnosis/tests/runtime/UI/evidence -> return only COMPLETE or a true blocker.**
-
-Routine fixture/auth/TLS/test-data/selector/tooling/runtime/build failures are executor-owned. Do not create supervisor round-trips after every failure.
-
-Two-strikes applies only to the **same material unresolved technical path** after two genuinely different substantive evidence-based attempts and no normal in-scope next move.
-
-Prompt-generation routing is durable in:
+Durable prompt routing:
 
 `06_AGENT_GUIDES/PROMPT_SKILL_ROUTING.md`
 
-commit:
+current steering commit: `a52587ddb1efcaae5babc0e0bd3a8e3c99f67942`.
 
-`9aa7f0db21c1ffe02f22a2d610b95a5acc1d779d`
+Before any executor handoff, supervisor refreshes current WMS/Architect authority and applies current `wms-outbound`, `architecture-context` when shared compatibility is relevant, plus `fetch_me_prompt` + `operational-mode`.
 
-Before any new executor guide/ticket, the supervisor must refresh current WMS/Architect authority and use current `fetch_me_prompt` + `operational-mode` guidance. The prompt skill is construction discipline; Architect/Canon/Git remain business authority.
+All authorized executors own the **whole authorized item** through implementation/tests/runtime/UI/evidence/push and return only COMPLETE or a true same-material-path two-strikes blocker.
+
+Owner controls executor selection/launch/session organization. Owner-facing handoff contains prompt content only; do not combine it with shell launcher, VPN or session-start commands unless Owner explicitly requests them.
 
 ## Fresh supervisor bootstrap
 
-A new ChatGPT supervisor chat must not reconstruct this project from chat memory alone.
+A new supervisor chat must not reconstruct project state from chat memory alone.
 
-Read in this order:
+Refresh:
 
-1. current raw Markdown Google Drive fresh-chat handover;
-2. `ChatGPT_MEMORY.md` on Google Drive;
-3. current `wms-outbound` context/routing;
-4. current Architect/Canon context for WMS Outbound; use `architecture-context` for shared/Inbound compatibility, not to rewrite Outbound business truth;
-5. `scanner-context` when Scanner is relevant;
-6. fresh Git `Devaxonic-WMS/AGENTS.md`, `.ai/STATE.md`, current `.ai/HANDOVER_OUTBOUND_CURRENT_*.md`, `.ai/TESTING.md`, `.ai/OPERATIONS.md`, `.ai/PLAN.md`;
-7. fresh Git `WMS_Outbound/AGENTS.md`, `STATE.md`, this handover, `GIT_PROMPT_WORKFLOW.md`, `PROMPT_SKILL_ROUTING.md`, exact Task Catalog item and mapped Architect files;
-8. before composing executor prompts, read/apply current `fetch_me_prompt` and `operational-mode` skills.
+1. current Drive handover/memory;
+2. current `Devaxonic-WMS` steering/state/testing/operations/handover;
+3. current `WMS_Outbound` AGENTS/STATE/handover/prompt workflow/routing;
+4. current `wms-outbound` context;
+5. exact Architect/Canon for the active item;
+6. `architecture-context` for shared/Inbound compatibility only;
+7. `scanner-context` only when Scanner is materially relevant;
+8. current `fetch_me_prompt` + `operational-mode` before composing executor handoff.
 
 **Git truth overrides stale Drive/chat history.**
 
 ## Supervisor protocol
 
-- Owner controls executor selection/launch/session organization;
 - executor never self-accepts;
-- supervisor independently verifies final refs/diff/evidence after COMPLETE;
+- supervisor independently verifies final refs/diff/evidence;
 - formal catalog progress advances only after explicit Owner acceptance;
-- owner-facing executor prompt remains microscopic because detailed work lives in Git;
-- no P3-002 before P3-001 is supervisor-verified and Owner Accepted;
+- owner-facing executor prompt stays microscopic because detailed work lives in Git;
+- no P3-003 before P3-002 is supervisor-verified and Owner Accepted;
 - Demo/Prod and local PostgreSQL remain out of scope.

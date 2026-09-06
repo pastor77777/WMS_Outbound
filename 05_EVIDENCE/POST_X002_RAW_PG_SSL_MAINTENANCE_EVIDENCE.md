@@ -4,14 +4,25 @@
 
 ## Scope confirmation
 
-Test infrastructure only. No business/application DB configuration, credential
-handling, Scanner, Playwright, runtime rebuild, or ACC-001 work was performed.
+Primarily test infrastructure only. No application DB configuration,
+credential handling, Scanner, Playwright, runtime rebuild, or ACC-001 work
+was performed.
+
+**One documented exception:** a single application-code correctness fix in
+`pick-task-service.ts` (`confirmPickLine`'s idempotent-replay response), made
+under explicit Owner instruction as a continuation of this same gate after
+the initial gate run surfaced a genuine pre-existing defect blocking gate
+completion (P1-009 test 6A). See "Idempotent replay fix" below. No other
+business/API/schema behavior changed.
 
 ## Revisions
 
 - Mercato base: `outbound/x-002` @ `4a89a95aad42c476ac206b53fe8ff67f3c8021a9`.
-- Mercato branch: `outbound/post-x002-raw-pg-ssl` @ `4d6033b900958b2717d4c4c16c357acf7b7b5687` (pushed to `origin`).
-- Scanner: unchanged, frozen at `outbound/p4-003` @ `a2759a29347285dd1dcd14bf51633431fbf2a302` (verified identical before and after).
+- Mercato branch: `outbound/post-x002-raw-pg-ssl`:
+  - `4d6033b900958b2717d4c4c16c357acf7b7b5687` — raw pg.Client SSL centralization (test infrastructure).
+  - `cfdbc608b22fc1dd44646c309335d2071aafd32c` — `confirmPickLine` idempotent-replay stale-read fix (application code, Owner-directed continuation).
+  - Both pushed to `origin`.
+- Scanner: unchanged, frozen at `outbound/p4-003` @ `a2759a29347285dd1dcd14bf51633431fbf2a302` (verified identical before and after both commits).
 
 ## Helper
 
@@ -85,9 +96,28 @@ p2-004, p3-001, p3-002, p3-003   -> 4 suites, 63/63 PASS
 p1-012 (dead-import removal only) -> 1 suite, 14/14 PASS
 ```
 
-Total: **15 suites, 260/261 PASS** (pooled). All decisive PostgreSQL-side proofs (`pg_blocking_pids`, backend PID, `wait_event_type='Lock'`, real overlapping connections) remained intact and unweakened — centralization changed only client construction, not assertions.
+Total (after the idempotent-replay fix below): **16 suites, 263/263 PASS** (pooled, including the helper proof suite). All decisive PostgreSQL-side proofs (`pg_blocking_pids`, backend PID, `wait_event_type='Lock'`, real overlapping connections) remained intact and unweakened — centralization changed only client construction, not assertions.
 
-**Pre-existing failure, confirmed not caused by this gate:** `p1-009-postgres.integration.test.ts` test `"6A: Distinct PostgreSQL connections capture real lock contention during concurrent pick confirmation & TU closure"` fails a post-lock business assertion (`resultB.pickTaskLine.pickedQuantity` expected `'5.000000'`, received `'0.000000'`) — unrelated to SSL/observer-client construction. Reproduced identically by stashing this gate's changes and rerunning the same test against the unmodified `outbound/x-002` head (`4a89a95aad42c476ac206b53fe8ff67f3c8021a9`): same failure, same assertion, same values. This is a pre-existing product/test defect outside this maintenance gate's test-infrastructure-only scope; not corrected here. Flagging for Supervisor/Owner triage as a separate item.
+**Pre-existing failure found before the fix below, confirmed not caused by SSL centralization:** `p1-009-postgres.integration.test.ts` test `"6A: Distinct PostgreSQL connections capture real lock contention during concurrent pick confirmation & TU closure"` failed a post-lock business assertion (`resultB.pickTaskLine.pickedQuantity` expected `'5.000000'`, received `'0.000000'`) — unrelated to SSL/observer-client construction. Reproduced identically by stashing the SSL-centralization changes and rerunning the same test against the unmodified `outbound/x-002` head (`4a89a95aad42c476ac206b53fe8ff67f3c8021a9`): same failure, same assertion, same values. Corrected under explicit Owner instruction; see next section.
+
+## Idempotent replay fix (`confirmPickLine`)
+
+**Root cause:** `confirmPickLine` (`pick-task-service.ts`) reads the `PickTaskLine` once, unlocked, early (`preLockLine`, used only to derive the advisory-lock key before any row lock). That read populates the transaction `EntityManager`'s identity map for that entity. Both idempotent-replay return branches later re-fetched the "current" line/TU via plain `findOne`/`findOneOrFail`, which MikroORM resolves from the already-managed identity-map entity instead of re-querying the database. When two actors raced with the same `idempotencyKey` (P1-009 test 6A), Actor B's idempotent-replay response could return the pre-commit snapshot (`pickedQuantity = 0`) instead of the row Actor A had just committed (`pickedQuantity = 5`) — even though PostgreSQL itself had already correctly serialized the two transactions via the advisory lock (the decisive `pg_blocking_pids`/`wait_event_type='Lock'` proof was already correct and unaffected).
+
+**Fix:** `apps/mercato/src/modules/wms_outbound/services/pick-task-service.ts`, both idempotent-replay branches inside `confirmPickLine`:
+
+- added `{ refresh: true }` to the `curLine`/`curTu` (and `allLines`) reads, forcing MikroORM to reload authoritative post-commit column values into the already-managed entities;
+- the second branch's return now uses the freshly-read `curLine` instead of the stale locally-scoped `line` reference.
+
+This is the same `{ refresh: true }` pattern already used for an analogous stale-identity-map risk in `carrier-selection-service.ts`. No business rule, API contract, or schema changed — only the *data* the idempotent-replay response reflects is now authoritative. The real PostgreSQL lock-contention proof (`pg_blocking_pids`, `wait_event_type = 'Lock'`, distinct backend PIDs) was preserved unchanged; only the post-lock assertion values are now correct.
+
+**Verification:**
+
+- `p1-009` test 6A alone, 3 repeated runs: all green, real advisory-lock contention captured and logged each run (`[P1-009 Decisive PostgreSQL Lock Contention Captured]` with distinct blocked/blocking PIDs and `waitEventType: 'Lock'`).
+- Full `p1-009-postgres.integration.test.ts` suite: 15/15 PASS.
+- All 16 maintenance-gate-affected suites run together (the helper proof plus all 15 migrated PostgreSQL integration suites): **263/263 PASS**.
+- Mercato typecheck: clean, rerun after this fix.
+- Scanner head reconfirmed unchanged.
 
 ### 3. Static completion check (post-migration)
 
@@ -111,11 +141,11 @@ No remaining duplicated hand-written raw `pg.Client` SSL/`sslmode` normalization
 npm run typecheck --workspace apps/mercato
 ```
 
-Result: clean (`tsc --noEmit`, no errors), run twice — once before test suite reruns and once after all edits were finalized.
+Result: clean (`tsc --noEmit`, no errors), run three times across the gate — before the SSL-centralization test reruns, after the SSL-centralization edits were finalized, and again after the idempotent-replay fix.
 
 ## Explicit statement
 
-Test infrastructure only. No business/application DB configuration, credential rotation, MikroORM SSL configuration, Scanner code, or UI/Playwright behavior was changed. No ACC-001 work was started. Scanner head verified unchanged (`a2759a29347285dd1dcd14bf51633431fbf2a302`) before and after this gate.
+No application DB configuration, credential rotation, MikroORM SSL configuration, Scanner code, or UI/Playwright behavior was changed. One application-code correctness fix was made in `pick-task-service.ts` (documented above) under explicit Owner instruction to unblock this same gate; it changes no business rule, API contract, or schema. No ACC-001 work was started. Scanner head verified unchanged (`a2759a29347285dd1dcd14bf51633431fbf2a302`) before and after this gate.
 
 ## Completion boundary
 

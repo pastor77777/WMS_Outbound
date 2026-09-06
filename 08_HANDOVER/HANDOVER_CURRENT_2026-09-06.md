@@ -9,91 +9,92 @@
 Plan: **37 items**, **109/109 Architect requirements mapped**.  
 Formal progress: **33/37 FINAL PASS / Owner Accepted**.
 
-Latest Owner-Accepted checkpoint:
+Latest catalog checkpoint:
 
-- `X-002 — Integration correlation, observability and operational recovery` — item **33/37** — **Supervisor FINAL PASS / Owner Accepted**.
-- Mercato `outbound/x-002` @ `4a89a95aad42c476ac206b53fe8ff67f3c8021a9`.
-- Scanner frozen `outbound/p4-003` @ `a2759a29347285dd1dcd14bf51633431fbf2a302`.
-- X-002 evidence `05_EVIDENCE/X-002_EVIDENCE.md` at WMS_Outbound `71e8fd8c805357952fff83a0f1d7b5d915efc953`.
-- Supervisor independently verified final lineage/diff and the two corrected INT-02 acceptance gaps: decisive PostgreSQL lock-blocking proof and explicit `sourceInboundTuId + confirmedQty + damagedQty` contract with no external `residualQty` field.
+- `X-002` — item 33/37 — **Supervisor FINAL PASS / Owner Accepted**.
+- Mercato X-002 `4a89a95aad42c476ac206b53fe8ff67f3c8021a9`.
+- Scanner accepted base `a2759a29347285dd1dcd14bf51633431fbf2a302`.
 
-Earlier accepted checkpoints remain durable in Git/evidence history.
+## Accepted maintenance baseline
 
-## Exact active execution scope — raw pg SSL maintenance gate
+The mandatory post-X-002 raw PostgreSQL SSL maintenance gate is now **Supervisor FINAL PASS / Owner Accepted**.
 
-Mandatory non-catalog maintenance before returning to Task Catalog acceptance work:
+Accepted Mercato baseline for acceptance work:
 
-`Post-X-002 raw PostgreSQL SSL maintenance gate`
+`outbound/post-x002-raw-pg-ssl` @ `cfdbc608b22fc1dd44646c309335d2071aafd32c`.
 
-**Status:** grounded and Owner-authorized; execution may start in a fresh Owner-selected Claude session. It is not yet executor COMPLETE or Supervisor FINAL PASS.
+Evidence:
 
-Detailed execution guide:
+`05_EVIDENCE/POST_X002_RAW_PG_SSL_MAINTENANCE_EVIDENCE.md` at WMS_Outbound `31cc794d40c9f95ea8c81b7b32db5eee7ce515cf`.
 
-`06_AGENT_GUIDES/POST_X002_RAW_PG_SSL_MAINTENANCE_EXECUTION.md`
+Verified final maintenance result: affected PostgreSQL suites **263/263 PASS**, typecheck clean, Scanner unchanged. The discovered P1-009 idempotent-replay stale-read defect was corrected by authoritative refreshed reads; no business rule/API/schema change.
 
-Primary maintenance plan:
+## Active authorization — ACC-001..ACC-003 batch
 
-`07_IMPLEMENTATION_PLAN/POST_X002_PRE_ACC_RAW_PG_SSL_MAINTENANCE.md`
+Owner authorized one fresh executor session for:
 
-Execution base:
+`ACC-001 -> ACC-002 -> ACC-003 -> STOP`
 
-- Mercato `outbound/x-002` @ `4a89a95aad42c476ac206b53fe8ff67f3c8021a9` -> `outbound/post-x002-raw-pg-ssl`;
-- Scanner frozen at `a2759a29347285dd1dcd14bf51633431fbf2a302`.
+Detailed guide:
 
-### Maintenance objective
+`06_AGENT_GUIDES/ACC-001_003_BATCH_EXECUTION.md`
 
-Create one canonical **test-only** raw PostgreSQL observer helper/factory so Testing `DATABASE_URL` SSL parameters cannot reintroduce the `self-signed certificate in certificate chain` failure by overriding the explicit approved Testing SSL behavior.
+**Status:** prepared / Owner-authorized / not launched yet.
 
-Known final-head raw observer call sites to migrate:
+This is a one-time exception to the normal Supervisor round-trip between catalog items. It does **not** merge the three items or waive their gates.
 
-1. `p1-011-postgres.integration.test.ts`
-2. `p1-014-erp-posting-postgres.integration.test.ts`
-3. `p1-015-manifest-lifecycle-postgres.integration.test.ts`
-4. `p1-016-final-settlement-postgres.integration.test.ts`
-5. `p2-004-crossdock-recovery-postgres.integration.test.ts`
+Each phase must have:
 
-Executor must also search the complete WMS Outbound test tree for equivalent `Client` from `pg`, `new Client(...)`, `pg.Client`, and manual `sslmode` stripping. Equivalent Testing observer clients must use the helper; any intentional exception must be documented with exact rationale.
+- canonical deep Testing reset with `RESET_OK` before starting;
+- separate checkpoint SHA(s);
+- separate durable evidence;
+- full internal green completion before the next phase begins.
 
-The helper must use runtime Testing `DATABASE_URL`, never expose credentials, preserve each suite's existing direct/pooler routing semantics, remain test-only and not modify application DB configuration.
+Evidence files:
 
-### Required proof
+- `05_EVIDENCE/ACC-001_EVIDENCE.md`
+- `05_EVIDENCE/ACC-002_EVIDENCE.md`
+- `05_EVIDENCE/ACC-003_EVIDENCE.md`
 
-- smallest real canonical Testing PostgreSQL helper connection proof;
-- all migrated directly affected concurrency suites green with decisive PostgreSQL-side assertions preserved;
-- post-change search proving duplicated equivalent raw observer construction/manual SSL normalization is removed or explicitly justified;
-- Mercato typecheck clean;
-- durable evidence in `05_EVIDENCE/POST_X002_RAW_PG_SSL_MAINTENANCE_EVIDENCE.md`.
+Accepted batch bases:
 
-No full acceptance sweep, ACC-001, Playwright/UI, Scanner, credential rotation, application DB config, local PostgreSQL or Demo/Prod belongs in this gate.
+- Mercato `cfdbc608b22fc1dd44646c309335d2071aafd32c`;
+- Scanner `a2759a29347285dd1dcd14bf51633431fbf2a302`.
 
-### Session/testing hygiene
+Cumulative branch convention:
 
-A **fresh Claude session is the preferred execution boundary** because this gate is a separate maintenance work unit after accepted X-002. The Owner still controls the actual executor/session/launcher.
+- Mercato `outbound/acc-001-003-batch`;
+- Scanner same branch only if Scanner changes are required.
 
-For a fresh Claude session: load current `fetch_me_prompt` + `operational-mode` first, then current steering + `wms-outbound` and this maintenance guide. `scanner-context` only if Scanner unexpectedly becomes materially relevant.
+## Phase gates
 
-This gate is explicitly **non-catalog**. `.ai/OPERATIONS.md` mandates the deep Testing reset before a new WMS Outbound **Task Catalog item**; do not automatically apply that reset here. Canonical Testing and secret-handling rules remain mandatory.
+### ACC-001
 
-## Completion / stop boundary
+109/109 requirement-to-test automated coverage, zero orphans, all required automated suites/migration checks/shared regressions green.
 
-Executor COMPLETE is not Supervisor FINAL PASS. Supervisor must independently verify remote branch/head lineage, diff scope, helper contract, pre/post search, exact Testing DB evidence, directly affected concurrency suites, typecheck, maintenance evidence and frozen Scanner.
+### ACC-002
 
-After this gate receives Supervisor FINAL PASS, STOP. `ACC-001` starts only on explicit Owner authorization.
+Playwright journeys for Standard Fulfillment + P1 exceptions through normal rendered Mercato/Scanner UI. Fixture APIs/DB may prepare data but cannot replace decisive user actions. Record visible + persisted outcomes. `PLAYWRIGHT VERIFIED`, never `HUMAN VERIFIED`.
 
-Required sequence:
+### ACC-003
 
-`X-002 -> raw pg SSL maintenance gate -> ACC-001 -> ACC-002 -> ACC-003 -> ACC-004`
+Playwright Crossdock + Reservation Release + Physical Putback through normal rendered UI, including 1:1/n:n, shortage/damage/empty TU, GR re-evaluation, cancellation recovery and invalid-location loop. Preserve accepted Inbound/GR ownership and INT/CON boundaries.
 
-The gate is non-catalog and does not change the 37-item count.
+A true blocker in any phase stops the whole batch. Do not skip forward.
 
-## Durable operating rules
+## Final stop boundary
+
+After ACC-003 executor COMPLETE, STOP for independent Supervisor verification of all three phase checkpoints.
+
+Do **not** start `ACC-004`. It remains the separate final Human Verified item and requires explicit Owner authorization later.
+
+Formal progress remains **33/37** until Supervisor verification and explicit Owner acceptance.
+
+## Durable rules
 
 - Executor `COMPLETE` != Supervisor FINAL PASS != Owner Acceptance.
 - Owner controls executor/venue/launcher/session mechanics.
-- Detailed execution logic belongs in Git guide; owner-facing launcher prompt stays microscopic.
-- Ordinary in-scope implementation/test/runtime/tooling failures are executor-owned self-repair.
-- Provider/session/quota interruption preserves exact checkpoint; never restart from stale accepted base.
-- Testing credentials frozen; canonical Testing only; no local PostgreSQL.
-- Inbound remains CLOSED / REFERENCE; Demo/Prod require explicit Owner authorization.
-
-**Git truth overrides stale Drive/chat history.**
+- Current Git steering overrides stale chat/session/history.
+- Canonical Testing only; no local PostgreSQL; Testing credentials frozen.
+- Inbound remains CLOSED / REFERENCE.
+- Demo/Prod require explicit Owner authorization.

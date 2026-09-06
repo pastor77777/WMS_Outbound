@@ -6,7 +6,7 @@ Evidence class: REAL POSTGRESQL INTEGRATION, REAL CONCURRENCY (approved Testing 
 ## Exact Revisions and Scope
 
 - Mercato branch: `outbound/x-001`
-- Mercato final candidate commit SHA: `f7af85651`
+- Mercato final candidate commit SHA: `b56515ecf` (acceptance correction; supersedes `f7af85651` for CON-03 decisiveness — see "Acceptance Correction" below)
 - Mercato accepted base: `outbound/p4-003` @ `9a656bf9e5a42e29b6493f1b7bed5d62b7bf562c` (P4-003 FINAL PASS / Owner Accepted, plus post-acceptance test-infra maintenance)
 - Scanner: untouched, still `outbound/p4-003` @ `a2759a29347285dd1dcd14bf51633431fbf2a302` (frozen; no visible retry/conflict UI defect exists in this item's scope, so no Scanner branch was created)
 - WMS evidence/guide commit: this commit, on `WMS_Outbound/main`
@@ -44,10 +44,7 @@ X-001 is an audit-and-harden item, not a new business workflow. Every `CON-01`..
 
 ### CON-03 — Single cross-dock assignment (P2 R6, R29–R30)
 
-**Audited, reused, no change.** `crossdock-planning-service.ts`, tested by `p2-002-crossdock-planning-postgres.integration.test.ts`:
-- "is replay-safe and concurrent calls produce one line/task for the binding" — two independent service instances call `planBinding` concurrently via real `Promise.all`; post-condition asserts exactly one `WmsOutboundCrossDockPickTask` and one `WmsOutboundOrderLine` exist.
-- "concurrent operators can receive one created task at most once" — same pattern for `assignNext`.
-- Result: unchanged by this item; included in regression (see below).
+**Corrected in the acceptance-correction pass — see "Acceptance Correction" below for the decisive replacement evidence.** The original audit (superseded) accepted the pre-existing `Promise.all`-only tests as sufficient; the supervisor found those non-decisive (no forced transaction overlap, no PostgreSQL-side lock proof) and required genuine overlap evidence, which is now in place.
 
 ### CON-04 — Stable Shipment grouping / single manifest membership (P1 STEP 9, R26–R29, R39–R40)
 
@@ -81,7 +78,7 @@ All use real overlapping transactions with row-lock contention proven via `pg_bl
 
 Result: unchanged by this item; included in regression (see below).
 
-## Test Results
+## Test Results (superseded by "Acceptance Correction" final-head reruns below)
 
 Dedicated suite (includes new Case G2):
 
@@ -103,6 +100,67 @@ Targeted regression — every other `allocation-service.ts` caller, since `relea
 Combined: **6 suites, 90/90 tests PASSED**, 54.4s, zero failures.
 
 CON-01/CON-03/CON-04/CON-05 owning suites (`p1-004`, `p2-002`, `p1-011`, `p1-014`, `p1-015`, `p1-016`, `p2-006`) were read in full and independently judged decisive against current code (see per-CON sections above); `p1-004-postgres.integration.test.ts` was additionally re-run live as part of the regression set above and remains green. The others were not re-run in this item because no product or shared-signature code they call was touched — per `.ai/OPERATIONS.md` "Preserve already-proven green areas. Do not rerun broad suites after every fixture-only correction unless a product change invalidates those proofs," and no such invalidating change was made to their owning services (`crossdock-planning-service.ts`, `shipment-grouping-service.ts`, `carrier-manifest-service.ts`, `erp-posting-service.ts`, `final-settlement-service.ts`).
+
+**Supervisor correction:** this "read in full, judged decisive, not re-run" reasoning was rejected for CON-03 specifically (the CON-03 tests were not actually decisive — Promise.all timing, not forced overlap) and the guide additionally required literally rerunning every claimed suite on the final X-001 head regardless. See "Acceptance Correction" below for the compliant replacement evidence.
+
+## Acceptance Correction (`X-001_ACCEPTANCE_CORRECTION.md`, same-item continuation, no Testing reset)
+
+Mercato final SHA for this correction: **`b56515ecf`** on `outbound/x-001` (parent `f7af85651`).
+
+### Gap A — CON-03 made decisive
+
+`cross-dock-planning-service.ts` gained additive, production-transparent test-support hooks (`onTxStart`, `onLockAcquired`, `beforeCommitHook`) on `planBinding` and `assignNext`, mirroring the existing hook pattern already used in `allocation-service.ts`/`pick-task-service.ts`. Every production call site omits `options`; behavior is unchanged (confirmed: `di.ts` is the only non-test caller and passes no options).
+
+Two new decisive tests in `p2-002-crossdock-planning-postgres.integration.test.ts`:
+
+1. **"X-001 CON-03 hardening: REAL CONCURRENCY — two overlapping planBinding transactions on the same binding serialize via PESSIMISTIC_WRITE, decisive DB lock wait proven, exactly one task/line durable"**
+   - TxA acquires the binding's `PESSIMISTIC_WRITE` row lock, then holds open post-flush (pre-commit) via `beforeCommitHook`.
+   - TxB launches concurrently against the same not-yet-planned binding.
+   - Observer polls `pg_stat_activity`/`pg_blocking_pids` until TxB is genuinely blocked with `wait_event_type = 'Lock'` and `blockers` containing TxA's real backend PID.
+   - Live-run PIDs: `pidA` / `pidB` distinct, decisive lock wait observed (`observedWaitEventType = 'Lock'`, `observedBlockers` contains `pidA`) — confirmed by a passing run of this exact assertion set.
+   - TxA commits first (`replayed: false`); TxB, released to proceed after, correctly observes the already-created task (`replayed: true`).
+   - Fresh independent read: exactly one `WmsOutboundCrossDockPickTask` for the binding, exactly one `WmsOutboundOrderLine` for the customer line, `plannedQty` intact (`5.000000`) — no duplicated planned quantity.
+
+2. **"X-001 CON-03 hardening: REAL CONCURRENCY — two operators racing assignNext for the same warehouse serialize via warehouse-scoped advisory lock, decisive DB lock wait proven, task assigned exactly once"**
+   - Operator A acquires the warehouse-scoped `pg_advisory_xact_lock` for assignment, then holds open post-flush via `beforeCommitHook`.
+   - Operator B launches concurrently for the same warehouse.
+   - Same `pg_stat_activity`/`pg_blocking_pids` decisive-wait proof (`wait_event_type = 'Lock'`, blockers contains Operator A's real PID).
+   - Operator A's assignment commits first and wins the only `CREATED` task; Operator B, proceeding after, correctly gets `null` (no task left).
+   - Fresh independent read: exactly one `ASSIGNED` `WmsOutboundCrossDockPickTask` for the binding, owned by `op-a`.
+
+No product/business-logic change was required for CON-03 — the stronger race did not expose a defect; the existing `PESSIMISTIC_WRITE` binding lock and warehouse-scoped advisory lock were already correct, only the proof was insufficient before this correction.
+
+Result: `p2-002-crossdock-planning-postgres.integration.test.ts` **24/24 PASSED** (22 pre-existing + 2 new decisive tests), 13.3s.
+
+### Gap B — mandatory final-head dedicated-suite reruns
+
+Every suite whose proof is claimed for X-001 was individually rerun on the final Mercato head (`b56515ecf`) against the approved Testing Supabase `DevAxonic_Platform`:
+
+| Suite (CON area) | Result |
+|---|---|
+| `p1-004-postgres.integration.test.ts` (CON-01) | **11/11 PASSED** |
+| `p1-005-postgres.integration.test.ts` (CON-02, incl. Case G2) | **11/11 PASSED** |
+| `p2-002-crossdock-planning-postgres.integration.test.ts` (CON-03, incl. new hardening) | **24/24 PASSED** |
+| `p1-011-postgres.integration.test.ts` (CON-04 grouping) | **18/18 PASSED** |
+| `p1-015-manifest-lifecycle-postgres.integration.test.ts` (CON-04/CON-05 manifest races) | **21/21 PASSED** |
+| `p1-014-erp-posting-postgres.integration.test.ts` (CON-05 ERP posting) | **18/18 PASSED** |
+| `p1-016-final-settlement-postgres.integration.test.ts` (CON-05 final settlement) | **25/25 PASSED** |
+| `p2-006-crossdock-shipment-downstream-postgres.integration.test.ts` (CON-05 shared crossdock downstream settlement) | **20/20 PASSED** |
+
+Combined: **8 suites, 148/148 tests PASSED**, zero failures, on the final X-001 head.
+
+**Test-tooling defect found and fixed during these reruns (not a product/business defect):** `p1-011`, `p1-014`, `p1-015` and `p1-016` each open a raw `pg.Client` observer connection for their PostgreSQL lock-wait proof, e.g. `new Client({ connectionString: dbUrl, ssl: { rejectUnauthorized: false } })`. In this environment's currently installed `pg@8.22.0`/`pg-connection-string@2.14.0`, when `connectionString` also carries `sslmode=require` (as the approved Testing `DATABASE_URL` does), `pg`'s `ConnectionParameters` constructor merges `parse(connectionString)` **over** the explicitly-passed `ssl` object (`sslmode=require` now aliases `verify-full`), silently discarding `rejectUnauthorized: false` and causing `self-signed certificate in certificate chain` on `.connect()`. This reproduced identically on the unmodified `outbound/x-001` base (`f7af85651`, confirmed via `git stash` before any correction code was applied) — a pre-existing environment/dependency-drift defect, not something this item's CON-03 change introduced, and not a business-logic gap.
+
+Fix: strip `sslmode` from the connection string immediately before constructing each affected raw `pg.Client` (`dbUrl.replace(/[?&]sslmode=[^&]*/i, '')`), so the explicit `ssl: { rejectUnauthorized: false }` option survives the merge unclobbered. This is test-support-only; no product code, no MikroORM connection config (which was never affected — it already passed), and no business behavior changed. Applied in `p1-011-postgres.integration.test.ts`, `p1-014-erp-posting-postgres.integration.test.ts`, `p1-015-manifest-lifecycle-postgres.integration.test.ts`, `p1-016-final-settlement-postgres.integration.test.ts`. `p2-006` does not use a raw `pg.Client` and needed no change.
+
+### Build
+
+- `apps/mercato`: `NODE_OPTIONS=--max-old-space-size=6144 npx tsc --noEmit` — clean, zero errors, exit 0.
+- No migration, schema, route/API or UI change in this correction.
+
+### Reconciliation with the original per-CON audit above
+
+CON-01, CON-02, CON-04, CON-05 sections above are unaffected by this correction and remain accurate as written (their owning suites are now additionally proven live on the final head per the table above, not merely read/judged). Only the CON-03 section's original "Promise.all is sufficient" conclusion was wrong and is superseded by this section.
 
 ## Build
 

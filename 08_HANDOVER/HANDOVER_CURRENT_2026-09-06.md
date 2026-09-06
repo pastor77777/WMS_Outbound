@@ -8,81 +8,84 @@
 
 Plan: **37 items**, **109/109 Architect requirements mapped**.
 
-Formal progress: **29/37 FINAL PASS / Owner Accepted**.
+Formal progress: **30/37 FINAL PASS / Owner Accepted**.
 
 Latest accepted checkpoints:
 
-- `P3-001` — Mercato `9fb32493ed9ec443a18a494aa1a8ec3a1bde6d06` / Scanner frozen `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa` / evidence `15c3ad937a4e81d7b67ff96409bd0b6a65553864`.
-- `P3-002` — Mercato `84274acacfbfe0119e270ca5bfbcb723e47d7723` / Scanner frozen `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa` / evidence `efe6fec205f5f75baa1822c0c5560fbbdd0c9a14`.
-- `P4-001` — catalog item 29/37, executed early as P3-003 dependency — Mercato `66e2e8620041d2db1d10d069e286936083667139` / Scanner frozen `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa` / evidence `6780af113cbc31db26449fa6ca2fde5f238ab801`.
-- `P3-003` — catalog item 28/37 — Mercato `f600782496e865603200d46d7e6041a54f90b9a4` / Scanner `135d86e1342bae7b21a8b676b1ef220a39a0f0b5` / evidence `40d4fd10430ab2b58457f96573ed34af8f57d316` — **FINAL PASS / Owner Accepted**.
+- `P4-001` — catalog item 29/37 — Mercato `66e2e8620041d2db1d10d069e286936083667139` / Scanner frozen `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa` / evidence `6780af113cbc31db26449fa6ca2fde5f238ab801`.
+- `P3-003` — catalog item 28/37 — Mercato `f600782496e865603200d46d7e6041a54f90b9a4` / Scanner `135d86e1342bae7b21a8b676b1ef220a39a0f0b5` / evidence `40d4fd10430ab2b58457f96573ed34af8f57d316` — FINAL PASS / Owner Accepted.
+- `P4-002` — catalog item 30/37 — Mercato `d75dccbc7a43b64c2a0ed325d30a7a4b49b57eb1` / Scanner `7d13e34fc66fe19149b43a6747b5300c2bdcf945` / evidence `0961a7fe2e08395cd1b2522e30770d62c2fb2841` — **FINAL PASS / Owner Accepted**.
 
-## P3-003 accepted truth
+## P4-002 accepted truth
 
-- R7 race window is after source-location + SKU verification / possible physical removal but before formal Picking TU + quantity confirmation.
-- Pre-confirm observation is technical correlation only, not a new Outbound business state machine.
-- Before formal confirmation `pickedQty = 0` and Allocation remains `RESERVED`.
-- Cancellation winning first executes accepted P3-001 release exactly once, cancels eligible PickTask work, changes Allocation `RESERVED -> RELEASED`, and Scanner renders exact-original-source return instruction. No PutBackTask and no P4 physical-return handoff are created.
-- Formal confirmation winning first settles the observation, creates authoritative `pickedQty > 0`, follows accepted formal-pick Allocation lifecycle, and later cancellation routes to accepted P4-001 with zero P3 exact-source instruction.
-- Server/PostgreSQL arbitration is authoritative. Dedicated concurrency A/B proof uses independent overlapping transactions, distinct PostgreSQL PIDs and PostgreSQL-side advisory-lock blocking proof.
-- Dedicated rollback proof writes/flushes, fails before commit, then proves unchanged state using a fresh independent read.
-- Dedicated PostgreSQL P3-003 suite: **14/14 PASS**.
-- Decisive/regression integration total: **128/128 PASS**.
-- Rendered normal human-flow acceptance: **TC-042 + TC-043 = 2/2 PLAYWRIGHT VERIFIED**, zero route mocks.
-- Corrected rendered lifecycle: TC-042 `RESERVED -> RELEASED`; TC-043 `RESERVED -> CONFIRMED -> RELEASED`.
-- P4-002/P4-003 were not fabricated by P3-003.
+- Positive P4-001 physical-return handoff -> exactly one durable `PutBackTask`; replay and true concurrent materialization cannot create duplicate work.
+- Final hardening proved real overlapping materialization with distinct PostgreSQL backend PIDs and fixed the loser-side unique-constraint race by re-reading the committed winner.
+- RF returns assignment is strict task-arrival FIFO, no zone selector, no task priority/SLA, and one shared active warehouse task maximum across supported task types.
+- Real assignment race is server/PostgreSQL authoritative; accepted proof observes the second transaction blocked in `pg_locks` on the advisory lock while the first holds it.
+- Accepted executable lifecycle ends at `IN_PROGRESS`: `CREATED -> ASSIGNED -> IN_PROGRESS`.
+- Destination submission/validation, rejection loop, `COMPLETED`, physical placement and `Inventory PICKED -> AVAILABLE` are deliberately not implemented in P4-002.
+- P4-001 physical-return handoff remains unresolved/protecting stock until later physical completion.
+- Dedicated PostgreSQL P4-002: **17/17 PASS**, stable across 3 reruns after hardening.
+- Regressions: P4-001 **18/18**, P3-003 **14/14**, shared P1-005/P1-006/P2-002/FND-003 **54/54**.
+- Rendered Scanner + Mercato P4-002: **4/4 PLAYWRIGHT VERIFIED**, zero route mocks.
 
-## Executor incident lessons now durable
+## Exact next item — grounded, not launched
 
-P3-003 exposed repeated invalid Codex terminal responses such as ordinary regression blockers, `incomplete/unevidenced` status-only stops and execution-window stops. These are now durable steering, not chat-only lessons.
+**P4-003 — RF PutBack location validation loop and Inventory recovery**.
 
-Authoritative project routing:
+Current authority chain:
 
-- `06_AGENT_GUIDES/PROMPT_SKILL_ROUTING.md`
-- `06_AGENT_GUIDES/GIT_PROMPT_WORKFLOW.md`
+1. `01_ARCHITECT_TRANSLATIONS/2026-08-31/proces_4_physical_putback_EN.md` STEP 4–5 / `P4 R6`, `P4 R7`, `P4 R8`; preserve `P4 R9`.
+2. `01_ARCHITECT_TRANSLATIONS/2026-08-31/model_stanow_outbound_EN.md` `PutBackTask` transitions.
+3. `FR-P4-03`, `FR-P4-04`, `FR-P4-05`.
+4. `TC-050`, `TC-051`, `TC-052`, `TC-100`.
+5. `07_IMPLEMENTATION_PLAN/TASK_CATALOG.md` P4-003 delivery slice.
+6. Accepted P4-001/P4-002 implementation is current-state evidence, not architecture authority.
 
-Shared prompt skill:
+P4-003 target boundary:
 
-- `pastor77777/CLAUDE-SKILLS/fetch_me_prompt/SKILL.md`
-- full-item override update commit: `a94a97c868e79e5bd1177754b818f994bbf01dea`
+- start from accepted Mercato `d75dccbc7a43b64c2a0ed325d30a7a4b49b57eb1` and Scanner `7d13e34fc66fe19149b43a6747b5300c2bdcf945`;
+- operator may use WMS-proposed destination or indicate/scan another destination;
+- destination must be validated by WMS before physical settlement;
+- `IN_PROGRESS -> LOCATION_VALIDATION` on submission;
+- rejected destination -> `LOCATION_VALIDATION -> IN_PROGRESS`;
+- rejection loop is unlimited and has **no automatic escalation**; system recommendation remains available;
+- valid placement -> `LOCATION_VALIDATION -> COMPLETED` and exact physical recovery `Inventory PICKED -> AVAILABLE` once;
+- invalid location must never complete task or move/release stock;
+- completion must resolve the outstanding physical-return recovery boundary exactly once; preserve audit/idempotency/rollback/concurrency safety;
+- preserve P4-002 FIFO/no-zone/single-active-task behavior and P4-001/P3-003 cancellation semantics.
 
-Required behavior for future full-item execution when project steering defines the Task Catalog item as the executor unit:
+## Architecture-context compatibility boundary
 
-1. Whole authorized item is one end-to-end goal: implementation -> self-repair -> real tests -> regressions -> build/runtime -> rendered UI -> evidence -> push.
-2. Codex should use supported `/goal` long-horizon mode for such items when available.
-3. `incomplete`, `unevidenced`, missing tests/evidence, ordinary in-scope regression, or execution-window/quota interruption is not a valid technical blocker by itself.
-4. Ordinary failures stay in the executor self-repair loop while a normal in-scope correction exists.
-5. A true blocker requires the same material unresolved path after two genuinely different substantive attempts, or an Owner-controlled boundary.
-6. Provider/session/quota interruption means preserve checkpoint and continue; never restart the item from accepted base.
-7. Codex <-> Antigravity switch is same-item continuation from exact branch/HEAD/workspace state, not restart/redesign.
-8. Executor prose is never acceptance. Supervisor independently verifies remote Git/evidence.
-9. Owner controls launch/session mechanics. Never invent or replace the Owner's executor launcher command.
-10. Testing credential hygiene is out of implementation scope; do not audit/rotate/refactor credentials or create blockers on that basis. Final rotation is Owner-controlled production cutover.
+`architecture-context` / `WMS-Records` is **Inbound/shared reference only** for P4-003.
 
-## Fresh-chat boundary
+Allowed reuse: generic warehouse-location validation/access, Inventory ledger/balance primitives, transaction/idempotency/locking patterns, warehouse context.
 
-**No next implementation item is authorized in this old chat.**
+Do **not** import Inbound Putaway business semantics into Outbound Physical Putback. In particular P4 completion must not create/use Inbound `IN_PUTAWAY`, sector `TRANSIT`, PutawayTask progress/ownership semantics, Inbound `TransportTask` routing, GR/ASN-close/PZ behavior, or Inbound settlement states. P4 source explicitly ends in ordinary Outbound `Inventory AVAILABLE`.
 
-The fresh supervisor chat must:
+## Next execution boundary
 
-1. read current Drive handover + `ChatGPT_MEMORY.md`;
-2. refresh current Git steering in Devaxonic-WMS and WMS_Outbound;
-3. load current `wms-outbound`, and `scanner-context`/`architecture-context` only when relevant;
-4. before any executor prompt, load current `fetch_me_prompt + operational-mode`;
-5. inspect current Task Catalog/Architect sources and determine the exact next unaccepted item from Git truth;
-6. keep P3-003 accepted/frozen at the SHAs above;
-7. perform the canonical new-item Testing reset only after the next item is identified/authorized, separately from executor launch;
-8. then prepare the next item's detailed Git guide and microscopic Owner-facing handoff.
+Grounding is complete. **P4-003 implementation has not been launched by this handover.**
 
-Do not reconstruct the next item from this old conversation. Do not start implementation from Drive memory alone.
+Before first implementation action after Owner authorization:
 
-## Acceptance semantics
+1. refresh current Git and current `wms-outbound` + `architecture-context`;
+2. for a fresh Claude session load current `fetch_me_prompt` + `operational-mode` first, then project steering/skills;
+3. run the canonical new-item Testing reset from `Devaxonic-WMS/.ai/OPERATIONS.md` and require `RESET_OK`;
+4. create/update the detailed P4-003 Git execution guide;
+5. use the Owner-selected executor and microscopic handoff only;
+6. executor owns the full item through self-repair, real PostgreSQL tests, required regressions, build/runtime, rendered acceptance, evidence and push;
+7. supervisor independently verifies; Owner Acceptance is separate.
 
-- Executor `COMPLETE` != accepted.
-- Supervisor `FINAL PASS` != Owner Accepted.
-- Only explicit Owner acceptance increments the formal count.
-- Current formal accepted count is **29/37**.
+Do not start any item after P4-003 automatically.
+
+## Durable operating rules
+
+- Executor `COMPLETE` != Supervisor PASS != Owner Acceptance.
+- Owner controls executor/venue/launcher/session mechanics.
+- Provider/session/quota interruption preserves branch/HEAD/workspace checkpoint.
+- Testing credentials are frozen; do not audit/rotate/refactor them during implementation.
 - Inbound remains CLOSED / REFERENCE.
-- Demo/Prod remain outside implementation unless explicitly authorized.
+- Demo/Prod remain out of scope unless explicitly authorized.
 
 **Git truth overrides stale Drive/chat history.**

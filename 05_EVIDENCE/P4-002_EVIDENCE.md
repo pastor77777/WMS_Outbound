@@ -6,14 +6,34 @@ Evidence class: REAL POSTGRESQL INTEGRATION, REAL CONCURRENCY and PLAYWRIGHT VER
 ## Exact Revisions and Scope
 
 - Mercato branch: `outbound/p4-002`
-- Mercato final candidate commit SHA: `a73a4353cf094d67b31529448592fc03ffd9c9dd`
+- Mercato final candidate commit SHA: `d75dccbc7a43b64c2a0ed325d30a7a4b49b57eb1`
+- Mercato prior candidate commit SHA: `a73a4353cf094d67b31529448592fc03ffd9c9dd` (hardened by this revision; see "Post-Acceptance-Review Hardening" below)
 - Mercato accepted base lineage: P4-001 accepted at `66e2e8620041d2db1d10d069e286936083667139`; P3-003 accepted at `f600782496e865603200d46d7e6041a54f90b9a4`
 - Scanner branch: `outbound/p4-002`
-- Scanner final candidate commit SHA: `7d13e34fc66fe19149b43a6747b5300c2bdcf945`
+- Scanner final candidate commit SHA: `7d13e34fc66fe19149b43a6747b5300c2bdcf945` (unchanged by this revision)
 - Scanner accepted base lineage: `135d86e1342bae7b21a8b676b1ef220a39a0f0b5`
 - WMS evidence commit: this commit, on `WMS_Outbound/main`
 - Item: 30/37 — P4-002: PutBackTask model, FIFO assignment and task lifecycle.
 - Executor handoff: Antigravity (AGY) reached quota mid-item and produced `06_AGENT_GUIDES/P4-002_EXECUTION.md` and `08_HANDOVER/P4-002_AGY_CHECKPOINT.md` at Mercato `32c31ac07` / Scanner `7891667`. Claude Code continued from that exact checkpoint with no reset, per Owner-authorized executor switch.
+
+## Post-Acceptance-Review Hardening — PostgreSQL Concurrency Tests #3 and #11
+
+Owner review identified that tests #3 and #11 in the prior candidate (`a73a4353c`) asserted only the outcome of a `Promise.all` race, without forcing genuine overlap or capturing decisive PostgreSQL-side evidence tied to the actual participants, as `.ai/TESTING.md` §5 requires ("Real concurrency requires separate overlapping real DB operations/connections/transactions plus decisive PostgreSQL-side evidence tied to actual participants"). Independent verification confirmed this was not cosmetic: test #3 was measurably flaky under the prior form, failing in 3 of 6 raw repeated runs with `UniqueConstraintViolationException: duplicate key value violates unique constraint "wms_outbound_put_back_tasks_handoff_uq"` escaping to the caller — a real product defect, not a test artifact.
+
+**Real defect found and fixed:** `put-back-task-service.ts` `materializeTaskFromHandoff` had no handling for a genuine concurrent-insert race on the `(organization_id, tenant_id, handoff_id)` unique constraint. When two independent transactions truly overlapped past the pre-insert existence check, the DB correctly allowed only one insert to succeed, but the losing transaction's `UniqueConstraintViolationException` propagated to its caller instead of being absorbed. Fixed by catching that exception around the non-nested (`txEm`-less) call path and re-fetching/returning the already-committed winner row. This is the smallest correct change and does not alter any accepted P4-001/P3-003 behavior or the FIFO/lock/rollback mechanisms already in place for `assignNext`.
+
+**Test hardening (no other behavior changed):**
+- **Test #3** — `materializeTaskFromHandoff` gained optional `onTxStart`/`onExistingChecked` hooks (mirroring `assignNext`'s existing `onTxStart`/`onLockAcquired` pattern). The test now uses two independent forked EntityManagers (two real DB connections) synchronized via these hooks so both real transactions are deterministically forced past the pre-insert existence check before either may insert — guaranteeing the DB unique constraint arbitrates the race on every run rather than depending on incidental `Promise.all` timing. Decisive evidence: two distinct real backend PIDs (`pg_backend_pid()`) captured from each transaction and asserted unequal.
+- **Test #11** — now uses a third independent connection/EntityManager to decisively confirm, via a live `pg_locks` query (`locktype = 'advisory' AND NOT granted AND pid = <operator B's real backend pid>`), that operator B's transaction was genuinely blocked in PostgreSQL waiting on the identical advisory-lock class while operator A held it, before A is permitted to proceed and commit. Decisive evidence: two distinct real backend PIDs, and the observed blocked PID equals operator B's actual backend PID.
+
+**Rerun results after hardening:**
+- Dedicated P4-002 PostgreSQL suite: **17/17 PASSED**, stable across 3 consecutive full runs (previously flaky on test #3 under genuine overlap).
+- P4-001 dedicated PostgreSQL regression: **18/18 PASSED** (unchanged).
+- P3-003 dedicated PostgreSQL race regression: **14/14 PASSED** (unchanged).
+- P1-005/P1-006/P2-002/FND-003(postgres) combined regression: **54/54 PASSED** (unchanged).
+- `apps/mercato`: `npx tsc --noEmit` — clean, zero errors.
+
+No Playwright/UI re-run was performed for this hardening: the fix and both test changes are confined to `materializeTaskFromHandoff`'s internal race-handling and its dedicated PostgreSQL test coverage; no API route, Scanner, or Mercato UI surface changed, and the prior rendered acceptance (4/4 `PLAYWRIGHT VERIFIED`) is preserved unchanged.
 
 ## Authority Chain
 
@@ -94,7 +114,7 @@ Evidence class: PLAYWRIGHT VERIFIED, not HUMAN VERIFIED.
 
 ## Completion Statement
 
-Item 30/37 (P4-002) implementation is pushed from the exact accepted lineage in both changed product repos; dedicated PostgreSQL acceptance (17/17) including real concurrency and rollback is green; required regressions (P4-001 18/18, P3-003 14/14, P1-005/P1-006/P2-002/FND-003 54/54) are green; native build/typecheck/generate/runtime checks are green; rendered Scanner/Mercato Playwright acceptance (4/4) is PLAYWRIGHT VERIFIED with zero route mocks; this evidence is pushed to `WMS_Outbound/main`.
+Item 30/37 (P4-002) implementation is pushed from the exact accepted lineage in both changed product repos, at final Mercato candidate `d75dccbc7a43b64c2a0ed325d30a7a4b49b57eb1` (hardened concurrency proof for tests #3/#11 and the real materialization-race defect it exposed, on top of `a73a4353c`); dedicated PostgreSQL acceptance (17/17) including real concurrency and rollback is green and stable across 3 consecutive full reruns; required regressions (P4-001 18/18, P3-003 14/14, P1-005/P1-006/P2-002/FND-003 54/54) are green; native build/typecheck/generate/runtime checks are green; rendered Scanner/Mercato Playwright acceptance (4/4) is PLAYWRIGHT VERIFIED with zero route mocks and unaffected by this hardening; this evidence is pushed to `WMS_Outbound/main`.
 
 This is executor `COMPLETE`, not Owner Acceptance. Supervisor independently verifies remote Git/diff/tests/evidence before advancing the Task Catalog count.
 

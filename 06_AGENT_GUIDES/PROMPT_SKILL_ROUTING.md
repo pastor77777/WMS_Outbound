@@ -57,9 +57,37 @@ A `BLOCKER` response is invalid when it only reports an ordinary implementation/
 
 Do not generate `STOP after first failure` or artificial rerun-count limits for ordinary fixture/tooling/implementation failures.
 
+## Codex long-horizon execution mode
+
+For a full Task Catalog item executed in Codex, use Codex **`/goal` long-running mode** rather than a normal one-turn prompt whenever the installed Codex surface supports it.
+
+Rationale: `/goal` is the Codex mechanism intended for a durable objective with a verifiable stopping condition across long-running work. A normal Codex turn must not be treated as the default execution container for an item expected to include implementation, repeated self-repair, PostgreSQL proof, regressions, rendered UI acceptance and evidence.
+
+The supervisor must construct one goal for the **whole item**, with:
+
+- one objective: complete the exact authorized Git guide;
+- one stopping condition: all implementation/tests/build/runtime/UI/evidence are complete and pushed;
+- the exact guide path as the authority to execute;
+- explicit instruction to continue through checkpoints and ordinary self-repair without Owner round-trips;
+- terminal output only after the goal's verifiable completion condition or a true two-strikes / Owner-controlled blocker.
+
+Do not split a healthy item into repeated normal Codex turns merely because one turn ends. Do not replace `/goal` with repeated `continue`, `resume`, status prompts or micro-tickets when long-horizon goal mode is available.
+
+If `/goal` is not present in the current Codex slash-command list, the Owner may enable the Codex goals feature using the current Codex-supported goals setting/command, then launch the same full-item goal. This is executor capability setup, not a change to WMS business scope.
+
+Antigravity and other executors continue to use their own long-running execution mechanisms; `/goal` is Codex-specific execution transport only and does not change business truth, guide content, evidence requirements or acceptance authority.
+
 ## Owner-facing prompt
 
-After the detailed Git guide exists, owner-facing executor text remains microscopic, normally:
+After the detailed Git guide exists, owner-facing executor text remains microscopic.
+
+For **Codex full-item execution**, prefer a single long-horizon goal:
+
+```text
+/goal Sync WMS_Outbound/main and execute ONLY `06_AGENT_GUIDES/<GUIDE>.md`. Complete the entire authorized item end-to-end, including implementation, self-repair, required real tests, regressions, build/runtime, rendered UI acceptance, evidence and pushes. Do not stop for progress/status/incomplete reports or ordinary in-scope failures. Stop only when the guide's COMPLETE condition is fully satisfied or a true two-strikes / Owner-controlled blocker exists.
+```
+
+For executors without Codex `/goal`, the normal microscopic handoff remains:
 
 ```text
 Sync WMS_Outbound/main and execute ONLY:

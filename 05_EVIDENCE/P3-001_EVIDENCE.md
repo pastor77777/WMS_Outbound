@@ -6,7 +6,7 @@ Evidence class: REAL POSTGRESQL INTEGRATION and PLAYWRIGHT VERIFIED. This is not
 ## Exact Revisions and Scope
 
 - Mercato branch: `outbound/p3-001`
-- Mercato commit SHA: `9fb32493e8e89574ef22ba7b2c0fba32fbe9359e`
+- Mercato commit SHA: `9fb32493ed9ec443a18a494aa1a8ec3a1bde6d06`
 - Accepted P2-006 Mercato base: `4f64641ab14a5359bc22d0685e390b511252b5b5`
 - Scanner frozen SHA: `f7817e83babab35dcc2f56c8acf5f21a9e08f1fa` (unmodified and clean)
 - P2-006 evidence SHA: `9a580b046b5f2aa3bcbf2422eeaf6413248f68db`

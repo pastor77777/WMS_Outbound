@@ -6,14 +6,14 @@ Evidence class: REAL POSTGRESQL INTEGRATION, REAL CONCURRENCY and PLAYWRIGHT VER
 ## Exact Revisions and Scope
 
 - Mercato branch: `outbound/p4-003`
-- Mercato final candidate commit SHA: `11f9b96b0`
+- Mercato final candidate commit SHA: `203caba63`
 - Mercato accepted base: `outbound/p4-002` at `d75dccbc7a43b64c2a0ed325d30a7a4b49b57eb1` (FINAL PASS / Owner Accepted)
 - Scanner branch: `outbound/p4-003`
 - Scanner final candidate commit SHA: `a2759a2`
 - Scanner accepted base: `outbound/p4-002` at `7d13e34fc66fe19149b43a6747b5300c2bdcf945` (FINAL PASS / Owner Accepted)
 - WMS evidence commit: this commit, on `WMS_Outbound/main`
 - Item: 31/37 — P4-003: RF PutBack location validation loop and Inventory recovery.
-- Execution guide: `06_AGENT_GUIDES/P4-003_EXECUTION.md`, written and executed within this session (Claude Code as executor, per `Devaxonic-WMS/CLAUDE.md`).
+- Execution guide: `06_AGENT_GUIDES/P4-003_EXECUTION.md` (supervisor-grounded, commit `182cc3c`), executed within this session (Claude Code as executor, per `Devaxonic-WMS/CLAUDE.md`). This session independently drafted its own preliminary guide before discovering the supervisor's grounded version already existed on `origin/main`; reconciled by keeping the supervisor's guide as authoritative and cross-checking this implementation against its explicit invariants (see "Reconciliation" below).
 
 ## Authority Chain
 
@@ -39,23 +39,35 @@ API route `apps/mercato/src/modules/wms_outbound/api/returns/submit-location/rou
 
 Scanner `ReturnsTaskScreen.js`/`api.js`: the `IN_PROGRESS` placeholder banner from P4-002 (explicitly staged as "the P4-003 extension point") is replaced by a real location-scan form (`returns-location-input` + `returns-submit-location-btn`); on rejection the operator sees the reason and can retry immediately with no lockout (`returns-location-rejected`); on acceptance a completion banner is shown (`returns-completed-banner`).
 
-## Dedicated PostgreSQL Suite (6 Tests)
+## Dedicated PostgreSQL Suite (8 Tests)
 
 Suite: `apps/mercato/src/modules/wms_outbound/services/__tests__/p4-003-postgres.integration.test.ts`
-Result: **6/6 PASSED** on canonical Testing PostgreSQL (Supabase pooler).
+Result: **8/8 PASSED** on canonical Testing PostgreSQL (Supabase pooler).
 
 1. Rejected location (non-existent) -> task returns to `IN_PROGRESS`, zero `WmsInventoryMovement` rows, `completedAt`/`validatedLocationId` remain null.
 2. Rejected location (exists, lacks `STORAGE` capability) -> same zero-movement/zero-balance assertion.
 3. Unlimited retry: five consecutive rejections on the same task, then a valid location -> completes; demonstrates no attempt ceiling in code.
-4. Valid location -> `COMPLETED`, `validatedLocationId` set, exactly one `WmsInventoryMovement` (`ADJUSTMENT_IN`, quantity matches exactly), `WmsInventoryBalance.onHandQuantity`/`availableQuantity` incremented by exactly the task quantity.
+4. Valid location -> `COMPLETED`, `validatedLocationId` set, exactly one `WmsInventoryMovement` (`ADJUSTMENT_IN`, quantity matches exactly), `WmsInventoryBalance.onHandQuantity`/`availableQuantity` incremented by exactly the task quantity, shared active-task lock released (`ACTIVE` row absent, `RELEASED` row present).
 5. Idempotent re-submission after `COMPLETED` -> zero additional movement/balance mutation, `accepted: true` returned (retry-safe).
 6. Real Concurrency: two independent forked `EntityManager`s (two real DB connections/PIDs) racing `submitLocation` on the identical `IN_PROGRESS` task, synchronized via `onTxStart`/`onLockAcquired` hooks so B's transaction is decisively confirmed genuinely blocked (`pg_stat_activity.wait_event_type = 'Lock'` or an ungranted `pg_locks` row for B's real backend PID) on the row lock while A holds it, before A is permitted to proceed — exactly one `WmsInventoryMovement`/one balance increment results (the row lock, not a fresh advisory lock, serializes the pair; B's post-block read sees `COMPLETED` and takes the idempotent short-circuit).
+7. Wrong operator cannot submit a location on another operator's task -> rejected with zero mutation (task status/validatedLocationId unchanged, zero Inventory movement).
+8. Real rollback proof: `beforeCommitHook` forces a deterministic failure after `adjustBalance`'s real write+flush but before commit -> fresh independent read confirms task status/`completedAt`/`validatedLocationId`, `WmsInventoryMovement`, `WmsInventoryBalance`, and the task lock's `ACTIVE` status are all unchanged (nothing partially committed).
 
 ## Self-Repair During This Session
 
 - MikroORM `$or` clauses combine into one SQL statement; comparing a non-UUID scanned string against the `id` column (even inside `$or`) fails at the Postgres type level rather than simply not matching. Fixed `submitLocation` to only include the `id` branch when the scanned value matches a UUID pattern.
 - The dedicated test's fixture initially reused P4-002's shared `defaultWarehouseId` (a real warehouse belonging to a different real organization/tenant than the test's own random scope). `adjustBalance`'s `verifyReferences` scopes its `WmsWarehouse` lookup by `organizationId`/`tenantId`, so this produced a spurious `WAREHOUSE_NOT_FOUND` rejection for an otherwise-valid location. Fixed by creating a dedicated `WmsWarehouse` row scoped to each test's own random `organizationId`/`tenantId`.
 - `adjustBalance`'s `verifyReferences` also requires a real `MasterdataUom` row for `txnUomId` to exist (independent of the same-UOM conversion-factor short-circuit). Added a `MasterdataUom` fixture row.
+
+## Reconciliation Against the Supervisor-Grounded Guide (Real Defect Found and Fixed)
+
+After this item's initial implementation and test pass (6/6 dedicated, first Playwright pass), this session discovered the supervisor's own grounded `06_AGENT_GUIDES/P4-003_EXECUTION.md` had already been pushed to `origin/main` concurrently (commit `182cc3c`) and was materially more detailed than this session's own preliminary guide. Reconciling against its explicit invariants surfaced one real, previously-untested gap:
+
+**Real defect found and fixed:** invariant #3 ("release the accepted shared active-task ownership/lock for the completed task") was not implemented. `submitLocation`'s `LOCATION_VALIDATION -> COMPLETED` transition left the operator's `WmsOutboundTaskLock` row `ACTIVE` for its full 1-hour TTL, unlike `pick-task-service.ts`'s own `PickTask` completion path, which explicitly releases the lock (`activeLock.status = 'RELEASED'`) at both its `SHORT_PICKED` and `COMPLETED` terminal transitions. Without this fix, an operator who just completed a physical put-back would remain blocked from receiving any new PickTask/CrossDockPickTask/PutBackTask for up to an hour. Fixed by releasing the `ACTIVE` lock in the same transaction as completion, mirroring the exact existing `pick-task-service.ts` pattern (`put-back-task-service.ts` `submitLocation`, immediately after the `COMPLETED` transition, before the final flush).
+
+Added in the same pass: a dedicated wrong-operator test (invariant #6, zero mutation on a foreign operator's submission attempt) and a real rollback-proof test for the completion path (invariant covered by `.ai/TESTING.md` §5 — `beforeCommitHook` forces a deterministic pre-commit failure after `adjustBalance`'s real write+flush; a fresh independent read confirms task status, `completedAt`, `validatedLocationId`, the `WmsInventoryMovement`/`WmsInventoryBalance` rows, and the task lock's `ACTIVE` status are all unchanged — the real write never committed). A lock-release assertion was also added to the existing valid-completion test.
+
+Rerun after this fix: dedicated suite **8/8 PASSED** (was 6/6); full targeted regression **111/111 PASSED** (was 109/109, unchanged elsewhere); typecheck clean; rebuilt/redeployed Testing runtime; rendered Playwright acceptance re-run **5/5 PASSED** (P4-003 Journey E 1/1 + P4-002 4/4, unaffected by this backend-only fix).
 
 ## Mandatory Regressions
 
@@ -65,14 +77,14 @@ Ran the exact targeted regression set P4-002's own accepted evidence used (P4-00
 |---|---|
 | P4-001 dedicated PostgreSQL | PASSED |
 | P4-002 dedicated PostgreSQL | PASSED (17/17, unchanged) |
-| P4-003 dedicated PostgreSQL | PASSED (6/6) |
+| P4-003 dedicated PostgreSQL | PASSED (8/8) |
 | P3-003 dedicated PostgreSQL race suite | PASSED |
 | P1-005 PickTask generation/ordering/assignment/concurrency | PASSED (shared active-task guard) |
 | P1-006 RF picking execution & P3-003 concurrency | PASSED |
 | P2-002 CrossDockPickTask planning/assignment | PASSED (shared active-task guard) |
 | FND-003 shared task-lock/warehouse-context | PASSED |
 
-Combined: **8 suites, 109/109 tests PASSED**, 46.4s, zero failures.
+Combined: **8 suites, 111/111 tests PASSED**, 48.6s, zero failures.
 
 No product behavior in P4-001, P4-002, P3-003, or the shared PickTask/CrossDockPickTask assignment paths was altered; this item only adds a new `submitLocation` method and two additive response-field extensions to existing read routes.
 
@@ -95,7 +107,7 @@ Result: **1/1 PASSED** against `https://scanner.info-start.com.pl`, with real se
 
 - **Journey E**: operator receives and starts the task (`IN_PROGRESS`); scans a non-existent location -> rejection banner rendered with reason, task confirmed still `IN_PROGRESS` in PostgreSQL, zero `wms_inventory_movements` rows for the item; scans the valid `STORAGE` location (no attempt limit, same session, same form) -> completion banner rendered, PostgreSQL confirms `PutBackTask COMPLETED` with `validated_location_id` set, exactly one `ADJUSTMENT_IN` movement, and `wms_inventory_balances.on_hand_quantity`/`available_quantity` both equal to the task's exact quantity at the validated location.
 
-Regression: `Devaxonic-scanner/e2e/p4-002-rendered-acceptance.spec.ts` re-run against this exact build — **4/4 PASSED**. Journey A's assertion on the P4-002 `returns-in-progress-banner` placeholder (explicitly documented in that item's own evidence as "P4-003 destination-location validation... not implemented in this item... `LOCATION_VALIDATION`/`COMPLETED` remain schema-only vocabulary") was updated to assert the real `returns-location-form` it was staged to become; no DB/business assertion in that spec changed.
+Regression: `Devaxonic-scanner/e2e/p4-002-rendered-acceptance.spec.ts` re-run against this exact build (after the task-lock-release fix and Mercato rebuild/redeploy) — **4/4 PASSED**, both suites together **5/5 PASSED** in 28.1s. Journey A's assertion on the P4-002 `returns-in-progress-banner` placeholder (explicitly documented in that item's own evidence as "P4-003 destination-location validation... not implemented in this item... `LOCATION_VALIDATION`/`COMPLETED` remain schema-only vocabulary") was updated to assert the real `returns-location-form` it was staged to become; no DB/business assertion in that spec changed.
 
 Evidence class: PLAYWRIGHT VERIFIED, not HUMAN VERIFIED.
 
@@ -110,7 +122,7 @@ Evidence class: PLAYWRIGHT VERIFIED, not HUMAN VERIFIED.
 
 ## Completion Statement
 
-Item 31/37 (P4-003) implementation is pushed from the accepted P4-002 lineage in both changed product repos, at final Mercato candidate `11f9b96b0` and Scanner candidate `a2759a2`; dedicated PostgreSQL acceptance (6/6) including real concurrency and idempotency is green; the precedent-matched targeted regression set (109/109 across 8 suites) is green; native build/typecheck/generate/runtime checks are green; rendered Scanner Playwright acceptance for this item (1/1) plus the re-verified P4-002 suite (4/4, one legitimate locator update) are PLAYWRIGHT VERIFIED with zero route mocks; this evidence is pushed to `WMS_Outbound/main`.
+Item 31/37 (P4-003) implementation is pushed from the accepted P4-002 lineage in both changed product repos, at final Mercato candidate `203caba63` and Scanner candidate `a2759a2`; dedicated PostgreSQL acceptance (8/8) including real concurrency, idempotency, wrong-operator rejection and rollback is green; the precedent-matched targeted regression set (111/111 across 8 suites) is green; native build/typecheck/generate/runtime checks are green; rendered Scanner Playwright acceptance for this item (1/1) plus the re-verified P4-002 suite (4/4, one legitimate locator update) are PLAYWRIGHT VERIFIED with zero route mocks; this evidence is pushed to `WMS_Outbound/main`.
 
 This is executor `COMPLETE`, not Owner Acceptance. Supervisor independently verifies remote Git/diff/tests/evidence before advancing the Task Catalog count.
 

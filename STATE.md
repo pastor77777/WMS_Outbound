@@ -3,8 +3,8 @@
 **As of:** 2026-09-07  
 **Campaign:** WMS Outbound v1  
 **Architecture:** implementation-ready; no unresolved product/architecture blocker recorded  
-**Current phase:** product implementation / pre-acceptance maintenance  
-**Formal implementation progress:** **32/37 items FINAL PASS / Owner Accepted**
+**Current phase:** pre-acceptance test-infrastructure maintenance  
+**Formal implementation progress:** **33/37 items FINAL PASS / Owner Accepted**
 
 ## Architect baseline
 
@@ -19,82 +19,71 @@ Inbound remains **CLOSED / REFERENCE**. `PickWave` is out of scope v1. No separa
 
 ## Latest Owner-Accepted checkpoint
 
-- `X-001` — catalog item 32/37 — **FINAL PASS / Owner Accepted** — Mercato `outbound/x-001` @ `b56515ecffba729c828f5fe9ca0ec6471edc4c43` / Scanner frozen `a2759a29347285dd1dcd14bf51633431fbf2a302` / evidence `8fcd97942545d9e49bcd819f2898dd8887843165`.
+- `X-002 — Integration correlation, observability and operational recovery` — catalog item **33/37** — **Supervisor FINAL PASS / Owner Accepted** on 2026-09-07.
+- Mercato `outbound/x-002` @ `4a89a95aad42c476ac206b53fe8ff67f3c8021a9`.
+- Accepted base lineage: X-001 `b56515ecffba729c828f5fe9ca0ec6471edc4c43` -> X-002 final head above.
+- Scanner frozen `outbound/p4-003` @ `a2759a29347285dd1dcd14bf51633431fbf2a302`.
+- X-002 evidence: `05_EVIDENCE/X-002_EVIDENCE.md` at WMS_Outbound `71e8fd8c805357952fff83a0f1d7b5d915efc953`.
+- Final claimed/recorded checks: P2 **99/99**, P1/P3/P4/fnd **80/80**, p2-004 **18/18**, Mercato typecheck clean.
+- Supervisor independently verified the two decisive acceptance corrections: real PostgreSQL-side blocking proof for INT-02 and an explicit three-field Outbound -> Inbound settlement contract excluding `residualQty`.
 
-Earlier accepted checkpoints remain unchanged in Git history/evidence.
+Earlier accepted checkpoints remain unchanged in Git/evidence history.
 
-## X-002 — Supervisor FINAL PASS, Owner Acceptance pending
-
-`X-002 — Integration correlation, observability and operational recovery` — catalog item **33/37**.
-
-Supervisor FINAL PASS verified on remote Git:
-
-- Mercato `outbound/x-002` @ `4a89a95aad42c476ac206b53fe8ff67f3c8021a9`;
-- exact lineage from accepted X-001 base `b56515ecffba729c828f5fe9ca0ec6471edc4c43`;
-- Scanner frozen `outbound/p4-003` @ `a2759a29347285dd1dcd14bf51633431fbf2a302`;
-- evidence `05_EVIDENCE/X-002_EVIDENCE.md` at WMS_Outbound `71e8fd8c805357952fff83a0f1d7b5d915efc953`;
-- P2 regression set **99/99**, P1/P3/P4/fnd set **80/80**, full p2-004 **18/18**, typecheck clean;
-- INT-02 hardened for real overlapping source-TU finalization and has decisive PostgreSQL-side `pg_blocking_pids`/lock proof;
-- explicit Outbound -> Inbound settlement contract is exactly `sourceInboundTuId + confirmedQty + damagedQty`; `residualQty` remains internal only;
-- no GR retry ownership transfer, automatic ERP retry, generic integration bus, Scanner change, or ACC work.
-
-**Formal count remains 32/37 until explicit Owner Acceptance of X-002.** Executor COMPLETE and Supervisor FINAL PASS do not substitute for Owner Acceptance.
-
-## Exact next execution scope — raw pg SSL maintenance gate grounded/prepared, not launched
+## Active execution scope — raw pg SSL maintenance gate
 
 Mandatory non-catalog gate:
 
 `Post-X-002 raw PostgreSQL SSL maintenance gate`
 
+**Status:** grounded / Owner-authorized to execute; not yet executor-COMPLETE or Supervisor FINAL PASS.
+
 Detailed execution guide:
 
-`06_AGENT_GUIDES/POST_X002_RAW_PG_SSL_MAINTENANCE_EXECUTION.md` @ grounding commit `cf159a799ffa428decb645264492aa50413de39d`
+`06_AGENT_GUIDES/POST_X002_RAW_PG_SSL_MAINTENANCE_EXECUTION.md`
 
 Primary maintenance plan:
 
 `07_IMPLEMENTATION_PLAN/POST_X002_PRE_ACC_RAW_PG_SSL_MAINTENANCE.md`
 
-Launch prerequisite:
-
-- X-002 must have Supervisor FINAL PASS **and explicit Owner Acceptance**.
-
-Execution base after that prerequisite is satisfied:
+Execution base:
 
 - Mercato `outbound/x-002` @ `4a89a95aad42c476ac206b53fe8ff67f3c8021a9` -> `outbound/post-x002-raw-pg-ssl`;
 - Scanner remains frozen at `a2759a29347285dd1dcd14bf51633431fbf2a302`.
 
-### Grounded maintenance scope
+### Exact maintenance scope
 
 Test infrastructure only:
 
 - create one canonical test-only raw `pg.Client` observer helper/factory;
 - consume runtime Testing `DATABASE_URL`, normalize SSL parameters centrally, never expose credentials;
 - preserve existing direct/pooler routing semantics per suite;
-- migrate the four X-001-known call sites plus the fifth observer introduced by X-002:
+- migrate at least the five known final-head observer call sites:
   - `p1-011-postgres.integration.test.ts`
   - `p1-014-erp-posting-postgres.integration.test.ts`
   - `p1-015-manifest-lifecycle-postgres.integration.test.ts`
   - `p1-016-final-settlement-postgres.integration.test.ts`
   - `p2-004-crossdock-recovery-postgres.integration.test.ts`
-- search the full WMS Outbound test tree for any other equivalent raw observer construction/manual `sslmode` normalization and route equivalent cases through the helper;
-- add the smallest real Testing PostgreSQL helper connection proof;
-- rerun all migrated directly affected concurrency suites and preserve their decisive PostgreSQL-side evidence;
+- search the complete WMS Outbound test tree for equivalent raw observer construction/manual `sslmode` normalization and migrate equivalent cases or document a concrete intentional exception;
+- add the smallest real canonical Testing PostgreSQL connection proof for the helper;
+- rerun all migrated directly affected concurrency suites with their decisive PostgreSQL-side evidence preserved;
 - run Mercato typecheck;
 - write `05_EVIDENCE/POST_X002_RAW_PG_SSL_MAINTENANCE_EVIDENCE.md`.
 
-No business/product logic, application DB config, credential rotation, local PostgreSQL, Demo/Prod, Scanner, Playwright, or ACC-001 belongs in this gate.
+No product/business logic, application DB configuration, credential rotation, local PostgreSQL, Demo/Prod, Scanner, UI/Playwright, broad acceptance sweep or ACC-001 belongs in this gate.
 
-### Testing hygiene
+### Testing/session boundary
 
-This gate is explicitly **non-catalog**. The deep reset rule in `Devaxonic-WMS/.ai/OPERATIONS.md` applies before every new WMS Outbound **Task Catalog item**; do not invent an automatic deep reset requirement for this maintenance gate.
+This gate is explicitly **non-catalog**. The deep reset rule in `Devaxonic-WMS/.ai/OPERATIONS.md` applies before new WMS Outbound **Task Catalog items**, so there is no automatic deep reset before this maintenance gate.
 
-Canonical Testing only. DB-backed commands must source the canonical Testing environment in the same invocation without printing secrets.
+A **fresh Claude session is appropriate and preferred** because this is a separate maintenance work unit rather than a continuation of X-002. The Owner controls the actual executor/session/launcher. A fresh Claude session must load current `fetch_me_prompt` + `operational-mode`, current steering, `wms-outbound`, and the maintenance guide; `scanner-context` is not required unless Scanner unexpectedly becomes materially relevant.
+
+Canonical Testing only. DB-backed commands source the canonical Testing environment in the same invocation without printing secrets.
 
 ## Completion boundary
 
-Executor completion of this gate still requires independent Supervisor verification of remote refs, diff, helper implementation, post-change search, exact Testing evidence and frozen Scanner head.
+Executor COMPLETE for this maintenance gate is not Supervisor FINAL PASS. Supervisor independently verifies remote branch/head lineage, diff scope, helper implementation, pre/post static search, real Testing PostgreSQL proof, all affected concurrency suites, typecheck, maintenance evidence and frozen Scanner.
 
-After eventual Supervisor FINAL PASS for the maintenance gate, STOP. Do not start `ACC-001` without explicit Owner authorization.
+After this maintenance gate receives Supervisor FINAL PASS, STOP. Do not start `ACC-001` without explicit Owner authorization.
 
 Required sequence remains:
 

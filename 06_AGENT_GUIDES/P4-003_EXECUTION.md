@@ -1,190 +1,98 @@
-# P4-003 — RF PutBack location validation loop and Inventory recovery — Execution Guide
+# P4-003 — RF PutBack location validation loop and Inventory recovery
 
-**Task Catalog item:** 31/37  
-**Scope:** P4-003 only  
-**Status:** Owner-authorized after P4-002 reached 30/37 FINAL PASS / Owner Accepted  
-**Executor:** Owner-selected Claude Code  
+**Status:** current execution guide
+**Effective:** 2026-09-06
+**Base:** Mercato `outbound/p4-002` @ `d75dccbc7` (P4-002 accepted) → new branch `outbound/p4-003`
+**Base:** Scanner `outbound/p4-002` @ `7d13e34` (P4-002 accepted, frozen) → new branch `outbound/p4-003`
 
-## Accepted starting point — freeze and preserve
+## Scope
 
-Start from the exact accepted P4-002 lineage:
+Complete P4 STEP 4–5 (`P4 R6`–`R8`) on top of the accepted P4-002 base (`CREATED -> ASSIGNED -> IN_PROGRESS`):
 
-- Mercato `outbound/p4-002` accepted head: `d75dccbc7a43b64c2a0ed325d30a7a4b49b57eb1`
-- Scanner `outbound/p4-002` accepted head: `7d13e34fc66fe19149b43a6747b5300c2bdcf945`
-- WMS evidence/state accepted head: `0961a7fe2e08395cd1b2522e30770d62c2fb2841`
+- `FR-P4-03` — location validation before put-away (extends P4-002's task creation).
+- `FR-P4-04` — `IN_PROGRESS <-> LOCATION_VALIDATION` loop with no attempt limit / no escalation; `LOCATION_VALIDATION -> COMPLETED` recovers `Inventory PICKED -> AVAILABLE` exactly once.
+- Preserve `FR-P4-05` / P4-002 FIFO assignment and single-active-task boundary untouched.
 
-Create/continue `outbound/p4-003` from those exact accepted product heads. Do not restart from older P4-001/P3-003 bases.
+Acceptance: `TC-050`, `TC-051`, `TC-052`, `TC-100` (TC-100 already covered by P4-002; re-run as regression only).
 
-Before the first implementation action for this new item, the canonical Testing deep reset from `Devaxonic-WMS/.ai/OPERATIONS.md` must already have completed with `RESET_OK`. Do not repeat it for same-item retries/continuations.
+## Architect authority
 
-## Session bootstrap / steering
+`WMS_Outbound/01_ARCHITECT_TRANSLATIONS/2026-08-31/proces_4_physical_putback_EN.md` STEP 4–5, R6–R8. Location proposed by System WMS or indicated by operator; must pass WMS validation before put-away. Rejected location returns `LOCATION_VALIDATION -> IN_PROGRESS`, no limit, no escalation, recommendation (`proposedLocationId`, defaults to `sourceLocationId`) stays available. Valid completion: `LOCATION_VALIDATION -> COMPLETED`, `Inventory PICKED -> AVAILABLE` exactly once.
 
-Fresh Claude session:
+Do not import Inbound Putaway semantics (no `IN_PUTAWAY`, no sector `TRANSIT`, no PutawayTask ownership model). Outbound P4 ends directly in ordinary `Inventory AVAILABLE`.
 
-1. load current `fetch_me_prompt` + `operational-mode`;
-2. read current `Devaxonic-WMS/AGENTS.md`, `.ai/STATE.md`, current handover, `.ai/TESTING.md`, `.ai/OPERATIONS.md`;
-3. read current `WMS_Outbound/AGENTS.md`, `STATE.md`, current handover, this guide and `06_AGENT_GUIDES/SCANNER_ROUTING.md`;
-4. load current `wms-outbound`, `architecture-context` and `scanner-context`;
-5. read only the exact P4-003 Architect/Canon/traceability sources needed below.
+## Current state (verified in Git before this guide was written)
 
-For Claude Code Auto mode: when an otherwise-authorized Bash/shell invocation is blocked by the Auto-mode classifier/limiter, use the configured Desktop Commander MCP for the same authorized operation and continue. A Bash transport denial is not a blocker/strike by itself. Never use MCP to bypass Owner/security/environment boundaries.
+- `WmsOutboundPutBackTask` (Mercato `apps/mercato/src/modules/wms_outbound/data/entities.ts`) already has `status: OutboundPutBackTaskStatus` including `LOCATION_VALIDATION`/`COMPLETED`, and `proposedLocationId`/`sourceLocationId`. It has **no** `validatedLocationId` column yet — add it.
+- `PUT_BACK_TASK_TRANSITIONS` (`data/transitions.ts`) already declares `IN_PROGRESS -> LOCATION_VALIDATION`, `LOCATION_VALIDATION -> IN_PROGRESS`, `LOCATION_VALIDATION -> COMPLETED`. Reuse as-is; do not redefine.
+- `put-back-task-service.ts` implements `materializeTaskFromHandoff`, `reconcilePendingHandoffs`, `assignNext`, `startTask`, `getTasks`. It has **no** location-submission/completion method — add `submitLocation`.
+- Outbound never mutates `wms_inventory`'s `WmsInventoryBalance` anywhere today (verified by grep — `atp-reservation-service.ts`/`reservation-release-service.ts` only manage the Outbound-local soft `WmsOutboundAtpReservation`, which already recovered ATP at P4 STEP 2/P4-001). The **only** correct place in this codebase to perform the P4 STEP 5 physical `Inventory PICKED -> AVAILABLE` recovery is `wms_inventory`'s shared `WmsInventoryBalance`/`WmsInventoryMovement` via the existing `createInventoryAdjustmentService(...).adjustBalance(...)` (`apps/mercato/src/modules/wms_inventory/services/inventory-adjustment-service.ts`). Reuse it; do not invent a parallel ledger.
+- `adjustBalance` already enforces the reusable `STORAGE`-capability location rule (`LOCATION_NOT_STORAGE`) — reuse this exact rule as the location-validity check instead of re-implementing it.
+- Scanner `ReturnsTaskScreen.js` already renders an `IN_PROGRESS` banner reading "Staged for destination validation (P4-003)" — this is the extension point.
 
-## Authority
+## Backend design (Mercato)
 
-Business authority, in precedence order:
+1. **Migration** `apps/mercato/src/modules/wms_outbound/migrations/` — add nullable `validated_location_id uuid` to `wms_outbound_put_back_tasks`. Follow the exact style of `Migration20260906160000_wms_outbound_p4_002_putback.ts` (idempotent `if not exists` guards where applicable).
+2. **Entity** — add `validatedLocationId?: string | null` property (`@Property({ name: 'validated_location_id', type: 'uuid', nullable: true })`) to `WmsOutboundPutBackTask`.
+3. **Service** `put-back-task-service.ts`: add `submitLocation(scope, { taskId, operatorId, scannedLocation })`:
+   - Lock the task row (`PESSIMISTIC_WRITE`) by id+scope; verify ownership (`task.operatorId === operatorId`).
+   - Idempotent retry: if `task.status === 'COMPLETED'`, return `{ task, accepted: true }` without re-mutating inventory.
+   - Require current status `IN_PROGRESS` (use `validateStateTransition('PutBackTask', task.status, 'LOCATION_VALIDATION')`); persist the `IN_PROGRESS -> LOCATION_VALIDATION` audit event (`PutBackTaskLocationSubmitted`).
+   - Resolve `scannedLocation` against `WmsWarehouseLocation` scoped to `task.warehouseId`, matching `id`, `name`, or (if present) `code`, with `deletedAt: null` — mirror the exact match pattern already used in `pick-task-service.ts` (`loc.name !== input.scannedLocation && loc.code !== input.scannedLocation`).
+   - If no matching location is found: reject (see below) with reason `Location not found`.
+   - If a location is found: resolve `MasterdataItem` by `{ organizationId, tenantId, sku: task.sku, deletedAt: null }`. Not found or missing `baseUomId` is a **hard system error** (throw) — it is a data-integrity gap, not a retryable location problem; do not loop the operator on it.
+   - Call `createInventoryAdjustmentService(tx).adjustBalance(scope, { actorId: operatorId, itemId: item.id, warehouseId: task.warehouseId, locationId: location.id, lotId: null, serialId: null, quantity: task.quantity, txnUomId: item.baseUomId, reasonCode: 'P4_PHYSICAL_PUTBACK_COMPLETION' })` inside the same transaction (pass the current `tx`, not a fresh `em`).
+     - `ok: true` → **accept**: transition `LOCATION_VALIDATION -> COMPLETED` (persist `PutBackTaskCompleted` event), set `task.validatedLocationId = location.id`, `task.completedAt = now`. Return `{ task, accepted: true }`.
+     - `ok: false` with `code` in `LOCATION_NOT_FOUND` / `LOCATION_NOT_STORAGE` / `WAREHOUSE_NOT_FOUND` → **reject** (see below) with the service's own `reasons[0]`.
+     - `ok: false` with any other code (`ITEM_NOT_FOUND`, `ITEM_BASE_UOM_NOT_FOUND`, `TXN_UOM_NOT_FOUND`, `UOM_CONVERSION_NOT_FOUND`, `NEGATIVE_ON_HAND`) → hard system error (throw); these are not location problems.
+   - **Reject path** (no location, or `LOCATION_NOT_FOUND`/`LOCATION_NOT_STORAGE`/`WAREHOUSE_NOT_FOUND`): transition `LOCATION_VALIDATION -> IN_PROGRESS` (persist `PutBackTaskLocationRejected` event with the reason), leave `proposedLocationId` unchanged (keeps the standing System WMS recommendation available), perform **zero** inventory mutation. Return `{ task, accepted: false, reason }`.
+   - No attempt-count field, no automatic escalation, no attempt limit — callers may invoke `submitLocation` an unbounded number of times while `IN_PROGRESS`.
+4. **API route** `apps/mercato/src/modules/wms_outbound/api/returns/submit-location/route.ts`: same auth/operator-id pattern as `start-task`/`request-task`. Body `{ taskId: uuid, scannedLocation: string }`. On rejection return **HTTP 200** with `{ task: {...}, accepted: false, reason }` (a rejected location is a normal business outcome, not a request failure — the Scanner `request()` helper treats any non-2xx as `ok:false`/throw, which would wrongly surface a rejection as a client error). On hard system error, return the usual `400` with `{ error }`.
+5. Extend the `tasks` GET route's projection with `validatedLocationId` for Supervisor visibility (trivial, no behavior change).
+6. Do not touch `assignNext`/`startTask`/FIFO/single-active-task logic — P4-002 boundary is frozen.
 
-1. `01_ARCHITECT_TRANSLATIONS/2026-08-31/proces_4_physical_putback_EN.md` — STEP 4–5, especially P4 R6–R8; preserve R9.
-2. `01_ARCHITECT_TRANSLATIONS/2026-08-31/model_stanow_outbound_EN.md` — `PutBackTask` state/event lifecycle.
-3. `01_ARCHITECT_TRANSLATIONS/2026-08-31/wymagania_outbound_EN.md` — FR-P4-03, FR-P4-04, FR-P4-05.
-4. `01_ARCHITECT_TRANSLATIONS/2026-08-31/scenariusze_testowe_outbound_EN.md` — TC-050, TC-051, TC-052, TC-100.
-5. `03_TRACEABILITY/IMPLEMENTATION_TRACEABILITY.md` and Task Catalog delivery slice.
-6. Accepted P4-001/P4-002 implementation/evidence as current-state dependency evidence.
+## Scanner design (RF)
 
-`architecture-context` / WMS-Records is shared/reference compatibility only. Reuse accepted technical Inventory/location/ownership primitives where compatible. Do **not** import Inbound Putaway business statuses, zone/sector routing, `TRANSIT`, `TransportTask`, Putaway settlement/progress, GR/PZ or Inbound availability semantics into Outbound PutBack.
+1. `src/lib/api.js`: add `submitPutBackLocation(taskId, scannedLocation)` calling `POST /api/wms_outbound/returns/submit-location`. Do **not** throw on `accepted: false` — that is a normal rejected-location result, not a transport error; only throw on `!result.ok` (HTTP/transport failure) per the existing `request()` contract.
+2. `src/screens/ReturnsTaskScreen.js`: replace the static `IN_PROGRESS` banner with a location-scan form (mirror `PickingTaskScreen.js`'s `TextInput` + `testID="scan-location-input"` pattern):
+   - Show the recommended location (`task.proposedLocationId`/its resolved code — resolve via the existing `sourceLocationCode` pattern from `request-task`, extend `submit-location`'s/`start-task`'s response projection with a resolved `proposedLocationCode` if useful for operator UX).
+   - `TextInput testID="returns-location-input"` for the scanned/entered destination.
+   - `PrimaryButton testID="returns-submit-location-btn"` calling `submitPutBackLocation`.
+   - On `accepted: false`: show the rejection reason (`testID="returns-location-rejected"`), keep the form open, keep status `IN_PROGRESS`, let the operator retry immediately — no limit, no lockout.
+   - On `accepted: true` (`task.status === 'COMPLETED'`): show a completion confirmation (`testID="returns-completed-banner"`) with the validated location and confirm `Inventory` recovered to `AVAILABLE`; do not auto-navigate away (Supervisor/operator can start the next return manually via the existing `load()`/request-next flow).
+3. Preserve the existing `ASSIGNED -> start` flow untouched.
 
-## Objective
+## Tests (decisive, both repos)
 
-Complete the accepted P4 physical put-back flow from an already-assigned/started `PutBackTask IN_PROGRESS`:
+### Mercato — `apps/mercato/src/modules/wms_outbound/services/__tests__/p4-003-postgres.integration.test.ts`
 
-`IN_PROGRESS -> LOCATION_VALIDATION -> COMPLETED`
+Reuse the exact fixture helper pattern from `p4-002-postgres.integration.test.ts` (`createPostPickFixture`, `WmsOutboundPhysicalReturnHandoff` → `materializeTaskFromHandoff` → `assignNext` → `startTask` to reach `IN_PROGRESS`), extended with:
+- a real `WmsWarehouseLocation` row with `STORAGE` capability for the valid destination (fixtures today only use bare `randomUUID()` for `sourceLocationId` — that is **not sufficient** for `submitLocation`, which needs a real, resolvable location row);
+- a `MasterdataItem` row for the task's `sku` with `baseUomId` set to a fixed random UUID (no `WmsInventoryUomConversion` row is needed as long as `txnUomId === item.baseUomId`, which the service guarantees — verify `uom-conversion-service.ts`'s same-UOM fast path if extending this).
 
-with rejection loop:
+REAL POSTGRESQL INTEGRATION decisive cases (`.ai/TESTING.md` evidence classes):
+1. Rejected location (non-existent id/name) → task returns to `IN_PROGRESS`, zero `WmsInventoryBalance`/`WmsInventoryMovement` rows created, zero `PutBackTask.completedAt`.
+2. Rejected location (existing location but missing `STORAGE` capability) → same zero-movement assertion.
+3. Unlimited retry: 2+ consecutive rejections on the same task, then a valid location → completes; assert no attempt-count ceiling exists in code (loop N>2 times in the test itself, e.g. 5 rejections, to demonstrate no limit).
+4. Valid location → `PutBackTask COMPLETED`, `validatedLocationId` set, `completedAt` set, exactly one `WmsInventoryMovement` row (`disposition = ADJUSTMENT_IN`, `quantity == task.quantity`), `WmsInventoryBalance.onHandQuantity`/`availableQuantity` incremented by exactly `task.quantity` at the validated location (create the balance row if absent, verify delta if a pre-existing balance row exists at that location).
+5. Idempotent re-submission after `COMPLETED` (retry/duplicate client call) → no second `WmsInventoryMovement`, no double-counted balance, returns `accepted: true` (exactly-once, `.ai/TESTING.md` §5 rollback/idempotency discipline).
+6. Real concurrency: two independent overlapping `submitLocation` calls against the **same** `IN_PROGRESS` task racing to submit two different (both valid) locations — PostgreSQL row lock on the task must serialize them; assert exactly one `WmsInventoryMovement`/one balance increment total (not two), with real backend PID/lock evidence per `.ai/TESTING.md` §5.
+7. Regression: P4-002's FIFO/single-active-task/assignment tests continue to PASS unmodified (do not edit `p4-002-postgres.integration.test.ts`; just rerun it).
 
-`LOCATION_VALIDATION -> IN_PROGRESS`
+### Scanner — Jest component test for `ReturnsTaskScreen.js` location-submit UI states (reject → retry → accept), following the existing component test conventions for other RF screens in this repo.
 
-and only after valid physical completion perform the exact recovery:
+### Playwright (Scanner) — extend/add to the existing P4-002 rendered acceptance suite (`test(p4-002): add rendered Playwright acceptance suite for Returns/PutBack module`): drive the real RF UI through `IN_PROGRESS` → scan an invalid location → observe rejection banner, stay `IN_PROGRESS` → scan a valid location → observe `COMPLETED`. Zero route mocks, real backend, real DB assertions for the persisted `PutBackTask.status`/`validatedLocationId` and the `WmsInventoryBalance` delta (`TC-052` loop, `TC-051`/`TC-050` happy path). This satisfies `PLAYWRIGHT VERIFIED` per `.ai/TESTING.md` §6, not `HUMAN VERIFIED`.
 
-`Inventory PICKED -> AVAILABLE`.
+## Definition of Done
 
-Scanner must support the real RF flow: system proposal remains available, operator may indicate/scan a destination, invalid destinations are rejected without completion, and the operator may retry indefinitely until a valid destination succeeds.
+- Invalid destination never completes the task and never moves stock (zero balance/movement writes).
+- Valid completion recovers exactly `task.quantity` once, moves `PutBackTask` to `COMPLETED`.
+- No attempt limit, no automatic escalation anywhere in the implementation.
+- P4-002 FIFO/ownership/regression suite still green, unmodified.
+- Real PostgreSQL integration evidence (concurrency + rollback/idempotency per `.ai/TESTING.md`), rendered Playwright evidence for `TC-050`/`TC-051`/`TC-052`, `TC-100` regression.
+- Mercato generate/typecheck/build green; Scanner build/tests green.
+- Push both repos on `outbound/p4-003`; update `Devaxonic-WMS/.ai/STATE.md`, `WMS_Outbound/STATE.md` and current handovers only after independent supervisor verification and explicit Owner acceptance — do not self-declare acceptance.
 
-## Core invariants
+## Escalation boundary
 
-### 1. Server-authoritative location validation
-
-- proposed/operator-indicated destination must be validated server-side;
-- Scanner local checks are advisory only;
-- validation must respect current warehouse/location authority and warehouse isolation;
-- do not invent a new Outbound zone-selection step;
-- do not invent optimization/slotting rules that Architect does not specify;
-- use the smallest accepted location eligibility mechanism already present in shared WMS foundations.
-
-### 2. Canonical retry loop
-
-- location submission moves `IN_PROGRESS -> LOCATION_VALIDATION`;
-- invalid destination moves `LOCATION_VALIDATION -> IN_PROGRESS`;
-- invalid attempts cause zero Inventory movement and zero task completion;
-- there is no attempt limit and no automatic escalation;
-- system recommendation remains available after rejection;
-- retries are idempotent and must not accumulate duplicate business effects.
-
-### 3. Valid completion is atomic and exactly once
-
-On valid physical put-away, in one server-authoritative transaction:
-
-- validate current task ownership/status/warehouse;
-- settle `LOCATION_VALIDATION -> COMPLETED`;
-- recover exactly the task/handoff quantity from `PICKED` to ordinary `AVAILABLE` at the validated destination;
-- persist the accepted Inventory ledger/balance effects exactly once;
-- resolve/clear the P4-001 unresolved physical-return protection only with successful completion;
-- release the accepted shared active-task ownership/lock for the completed task;
-- emit/audit the canonical transition facts.
-
-A timeout/retry/concurrent duplicate completion must never add stock twice, complete twice, create duplicate movement, or resolve protection twice.
-
-### 4. Preserve accepted P4-001/P4-002 semantics
-
-Before valid completion:
-
-- the P4-001 handoff remains unresolved/protecting stock;
-- recovered quantity is not ATP/AVAILABLE;
-- task remains owned by the assigned operator;
-- no other operator may complete/start/redirect it through stale or forged calls.
-
-Preserve P4-002 strict FIFO/no-zone/no-priority assignment and shared active-task guard. P4-003 must not redesign assignment.
-
-### 5. Exact quantity/correlation
-
-Inventory recovery uses the authoritative accepted PutBackTask/handoff correlation and exact recovery quantity. Never recompute recovery from current ATP, mutable order quantity, UI input, or a fresh availability calculation.
-
-Preserve warehouse, cancelled line, SKU, TU/source and handoff correlation needed for audit.
-
-## Expected product surfaces
-
-### Mercato/backend
-
-- location validation/completion service on the existing PutBackTask foundation;
-- exact Inventory ledger/balance mutation through accepted shared Inventory primitives;
-- P4-001 handoff protection resolution on successful completion only;
-- lifecycle/audit/event persistence;
-- API endpoints/actions for submit/validate/retry/complete as the current architecture requires;
-- Supervisor read-only completion/location observability only where existing P4-002 view naturally extends.
-
-### Scanner
-
-- continue the accepted Returns module from `IN_PROGRESS`;
-- show system-proposed destination when available;
-- allow operator destination scan/indication;
-- invalid result is clear and returns to retry state;
-- repeated invalid -> invalid -> valid flow works without zone selection or escalation;
-- valid result visibly completes task;
-- human-operational identifiers only; do not expose raw UUID instructions as workflow.
-
-## Required real PostgreSQL acceptance
-
-Canonical Testing PostgreSQL only. No local PostgreSQL.
-
-At minimum prove:
-
-1. valid proposed destination submits `IN_PROGRESS -> LOCATION_VALIDATION` and completes successfully;
-2. valid operator-indicated destination completes successfully;
-3. invalid destination returns `LOCATION_VALIDATION -> IN_PROGRESS` with zero Inventory mutation;
-4. multiple consecutive invalid attempts remain retryable with no limit/escalation and no accumulated business mutation;
-5. system recommendation remains available after rejection;
-6. wrong operator/stale task/foreign warehouse submission is rejected with zero mutation;
-7. valid completion moves exact quantity `PICKED -> AVAILABLE` at the validated destination;
-8. Inventory ledger/balance effect is exactly once under request replay;
-9. genuine concurrent duplicate completion yields one business winner/effect, with real overlapping PostgreSQL transactions/connections and decisive DB-side serialization/uniqueness evidence tied to actual participants;
-10. completed task cannot be completed again or moved regressively;
-11. P4-001 unresolved handoff protection remains before completion and is resolved only after successful completion;
-12. shared active-task ownership/lock is released only on successful terminal completion;
-13. rollback proof: after task/inventory/protection write+flush, deterministic failure before commit leaves all task, Inventory, handoff-protection and lock state unchanged on a fresh independent read;
-14. warehouse isolation and exact SKU/TU/source/quantity correlation are preserved;
-15. no Inbound Putaway/TransportTask/GR semantics or movements are created.
-
-If stronger tests expose a real product defect, fix it within P4-003 and rerun the smallest invalidated proof.
-
-## Mandatory regressions
-
-At minimum:
-
-- P4-002 dedicated PostgreSQL suite and its real concurrency proof;
-- P4-001 dedicated cancellation/logical-settlement suite;
-- P3-003 race regression because its P4 handoff boundary must remain frozen;
-- touched shared Inventory/ledger regressions;
-- FND-003/shared task-lock/warehouse-context regressions when those primitives are touched;
-- accepted Inbound Inventory/location regressions for every shared primitive actually changed;
-- Scanner P4-002 Returns assignment/start acceptance path if Scanner shared flow changes.
-
-Preserve already-green evidence unless a product diff invalidates it.
-
-## Build/runtime/UI acceptance
-
-Run native typecheck/build/export checks for every changed product repo. Rebuild/restart canonical Testing runtime from exact candidate revisions.
-
-Rendered acceptance must use normal Scanner/Mercato UI with zero route/API mocks and real PostgreSQL fixtures:
-
-- **Journey A — valid location:** enter Returns module, obtain/start genuine task, use proposed or scanned valid destination, complete, then verify task COMPLETED and exact Inventory AVAILABLE.
-- **Journey B — invalid -> invalid -> valid:** two rejected destinations visibly return to retry with no escalation/no stock movement; third valid destination completes once.
-- **Journey C — stale/wrong owner:** normal UI/session cannot mutate another operator's task; DB stays unchanged.
-- **Journey D — Supervisor visibility:** Mercato read-only view reflects completed task/destination/correlation without introducing reassignment/prioritization authority.
-
-TC-050/051/052/100 must remain traceable in evidence. Human-facing acceptance is PLAYWRIGHT VERIFIED, not Human Verified/Owner Accepted.
-
-## Completion contract
-
-Finish the entire authorized item end-to-end: implementation -> self-repair -> real tests -> required regressions -> build/runtime -> rendered UI -> evidence -> pushes.
-
-Write `05_EVIDENCE/P4-003_EVIDENCE.md` with exact repo SHAs, authority mapping, test commands/results, real concurrency/rollback proof, runtime revisions and rendered acceptance.
-
-Executor returns COMPLETE only when all guide requirements are satisfied and pushed. Executor must not mark FINAL PASS / Owner Accepted and must not start any later Task Catalog item.
+Two-strikes applies only to the same material blocked path (e.g., a specific PostgreSQL concurrency assertion that fails twice for different root causes attempted). Ordinary fixture/build/typecheck/lint failures are self-repaired in place per `AGENTS.md`/`.ai/OPERATIONS.md`. Do not expand scope into P4-002's FIFO logic, Inbound Putaway semantics, or any wms_inventory manual-adjustment UI.

@@ -2,108 +2,56 @@
 
 **As of:** 2026-09-07  
 **Campaign:** WMS Outbound v1  
-**Architecture:** implementation-ready; no unresolved product/architecture blocker recorded  
-**Current phase:** acceptance batch prepared  
-**Formal implementation progress:** **33/37 items FINAL PASS / Owner Accepted**
+**Formal implementation progress:** **33/37 Owner Accepted**
 
-## Architect baseline
+Inbound remains **CLOSED / REFERENCE**. Architect baseline and 109/109 requirement map remain unchanged.
 
-- P1 `STANDARD_FULFILLMENT` v1.20
-- P2 `OUTBOUND_CROSSDOCK` v1.13
-- P3 `RESERVATION_RELEASE` v1.2
-- P4 `PHYSICAL_PUTBACK` v1.2
-- state model v1.19
-- requirements: **109 IDs = 98 FR + 6 INT + 5 CON**
+## Accepted baseline
 
-Inbound remains **CLOSED / REFERENCE**. `PickWave` is out of scope v1. No separate Process 5 exists.
+- X-002 — item 33/37 — **Supervisor FINAL PASS / Owner Accepted**.
+- Post-X-002 raw PostgreSQL SSL maintenance — **Supervisor FINAL PASS / Owner Accepted**.
+- Accepted Mercato maintenance base: `outbound/post-x002-raw-pg-ssl` @ `cfdbc608b22fc1dd44646c309335d2071aafd32c`.
+- Accepted Scanner base before acceptance batch: `outbound/p4-003` @ `a2759a29347285dd1dcd14bf51633431fbf2a302`.
 
-## Latest catalog checkpoint
+## ACC-001..003 batch — current Supervisor review state
 
-`X-002 — Integration correlation, observability and operational recovery` — item **33/37** — **Supervisor FINAL PASS / Owner Accepted**.
+Owner authorized the one-time batch `ACC-001 -> ACC-002 -> ACC-003 -> STOP`.
 
-- Mercato X-002: `outbound/x-002` @ `4a89a95aad42c476ac206b53fe8ff67f3c8021a9`.
-- Scanner accepted/frozen base: `outbound/p4-003` @ `a2759a29347285dd1dcd14bf51633431fbf2a302`.
+Current cumulative product heads:
 
-## Accepted non-catalog maintenance baseline
+- Mercato `outbound/acc-001-003-batch` @ `bc80c989eea2f6b468530a9bd6cd814c8dc35646`.
+- Scanner `outbound/acc-001-003-batch` @ `f9a98dd8a03078dd9a0e45667927861ab6f79f7b`.
 
-`Post-X-002 raw PostgreSQL SSL maintenance gate` — **Supervisor FINAL PASS / Owner Accepted** on 2026-09-07.
+### ACC-001 — item 34/37
 
-Accepted Mercato maintenance head:
+**Supervisor FINAL PASS. Owner Acceptance still pending.**
 
-`outbound/post-x002-raw-pg-ssl` @ `cfdbc608b22fc1dd44646c309335d2071aafd32c`.
+Verified checkpoint: Mercato `7480f1d707be88ac70ccd2c8ef04b3a56eda760e`, Scanner unchanged at accepted base. Evidence: `05_EVIDENCE/ACC-001_EVIDENCE.md`.
 
-Durable evidence:
+### ACC-002 — item 35/37
 
-`05_EVIDENCE/POST_X002_RAW_PG_SSL_MAINTENANCE_EVIDENCE.md` at WMS_Outbound `31cc794d40c9f95ea8c81b7b32db5eee7ce515cf`.
+**Supervisor BLOCKED — corrective continuation active.**
 
-Accepted maintenance outcome:
+Executor evidence proved journeys 2–14 broadly green, but Journey 1 / `TC-001 Standard full fulfillment end to end` was represented only as a composite of separate stage tests. Discovery confirmed no literal continuous Playwright test exists carrying one Standard Fulfillment order through the whole chain.
 
-- one canonical test-only raw `pg.Client` observer helper;
-- all equivalent Outbound raw-client observer call sites migrated/justified;
-- P1-009 stale idempotent-replay response defect corrected with authoritative refreshed reads;
-- maintenance affected PostgreSQL suites **263/263 PASS**;
-- Mercato typecheck clean;
-- Scanner unchanged at `a2759a29347285dd1dcd14bf51633431fbf2a302`.
+Active corrective guide:
 
-This gate is non-catalog and does not change the 37-item count.
+`06_AGENT_GUIDES/ACC-002_TC001_LITERAL_E2E_CORRECTION.md`
 
-## Current authorized execution scope — ACC-001..ACC-003 batch
+Fixed Supervisor design decision: implement one Mercato-repository Playwright orchestrator spec controlling both canonical Mercato and Scanner UIs in one test process, preserving one continuous order + warehouse identity through final settlement. No new generic cross-repo framework.
 
-The Owner explicitly authorized a **one-time batch exception** for the next three standard Task Catalog items in one fresh executor session:
+This is a continuation inside ACC-002, not a new catalog item; no extra mandatory deep reset is invented solely for this correction.
 
-`ACC-001 -> ACC-002 -> ACC-003 -> STOP`
+### ACC-003 — item 36/37
 
-Detailed guide:
+Executor evidence is green (Mercato 7/7, Scanner 14/14; 21/21 decisive Playwright coverage), with test-only Scanner diff. **Supervisor FINAL PASS is held until ACC-002 is corrected and reverified.** Evidence: `05_EVIDENCE/ACC-003_EVIDENCE.md`.
 
-`06_AGENT_GUIDES/ACC-001_003_BATCH_EXECUTION.md`
+## Current execution boundary
 
-**Status:** grounded / prepared / Owner-authorized; **not launched yet**.
+Continue the same authorized executor session only against `ACC-002_TC001_LITERAL_E2E_CORRECTION.md`.
 
-The three items remain separate acceptance units. Each requires:
+Preserve ACC-001 and ACC-003 checkpoints unless the correction materially changes product behavior. If product behavior changes, rerun the impacted evidence before claiming completion.
 
-- its own canonical deep Testing reset (`RESET_OK`) before the phase;
-- its own exact product checkpoint SHA(s);
-- its own evidence file;
-- a fully green internal gate before moving to the next phase.
+Do not start `ACC-004`.
 
-No Supervisor round-trip is required between the three phases for this one authorized batch. A true blocker stops the whole batch; later phases must not be skipped into.
-
-Accepted product bases for the batch:
-
-- Mercato `cfdbc608b22fc1dd44646c309335d2071aafd32c`;
-- Scanner `a2759a29347285dd1dcd14bf51633431fbf2a302`.
-
-Cumulative batch branch convention:
-
-- Mercato `outbound/acc-001-003-batch`;
-- Scanner `outbound/acc-001-003-batch` only if Scanner changes are required.
-
-Expected evidence:
-
-- `05_EVIDENCE/ACC-001_EVIDENCE.md`
-- `05_EVIDENCE/ACC-002_EVIDENCE.md`
-- `05_EVIDENCE/ACC-003_EVIDENCE.md`
-
-`ACC-004` is explicitly excluded from this batch.
-
-## Batch acceptance boundaries
-
-- `ACC-001`: 109/109 automated requirement coverage, zero orphans, all required automated suites/migrations/shared regressions green.
-- `ACC-002`: normal rendered UI Playwright Standard Fulfillment + P1 exception journeys; automation is `PLAYWRIGHT VERIFIED`, never `HUMAN VERIFIED`.
-- `ACC-003`: normal rendered UI Playwright Crossdock/P3/P4 journeys with authoritative persisted reconciliation; preserve accepted Inbound/GR ownership and INT/CON boundaries.
-
-Executor `COMPLETE` != Supervisor FINAL PASS != Owner Acceptance. Formal progress remains **33/37** until the batch is independently verified and the Owner explicitly accepts the catalog items.
-
-## Durable operating rules
-
-- Owner controls executor/venue/launcher/session mechanics.
-- Current Git steering wins over stale chat/session/history.
-- Canonical Testing only; no local PostgreSQL; Testing credentials frozen.
-- Mandatory deep reset applies before each new Task Catalog item, including all three phases of this batch.
-- Demo/Prod require separate Owner authorization.
-- `architecture-context` is shared/Inbound reference only; Outbound Architect/Canon remains business authority.
-- `ACC-004` starts only after ACC-002 and ACC-003 are independently verified/accepted and the Owner explicitly authorizes it.
-
-Current authoritative handover:
-
-`08_HANDOVER/HANDOVER_CURRENT_2026-09-06.md`
+Executor COMPLETE != Supervisor FINAL PASS != Owner Acceptance. Formal Owner-Accepted progress remains **33/37** until explicit Owner acceptance.

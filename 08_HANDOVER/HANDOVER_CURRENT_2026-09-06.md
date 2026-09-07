@@ -2,99 +2,60 @@
 
 **Updated:** 2026-09-07 Europe/Warsaw  
 **Project:** WMS Outbound v1  
-**Authoritative repository:** `pastor77777/WMS_Outbound`
+**Formal Owner-Accepted progress:** **33/37**
 
-## Current checkpoint
+## Accepted baseline
 
-Plan: **37 items**, **109/109 Architect requirements mapped**.  
-Formal progress: **33/37 FINAL PASS / Owner Accepted**.
+- X-002 — item 33/37 — **Supervisor FINAL PASS / Owner Accepted**.
+- Raw PostgreSQL SSL maintenance — **Supervisor FINAL PASS / Owner Accepted**.
+- Accepted Mercato maintenance base `cfdbc608b22fc1dd44646c309335d2071aafd32c`.
+- Accepted Scanner pre-batch base `a2759a29347285dd1dcd14bf51633431fbf2a302`.
 
-Latest catalog checkpoint:
+## Batch review state
 
-- `X-002` — item 33/37 — **Supervisor FINAL PASS / Owner Accepted**.
-- Mercato X-002 `4a89a95aad42c476ac206b53fe8ff67f3c8021a9`.
-- Scanner accepted base `a2759a29347285dd1dcd14bf51633431fbf2a302`.
+Current cumulative heads:
 
-## Accepted maintenance baseline
-
-The mandatory post-X-002 raw PostgreSQL SSL maintenance gate is now **Supervisor FINAL PASS / Owner Accepted**.
-
-Accepted Mercato baseline for acceptance work:
-
-`outbound/post-x002-raw-pg-ssl` @ `cfdbc608b22fc1dd44646c309335d2071aafd32c`.
-
-Evidence:
-
-`05_EVIDENCE/POST_X002_RAW_PG_SSL_MAINTENANCE_EVIDENCE.md` at WMS_Outbound `31cc794d40c9f95ea8c81b7b32db5eee7ce515cf`.
-
-Verified final maintenance result: affected PostgreSQL suites **263/263 PASS**, typecheck clean, Scanner unchanged. The discovered P1-009 idempotent-replay stale-read defect was corrected by authoritative refreshed reads; no business rule/API/schema change.
-
-## Active authorization — ACC-001..ACC-003 batch
-
-Owner authorized one fresh executor session for:
-
-`ACC-001 -> ACC-002 -> ACC-003 -> STOP`
-
-Detailed guide:
-
-`06_AGENT_GUIDES/ACC-001_003_BATCH_EXECUTION.md`
-
-**Status:** prepared / Owner-authorized / not launched yet.
-
-This is a one-time exception to the normal Supervisor round-trip between catalog items. It does **not** merge the three items or waive their gates.
-
-Each phase must have:
-
-- canonical deep Testing reset with `RESET_OK` before starting;
-- separate checkpoint SHA(s);
-- separate durable evidence;
-- full internal green completion before the next phase begins.
-
-Evidence files:
-
-- `05_EVIDENCE/ACC-001_EVIDENCE.md`
-- `05_EVIDENCE/ACC-002_EVIDENCE.md`
-- `05_EVIDENCE/ACC-003_EVIDENCE.md`
-
-Accepted batch bases:
-
-- Mercato `cfdbc608b22fc1dd44646c309335d2071aafd32c`;
-- Scanner `a2759a29347285dd1dcd14bf51633431fbf2a302`.
-
-Cumulative branch convention:
-
-- Mercato `outbound/acc-001-003-batch`;
-- Scanner same branch only if Scanner changes are required.
-
-## Phase gates
+- Mercato `outbound/acc-001-003-batch` @ `bc80c989eea2f6b468530a9bd6cd814c8dc35646`.
+- Scanner `outbound/acc-001-003-batch` @ `f9a98dd8a03078dd9a0e45667927861ab6f79f7b`.
 
 ### ACC-001
 
-109/109 requirement-to-test automated coverage, zero orphans, all required automated suites/migration checks/shared regressions green.
+**Supervisor FINAL PASS; Owner Acceptance pending.**
+
+Checkpoint Mercato `7480f1d707be88ac70ccd2c8ef04b3a56eda760e`. Evidence: `05_EVIDENCE/ACC-001_EVIDENCE.md`.
 
 ### ACC-002
 
-Playwright journeys for Standard Fulfillment + P1 exceptions through normal rendered Mercato/Scanner UI. Fixture APIs/DB may prepare data but cannot replace decisive user actions. Record visible + persisted outcomes. `PLAYWRIGHT VERIFIED`, never `HUMAN VERIFIED`.
+**Supervisor BLOCKED pending one corrective continuation.**
+
+Journey 1 / `TC-001 Standard full fulfillment end to end` is not proven by one continuous run. Existing evidence stitched separate P1 stage tests with independent fixtures. Executor discovery confirmed no literal full-span Standard Fulfillment spec exists.
+
+Current corrective guide:
+
+`06_AGENT_GUIDES/ACC-002_TC001_LITERAL_E2E_CORRECTION.md`
+
+Supervisor-fixed implementation design:
+
+- add one Mercato-side Playwright orchestrator spec;
+- control both canonical Mercato and Scanner UI from the same Playwright test process;
+- preserve one continuous order + warehouse identity from intake through final settlement;
+- allow legitimate actor/role handoffs, but record each explicitly;
+- no reseeding of later business stages;
+- no new generic cross-repo orchestration framework;
+- update ACC-002 evidence with the Evidence Standard fields for journeys 1–14.
+
+This is a continuation inside ACC-002, not a new Task Catalog item. Do not invent another mandatory deep reset solely for this correction.
 
 ### ACC-003
 
-Playwright Crossdock + Reservation Release + Physical Putback through normal rendered UI, including 1:1/n:n, shortage/damage/empty TU, GR re-evaluation, cancellation recovery and invalid-location loop. Preserve accepted Inbound/GR ownership and INT/CON boundaries.
+Executor evidence is green: Mercato 7/7 + Scanner 14/14, 21/21 decisive Playwright checks, test-only Scanner diff. **Supervisor FINAL PASS is held until ACC-002 is corrected/reverified.**
 
-A true blocker in any phase stops the whole batch. Do not skip forward.
+## Current executor instruction
 
-## Final stop boundary
+Stay in the same authorized executor session, sync WMS_Outbound steering, execute only:
 
-After ACC-003 executor COMPLETE, STOP for independent Supervisor verification of all three phase checkpoints.
+`06_AGENT_GUIDES/ACC-002_TC001_LITERAL_E2E_CORRECTION.md`
 
-Do **not** start `ACC-004`. It remains the separate final Human Verified item and requires explicit Owner authorization later.
+Preserve existing ACC-001/003 checkpoints unless the correction materially changes product behavior. STOP after correction COMPLETE for Supervisor verification.
 
-Formal progress remains **33/37** until Supervisor verification and explicit Owner acceptance.
-
-## Durable rules
-
-- Executor `COMPLETE` != Supervisor FINAL PASS != Owner Acceptance.
-- Owner controls executor/venue/launcher/session mechanics.
-- Current Git steering overrides stale chat/session/history.
-- Canonical Testing only; no local PostgreSQL; Testing credentials frozen.
-- Inbound remains CLOSED / REFERENCE.
-- Demo/Prod require explicit Owner authorization.
+Do not start ACC-004.
